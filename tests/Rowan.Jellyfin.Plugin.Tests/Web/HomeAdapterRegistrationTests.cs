@@ -43,6 +43,23 @@ public sealed class HomeAdapterRegistrationTests
         Assert.Equal(1, RemovalProbe.Count);
     }
 
+    [Theory]
+    [InlineData(false, false, false, false)]
+    [InlineData(true, false, false, false)]
+    [InlineData(true, true, false, true)]
+    [InlineData(true, false, true, true)]
+    public void IndexEligibilityAllowsIndependentHero(bool home, bool discovery, bool trustedHero, bool expected)
+    {
+        var config = new Rowan.Jellyfin.Plugin.Configuration.PluginConfiguration {
+            HomeEnabled = home, DiscoveryPageEnabled = discovery,
+            HeroTrustedFilesystemEnabled = trustedHero,
+            HeroLibraryIds = [Guid.NewGuid()]
+        };
+        Assert.Equal(expected, HomeAdapterRegistration.ShouldInject(config));
+        config.HeroLibraryIds = [];
+        Assert.Equal(home && discovery, HomeAdapterRegistration.ShouldInject(config));
+    }
+
     [Fact]
     public void UnknownIndexIsUnchanged()
     {

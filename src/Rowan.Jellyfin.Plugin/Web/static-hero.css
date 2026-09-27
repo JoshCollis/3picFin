@@ -14,6 +14,7 @@
 .rowan-static-hero>.rowan-hero-previous::after{transform:rotate(225deg)}
 .rowan-static-hero>span:not(.rowan-hero-progress),.rowan-static-hero nav{margin-left:clamp(1rem,3vw,3rem);margin-right:clamp(1rem,3vw,3rem)}
 .rowan-static-hero>span:not(.rowan-hero-progress){font-size:.85rem;opacity:.8}
+.rowan-static-hero [hidden]{display:none!important}
 .rowan-static-hero .rowan-hero-pagination{display:flex;flex-wrap:nowrap;gap:0;align-items:center;max-width:calc(100% - 2rem);margin-top:1rem;overflow-x:auto;scrollbar-width:none}.rowan-static-hero .rowan-hero-pagination::-webkit-scrollbar{display:none}
 .rowan-static-hero .rowan-hero-dot{position:relative;flex:0 0 44px;width:44px;height:44px;min-height:44px;margin:0;padding:0;border:0;background:transparent}
 .rowan-static-hero .rowan-hero-dot::after{content:"";position:absolute;left:12px;right:12px;top:19px;height:5px;border-radius:4px;background:#fff8}

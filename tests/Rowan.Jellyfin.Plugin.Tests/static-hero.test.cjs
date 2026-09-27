@@ -15,6 +15,37 @@ class Element {
     dispatch(event, props = {}) { this.handlers[event]?.({ preventDefault() {}, ...props }); }
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
+test('host-prefetched slides do not cause a second hero query and use host navigation', async () => {
+    const root = new Element('div'), calls = [];
+    const context = { document: { createElement: tag => new Element(tag) }, setInterval: () => 1, clearInterval() {} };
+    vm.runInNewContext(source(), context);
+    const id = '11111111-1111-1111-1111-111111111111';
+    const api = { getUrl: route => route, getJSON: () => { throw Error('duplicate hero read'); },
+        getCurrentUserId: () => 'user', accessToken: () => 'token', fetch: async () => ({ok:false}) };
+    const cleanup = context.RowanStaticHero.mount(root, api, { slides: [{Id:id, Name:'Featured', ImageType:'Backdrop', ImageIndex:0, ImageTag:'a1'}],
+        openItem: value => calls.push(value) });
+    await tick();
+    assert.equal(root.children[0].children[1].textContent, 'Featured');
+    root.children[0].children[8].dispatch('click');
+    assert.deepEqual(calls, [id]);
+    cleanup();
+});
+
+test('one featured title leaves no inactive carousel controls', async () => {
+    const root = new Element('div');
+    const context = { document: { createElement: tag => new Element(tag) }, setInterval: () => 1, clearInterval() {} };
+    vm.runInNewContext(source(), context);
+    const api = { getUrl: route => route, getCurrentUserId: () => 'user', accessToken: () => 'token',
+        getJSON: async () => [{Id:'11111111-1111-1111-1111-111111111111', Name:'Only title', ImageType:'Backdrop', ImageIndex:0, ImageTag:'a1'}],
+        fetch: async () => ({ok:false}) };
+    const cleanup = context.RowanStaticHero.mount(root, api);
+    await tick();
+    const panel = root.children[0];
+    for (const index of [3, 4, 5, 6, 7]) assert.equal(panel.children[index].hidden, true);
+    assert.equal(panel.children[8].textContent, 'Open');
+    cleanup();
+});
+
 test('does not request upstream image routes that allow anonymous access', async () => {
     const id = '11111111-1111-1111-1111-111111111111', calls = [], revoked = [];
     const root = new Element('div');

@@ -108,6 +108,8 @@ test('fragment remains host-owned and Calendar is a keyboard accessible nested v
     assert.doesNotMatch(fragment, /<(script|link|main)\b/i);
     assert.match(fragment, /id="threepic-fin-calendar-tab"[^>]*aria-controls="threepic-fin-calendar-panel"/);
     assert.match(fragment, /id="threepic-fin-calendar-panel"[^>]*hidden/);
+    assert.match(fragment, /<section aria-label="More to discover"><h3>More to discover<\/h3>/);
+    assert.doesNotMatch(fragment, /<h3>Recommendations<\/h3>/);
     assert.match(css, /prefers-reduced-motion/);
     assert.match(css, /min-height:\s*44px/);
     assert.match(css, /:focus-visible/);

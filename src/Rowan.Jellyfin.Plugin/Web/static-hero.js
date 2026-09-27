@@ -1,7 +1,7 @@
 /* Isolated Home hero: host owns mounting and teardown; never modifies HSS sections. */
 var RowanStaticHero = (() => {
     const guid = /^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
-    function mount(root, api) {
+    function mount(root, api, options = {}) {
         let disposed = false, slides = [], index = 0, imageGeneration = 0, imageUrl = null, imageRequest = null, elapsed = 0;
         const clock = () => typeof performance !== 'undefined' ? performance.now() : Date.now();
         let lastTick = clock(), hovering = false, focused = false;
@@ -59,6 +59,7 @@ var RowanStaticHero = (() => {
                     - (pagination.clientWidth - activeDot.clientWidth) / 2);
             }
             previous.disabled = next.disabled = slides.length < 2;
+            for (const control of [previous, next, counter, pagination, progress]) control.hidden = slides.length < 2;
         }
         function clearImage() {
             imageRequest?.abort();
@@ -106,11 +107,12 @@ var RowanStaticHero = (() => {
         }
         previous.addEventListener('click', back);
         next.addEventListener('click', forward);
+        const openItem = options.openItem ?? api.openItem;
         function onOpen() {
-            if (sameSession() && slides[index] && typeof api.openItem === 'function') api.openItem(slides[index].id);
+            if (sameSession() && slides[index] && typeof openItem === 'function') openItem(slides[index].id);
         }
         open.addEventListener('click', onOpen);
-        open.hidden = typeof api.openItem !== 'function';
+        open.hidden = typeof openItem !== 'function';
         panel.addEventListener('keydown', onKey);
         panel.addEventListener('touchstart', onTouchStart, { passive: true });
         panel.addEventListener('touchend', onTouchEnd, { passive: true });
@@ -169,8 +171,8 @@ var RowanStaticHero = (() => {
             root.replaceChildren();
         }
         if (!sameSession()) { cleanup(); return cleanup; }
-        const url = api.getUrl('Rowan/Home/Hero');
-        api.getJSON(url).then(items => {
+        const initial = Array.isArray(options.slides) ? Promise.resolve(options.slides) : api.getJSON(api.getUrl('Rowan/Home/Hero'));
+        initial.then(items => {
             if (!sameSession()) { cleanup(); return; }
             slides = (Array.isArray(items) ? items : []).map(item => item && ({
                 id: item.Id ?? item.id, name: item.Name ?? item.name,

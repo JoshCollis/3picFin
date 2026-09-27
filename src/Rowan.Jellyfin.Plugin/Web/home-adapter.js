@@ -37,7 +37,8 @@
                 }
                 host = loaded;
                 const mounted = await loaded.mount({ pane: state.pane, favorites: state.favorites,
-                    apiClient: state.apiClient, fingerprint: bundleHash, userId: state.userId, enabled: true });
+                    apiClient: state.apiClient, fingerprint: bundleHash, userId: state.userId,
+                    enabled: true, heroEnabled: true });
                 if (!mounted || ticket !== generation || disposed) {
                     loaded.dispose(); if (host === loaded) { host = null; identity = null; }
                 }

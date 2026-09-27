@@ -11,6 +11,8 @@ using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json.Linq;
+using Rowan.Jellyfin.Plugin.Configuration;
+using Rowan.Jellyfin.Plugin.Home;
 
 namespace Rowan.Jellyfin.Plugin.Web;
 
@@ -49,8 +51,7 @@ public sealed class HomeAdapterRegistration : IHostedService
                     .FirstOrDefault(item => item.GetName().Name == "Jellyfin.Plugin.FileTransformation");
                 var api = assembly?.GetType("Jellyfin.Plugin.FileTransformation.PluginInterface");
                 var register = api?.GetMethod("RegisterTransformation", BindingFlags.Public | BindingFlags.Static, [typeof(JObject)]);
-                if (register is not null && Plugin.Current?.Configuration.HomeEnabled == true &&
-                    Plugin.Current.Configuration.DiscoveryPageEnabled)
+                if (register is not null && ShouldInject(Plugin.Current?.Configuration))
                 {
                     var payload = new JObject
                     {
@@ -101,8 +102,14 @@ public sealed class HomeAdapterRegistration : IHostedService
         }
     }
 
+    public static bool HeroConfigured(PluginConfiguration? config) => HeroPolicy.Enabled(config) &&
+        HeroPolicy.TrySelectLibraryIds(config!.HeroLibraryIds, config.HeroLibraryIds ?? [], out var ids) && ids.Count > 0;
+
+    public static bool ShouldInject(PluginConfiguration? config) => config?.HomeEnabled == true &&
+        (config.DiscoveryPageEnabled || HeroConfigured(config));
+
     public static string Transform(JObject input) => TransformIndex(input, VerifiedIndexSha256,
-        Plugin.Current?.Configuration.HomeEnabled == true && Plugin.Current.Configuration.DiscoveryPageEnabled);
+        ShouldInject(Plugin.Current?.Configuration));
 
     public static string TransformIndex(JObject input, string? expectedSha256, bool enabled = true)
     {

@@ -44,7 +44,8 @@ with sync_playwright() as p:
       const movie = {Title:'Film', MediaType:'movie', TmdbId:9};
       const api = {getCurrentUserId: () => user, serverId: () => 'server-a',
         getUrl: (route, params) => '/jellyfin/' + route + (params ? '?' + new URLSearchParams(params) : ''),
-        getJSON: url => url.includes('TitleDetails') ? (reads++, Promise.resolve({Title:'Film', MediaType:'movie', TmdbId:9, LibraryItemId:freshId, CanRequest:false})) :
+        getJSON: url => url.includes('Rowan/Home/Mode') ? Promise.resolve({DiscoveryEnabled:true, HeroEnabled:false}) :
+          url.includes('TitleDetails') ? (reads++, Promise.resolve({Title:'Film', MediaType:'movie', TmdbId:9, LibraryItemId:freshId, CanRequest:false})) :
           Promise.resolve({Movies:{Items:[movie]}, Tv:{Items:[]}, Requests:{Items:[]}})};
       window.host = ThreePicFinHomeHost.createHost({document, loadFragment: async () => html,
         loadScript: async () => ThreePicFinDiscovery});
@@ -62,5 +63,71 @@ with sync_playwright() as p:
     page.evaluate('host.dispose()')
     assert not page.locator('.threepic-fin-host__panel').count()
     page.close()
+    # Exercise the real hero in the generated Home DOM; no live server is changed.
+    hero_js = (web / 'static-hero.js').read_text()
+    hero_css = (web / 'static-hero.css').read_text()
+    for width in (360, 1280):
+        page = browser.new_page(viewport={'width': width, 'height': 800})
+        page.set_content('''<html><head></head><body style="margin:0"><div id="home">
+          <div class="sections" style="height:1200px">HSS sentinel</div></div>
+          <div id="favorites">Favorites sentinel</div></body></html>''')
+        page.evaluate("location.hash = '#/home'")
+        page.add_style_tag(content=css)
+        page.add_style_tag(content=hero_css)
+        page.add_script_tag(content=hero_js)
+        page.add_script_tag(content=host_js)
+        page.evaluate("""async () => {
+          const pane = document.querySelector('#home'), favorites = document.querySelector('#favorites');
+          const id = '01234567-89ab-cdef-0123-456789abcdef';
+          window.identity = 'alice'; window.token = 'token'; window.shown = [];
+          window.Emby = {Page: {showItem: item => shown.push(item)}};
+          window.api = {getUrl: route => route, getCurrentUserId: () => identity,
+            accessToken: () => token, serverId: () => 'server-a',
+            getJSON: async route => route === 'Rowan/Home/Mode'
+              ? {DiscoveryEnabled:true, HeroEnabled:true}
+              : route === 'Rowan/Home/Hero'
+              ? [{Id:id, Name:'Featured', Overview:'Overview', ImageType:'Backdrop', ImageIndex:0, ImageTag:'a1'}]
+              : {Id:id, Type:'Movie'},
+            fetch: async () => ({ok:false})};
+          window.host = ThreePicFinHomeHost.createHost({document,
+            loadFragment: async () => '<div>Discovery</div>',
+            loadScript: async route => route.endsWith('static-hero.js')
+              ? RowanStaticHero : {mount: () => () => {}}});
+          if (!await host.mount({pane, favorites, apiClient:api, fingerprint:'tested-hash',
+              userId:identity, enabled:true, heroEnabled:true})) throw Error('mount failed');
+        }""")
+        page.wait_for_selector('#home > .threepic-fin-host__hero .rowan-static-hero')
+        for selector in ('.rowan-hero-previous', '.rowan-hero-next', '.rowan-hero-pagination', '.rowan-hero-progress'):
+            assert page.locator('#home > .threepic-fin-host__hero ' + selector).is_hidden()
+        assert page.locator('#home > .sections').count() == 1
+        assert page.locator('#home > .sections').evaluate('(el) => el.parentNode.id') == 'home'
+        assert page.locator('#favorites').inner_text() == 'Favorites sentinel'
+        assert page.locator('.rowan-static-hero').get_attribute('aria-label') == 'Featured media'
+        assert page.locator('.rowan-static-hero .rowan-hero-open').bounding_box()['height'] >= 44
+        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+        page.locator('.rowan-hero-open').click()
+        page.wait_for_function('shown.length === 1')
+        page.evaluate('scrollTo(0, 500)')
+        page.locator('.threepic-fin-host__tab').nth(1).click()
+        assert page.locator('#home > .threepic-fin-host__hero').count() == 0
+        assert not page.locator('#home > .sections').is_visible()
+        page.locator('.threepic-fin-host__tab').nth(0).click()
+        page.wait_for_selector('#home > .threepic-fin-host__hero .rowan-static-hero')
+        assert page.evaluate('document.scrollingElement.scrollHeight > innerHeight')
+        page.evaluate('scrollTo(0, 500)')
+        assert page.evaluate('scrollY') > 0
+        page.evaluate('identity = null; token = null; host.dispose()')
+        assert page.locator('#home > .threepic-fin-host__hero').count() == 0
+        assert page.locator('#home > .sections').count() == 1
+        assert page.locator('#favorites').inner_text() == 'Favorites sentinel'
+        page.evaluate("""async () => {
+          identity = 'bob'; token = 'new-token'; api.getJSON = async route => route === 'Rowan/Home/Hero' ? [] : {};
+          await host.mount({pane:document.querySelector('#home'), favorites:document.querySelector('#favorites'),
+            apiClient:api, fingerprint:'tested-hash', userId:identity, enabled:true, heroEnabled:true});
+        }""")
+        assert page.locator('#home > .threepic-fin-host__hero').count() == 0
+        assert page.locator('link[href="static-hero.css"]').count() == 0
+        page.evaluate('host.dispose()')
+        page.close()
     browser.close()
-print('360px and 1280px CSS geometry and mounted host navigation: pass')
+print('360px and 1280px CSS geometry, hero lifecycle, HSS scroll and navigation: pass')

@@ -102,6 +102,7 @@ public sealed class HeroPolicyTests
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext {
             User = new ClaimsPrincipal(new ClaimsIdentity(claim is null ? [] : [new Claim("Jellyfin-UserId", claim)], "test")) } };
         Assert.IsType<ForbidResult>(controller.GetHero().Result);
+        Assert.IsType<ForbidResult>(controller.GetMode().Result);
     }
 
     [Fact]

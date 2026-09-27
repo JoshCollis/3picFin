@@ -351,9 +351,9 @@
                 render(el('movies'), movies, 'Movies', false, openRequest, openDetails);
                 render(el('tv'), tv, 'TV', false, openRequest, openDetails);
                 render(el('requests'), requests, 'Requests', true);
-                // These are a small sample of discovery results, not personalized recommendations.
+                // A small sample from the current discovery pages, not personalized recommendations.
                 const suggestions = [...list(field(movies, 'Items')).slice(0, 2), ...list(field(tv, 'Items')).slice(0, 2)];
-                render(el('recommendations'), { Items: suggestions, Error: field(movies, 'Error') && field(tv, 'Error') }, 'Recommendations', false, openRequest, openDetails);
+                render(el('recommendations'), { Items: suggestions, Error: field(movies, 'Error') && field(tv, 'Error') }, 'titles', false, openRequest, openDetails);
                 for (const [name, source] of Object.entries({ movies, tv, requests })) {
                     maxima[name] = field(source, 'Error') || !Array.isArray(field(source, 'Items')) ? 1 : maxPages(source);
                     pager(name, pages[name], maxima[name]);

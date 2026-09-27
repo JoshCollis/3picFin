@@ -9,6 +9,7 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Querying;
+using Rowan.Jellyfin.Plugin.Web;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -39,6 +40,18 @@ public sealed class HeroController : ControllerBase
         _dtos = dtos;
         _plugins = plugins;
         _logger = logger;
+    }
+
+    [HttpGet("Mode")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public ActionResult<HomeMode> GetMode()
+    {
+        Response.Headers.CacheControl = "private, no-store";
+        if (!RecentlyAddedPolicy.TryGetUserId(User, out var userId) || _users.GetUserById(userId) is null) return Forbid();
+        var config = (_plugins.GetPlugin(PluginId)?.Instance as Plugin)?.Configuration;
+        var enabled = config?.HomeEnabled == true;
+        return Ok(new HomeMode(enabled && config?.DiscoveryPageEnabled == true,
+            HomeAdapterRegistration.HeroConfigured(config)));
     }
 
     [HttpGet("Hero")]
@@ -100,3 +113,6 @@ public sealed class HeroController : ControllerBase
         return Ok(HeroPolicy.SelectSlides(fresh, userId, DateOnly.FromDateTime(DateTime.UtcNow)));
     }
 }
+
+/// <summary>Only public feature flags; no credentials or library inventory.</summary>
+public sealed record HomeMode(bool DiscoveryEnabled, bool HeroEnabled);
