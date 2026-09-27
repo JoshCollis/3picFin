@@ -1,0 +1,5 @@
+# Disposable personal My Requests HTTP proof
+
+Run `python3 tests/disposable-my-requests.py` from this checkout. It builds the Release plugin, starts a throwaway `jellyfin/jellyfin:12.1` with two disjoint movie libraries, and runs a loopback-only Seerr stub. It creates fresh users, passwords and API tokens in a temporary scratch directory, then removes both containers and the directory in `finally`; it does not use production configuration.
+
+The probe checks each user's sole returned own movie ID; foreign-library exclusion; an R-rated same-library movie excluded by the user's parental policy; a title with only an unrequested available 4K status excluded; own and cross-user `/Items/{id}` visibility; authenticated Seerr mapping and requester-scoped reads; requester-ID mismatch returning sanitized 502; anonymous 401; userless API-key 403; and `private, no-store` on success and upstream failure. The stub contains deliberately nonsecret sentinels, not real credentials. This is HTTP integration proof, not Home browser-rendering proof or a live rollout.

@@ -1,0 +1,12 @@
+/* Only the host-owned inner navigation and its native Home pane scope. */
+.threepic-fin-host__tabs { display: flex; flex-wrap: wrap; gap: .5rem; padding: .75rem 1rem; }
+.threepic-fin-host__tab { min-height: 44px; padding: .5rem 1rem; border: 0; border-radius: .5rem; color: var(--primary-text-color, #fff); background: var(--card-background, #333); cursor: pointer; }
+.threepic-fin-host__tab[aria-selected="true"] { background: var(--theme-primary-color, #5655bc); }
+.threepic-fin-host__tab:focus-visible { outline: 2px solid var(--theme-primary-color, #9b9aff); outline-offset: 2px; }
+[data-threepic-fin-view="discovery"] > .sections { display: none; }
+.threepic-fin-host__panel[hidden] { display: none; }
+@media (max-width: 360px) {
+    .threepic-fin-host__tabs { padding: .5rem; gap: .25rem; }
+    .threepic-fin-host__tab { flex: 1 1 auto; min-width: 0; }
+    .threepic-fin-host__panel { min-width: 0; overflow-wrap: anywhere; }
+}

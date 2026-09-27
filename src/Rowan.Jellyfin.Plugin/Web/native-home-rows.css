@@ -1,0 +1,13 @@
+/* Load explicitly alongside native-home-rows.js in the caller-owned Home container. */
+.rowan-native-row { min-width: 0; margin: 1.5rem 0; color: var(--primary-text-color, #fff); }
+.rowan-native-row h2 { margin: .5rem 0; font-size: 1.3rem; }
+.rowan-native-row__seed { margin: 1rem 0; }
+.rowan-native-row__items { display: flex; gap: .75rem; overflow-x: auto; padding: .5rem 0 1rem; scroll-snap-type: x proximity; }
+.rowan-native-row__card { flex: 0 0 auto; box-sizing: border-box; border: 0; border-radius: .5rem; background: var(--card-background, #333); color: inherit; text-align: left; overflow: hidden; scroll-snap-align: start; }
+.rowan-native-row__card--landscape { width: min(38vw, 19rem); min-width: 11rem; min-height: 7rem; padding: 1rem; }
+button.rowan-native-row__card { cursor: pointer; }
+button.rowan-native-row__card:focus-visible { outline: 3px solid var(--theme-primary-color, #9b9aff); outline-offset: 2px; }
+.rowan-native-row__card--portrait { width: min(36vw, 11rem); min-width: 8rem; }
+.rowan-native-row__card--portrait img { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; }
+.rowan-native-row__card--portrait span { display: block; padding: .5rem; overflow-wrap: anywhere; }
+@media (max-width: 360px) { .rowan-native-row__card--landscape { width: 68vw; } .rowan-native-row__card--portrait { width: 40vw; } }

@@ -1,0 +1,133 @@
+name: Publish tagged Jellyfin catalog
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag vN.N.N.N at current default-branch HEAD'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: jellyfin-catalog-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: write # release assets and the dedicated catalog branch
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify tag against current default branch via API
+        env:
+          TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          git show-ref --verify --quiet "refs/tags/$TAG" || exit 1
+          branch=$(gh api "repos/$GITHUB_REPOSITORY" --jq .default_branch)
+          default_sha=$(gh api "repos/$GITHUB_REPOSITORY/branches/$branch" --jq .commit.sha)
+          test "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$default_sha"
+          test "$(git rev-parse HEAD)" = "$default_sha"
+          test -z "$(git status --porcelain)"
+          printf 'VERSION=%s\nTAG=%s\n' "${TAG#v}" "$TAG" >> "$GITHUB_ENV"
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Fetch authoritative catalog branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Branch must already exist; never silently start over from source-tree manifest.json.
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
+            fetch --no-tags origin refs/heads/catalog:refs/remotes/origin/catalog
+          git show origin/catalog:manifest.json > catalog-input.json
+          python3 -c 'import json,sys; sys.path.insert(0,"scripts"); from package_plugin import validate_catalog; validate_catalog(json.load(open("catalog-input.json")))'
+      - name: Test and package tagged commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet restore RowanJellyfin.slnx
+          dotnet test RowanJellyfin.slnx -c Release --no-restore
+          dotnet build RowanJellyfin.slnx -c Release --no-restore -p:Version="$VERSION"
+          node --test tests/Rowan.Jellyfin.Plugin.Tests/*.test.cjs
+          python3 -m unittest discover -s tests -p 'test_package_plugin.py'
+          python3 scripts/package_plugin.py package \
+            --dll src/Rowan.Jellyfin.Plugin/bin/Release/net10.0/Rowan.Jellyfin.Plugin.dll \
+            --manifest catalog-input.json --output dist --version "$VERSION" \
+            --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip" \
+            --epoch "$(git show -s --format=%ct HEAD)" \
+            --changelog "Staging build from $GITHUB_SHA; Home compatibility pins remain unset"
+          python3 scripts/package_plugin.py validate --package "dist/3pic-fin_$VERSION.zip" \
+            --manifest dist/manifest.json --version "$VERSION" \
+            --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip"
+          dotnet run --project tools/VerifyAssembly -- \
+            src/Rowan.Jellyfin.Plugin/bin/Release/net10.0/Rowan.Jellyfin.Plugin.dll \
+            "dist/3pic-fin_$VERSION.zip" "$VERSION"
+          (cd dist && sha256sum -c SHA256SUMS)
+      - name: Create or verify draft release and downloaded ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" "dist/3pic-fin_$VERSION.zip" dist/SHA256SUMS \
+              --verify-tag --draft --title "3pic Fin $VERSION (staging)" \
+              --notes 'Staging only. Home compatibility pins are unset; do not install on a live server.'
+          fi
+          gh release view "$TAG" --json isDraft,assets | jq -e --arg version "$VERSION" \
+            '.isDraft and ([.assets[].name] | sort == (["3pic-fin_" + $version + ".zip", "SHA256SUMS"] | sort))'
+          mkdir -p downloaded
+          gh release download "$TAG" --pattern "3pic-fin_$VERSION.zip" --dir downloaded
+          cmp "dist/3pic-fin_$VERSION.zip" "downloaded/3pic-fin_$VERSION.zip"
+          (cd downloaded && sha256sum -c ../dist/SHA256SUMS)
+      - name: Publish cumulative manifest to catalog branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p catalog-work
+          git -C catalog-work init -q
+          git -C catalog-work remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git -C catalog-work fetch -q origin refs/heads/catalog
+          test "$(git -C catalog-work rev-parse FETCH_HEAD)" = "$(git rev-parse origin/catalog)" || { echo 'Catalog changed during build' >&2; exit 1; }
+          git -C catalog-work checkout -q -b catalog FETCH_HEAD
+          cp dist/manifest.json catalog-work/manifest.json
+          if ! git -C catalog-work diff --quiet -- manifest.json; then
+            git -C catalog-work add manifest.json
+            git -C catalog-work -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -qm "catalog: add $TAG"
+            git -C catalog-work -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
+              push origin HEAD:refs/heads/catalog
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/contents/manifest.json?ref=catalog" --jq .content | base64 -d > catalog-readback.json
+          cmp dist/manifest.json catalog-readback.json
+      - name: Publish staging release after catalog readback
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" --draft=false --prerelease
+          gh release view "$TAG" --json isDraft,isPrerelease,assets | jq -e --arg version "$VERSION" \
+            '(.isDraft | not) and .isPrerelease and ([.assets[].name] | sort == (["3pic-fin_" + $version + ".zip", "SHA256SUMS"] | sort))'
+          curl --fail --location --retry 5 --retry-delay 2 --silent --show-error \
+            "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/catalog/manifest.json" > public-manifest.json
+          cmp dist/manifest.json public-manifest.json
+          curl --fail --location --retry 5 --retry-delay 2 --silent --show-error \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip" > public.zip
+          python3 scripts/package_plugin.py validate --package public.zip --manifest public-manifest.json \
+            --version "$VERSION" --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip"

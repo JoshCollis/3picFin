@@ -1,0 +1,66 @@
+"""Disposable browser geometry check for the isolated inner tab CSS."""
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+
+css = (Path(__file__).resolve().parents[2] / 'src/Rowan.Jellyfin.Plugin/Web/home-tab-host.css').read_text()
+html = '''<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0"><div id="home"><div class="threepic-fin-host__tabs" role="tablist">
+<button class="threepic-fin-host__tab">Home</button><button class="threepic-fin-host__tab">3pic Fin</button></div>
+<div class="sections">Native HSS rows</div><div class="threepic-fin-host__panel">Discovery
+<div class="sections" id="discovery-sections">Nested Discovery cards</div></div></div>
+<div id="favorites">Native Favorites</div></body></html>'''
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    for width in (360, 1280):
+        page = browser.new_page(viewport={'width': width, 'height': 800})
+        page.set_content(html)
+        page.add_style_tag(content=css)
+        buttons = page.locator('.threepic-fin-host__tab')
+        assert buttons.count() == 2
+        boxes = [buttons.nth(i).bounding_box() for i in range(2)]
+        assert all(box is not None and box['height'] >= 44 for box in boxes)
+        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+        assert page.locator('#home > .sections').is_visible()
+        page.locator('#home').evaluate("el => el.setAttribute('data-threepic-fin-view', 'discovery')")
+        assert not page.locator('#home > .sections').is_visible()
+        assert page.locator('#discovery-sections').is_visible()
+        assert page.locator('#favorites').is_visible()
+        page.close()
+    # Exercise the actual mounted host and fragment in Chromium with a test-only pin.
+    web = Path(__file__).resolve().parents[2] / 'src/Rowan.Jellyfin.Plugin/Web'
+    host_js = (web / 'home-tab-host.js').read_text().replace(
+        'const VERIFIED_WEB_BUNDLE_SHA256 = null;', "const VERIFIED_WEB_BUNDLE_SHA256 = 'tested-hash';")
+    fragment_js = (web / 'discovery.js').read_text()
+    fragment_html = (web / 'discovery.html').read_text()
+    page = browser.new_page()
+    page.set_content('<html><head></head><body><div id="home"><div class="sections">Native rows</div></div><div id="favorites"></div></body></html>')
+    page.evaluate("location.hash = '#/home'")
+    page.add_script_tag(content=fragment_js)
+    page.add_script_tag(content=host_js)
+    page.evaluate("""async html => {
+      const pane = document.querySelector('#home'), favorites = document.querySelector('#favorites');
+      window.user = 'alice'; window.shown = []; window.reads = 0; window.freshId = '01234567-89ab-cdef-0123-456789abcdef';
+      window.Emby = { Page: { showItem: item => shown.push(item) } };
+      const movie = {Title:'Film', MediaType:'movie', TmdbId:9};
+      const api = {getCurrentUserId: () => user, serverId: () => 'server-a',
+        getUrl: (route, params) => '/jellyfin/' + route + (params ? '?' + new URLSearchParams(params) : ''),
+        getJSON: url => url.includes('TitleDetails') ? (reads++, Promise.resolve({Title:'Film', MediaType:'movie', TmdbId:9, LibraryItemId:freshId, CanRequest:false})) :
+          Promise.resolve({Movies:{Items:[movie]}, Tv:{Items:[]}, Requests:{Items:[]}})};
+      window.host = ThreePicFinHomeHost.createHost({document, loadFragment: async () => html,
+        loadScript: async () => ThreePicFinDiscovery});
+      if (!await host.mount({pane, favorites, apiClient:api, fingerprint:'tested-hash', userId:user, enabled:true})) throw Error('host did not mount');
+      pane.querySelectorAll('.threepic-fin-host__tab')[1].click();
+    }""", fragment_html)
+    page.locator('#threepic-fin-movies .threepic-fin-discovery__title-button').click()
+    page.locator('#threepic-fin-details-open').click()
+    page.wait_for_function('shown.length === 1')
+    assert page.evaluate('shown[0].Id') == '01234567-89ab-cdef-0123-456789abcdef'
+    assert page.evaluate('reads') == 2
+    page.evaluate("freshId = null")
+    page.locator('#threepic-fin-movies .threepic-fin-discovery__title-button').click()
+    assert not page.locator('#threepic-fin-details-open').is_visible()
+    page.evaluate('host.dispose()')
+    assert not page.locator('.threepic-fin-host__panel').count()
+    page.close()
+    browser.close()
+print('360px and 1280px CSS geometry and mounted host navigation: pass')

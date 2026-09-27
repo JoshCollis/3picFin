@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Rowan.Jellyfin.Plugin</RootNamespace>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Jellyfin.Controller" Version="12.1.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Jellyfin.Model" Version="12.1.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="Configuration/configPage.html" />
+    <EmbeddedResource Include="Configuration/configPage.html" />
+    <EmbeddedResource Include="Web/discovery.html" />
+    <EmbeddedResource Include="Web/discovery.css" />
+    <EmbeddedResource Include="Web/discovery.js" />
+    <EmbeddedResource Include="Web/home-tab-host.js" />
+    <EmbeddedResource Include="Web/home-tab-host.css" />
+    <EmbeddedResource Include="Web/global-search-addon.js" />
+    <EmbeddedResource Include="Web/global-search-addon.css" />
+    <EmbeddedResource Include="Web/static-hero.js" />
+    <EmbeddedResource Include="Web/static-hero.css" />
+    <EmbeddedResource Include="Web/home-adapter.js" />
+    <EmbeddedResource Include="Web/native-home-rows.js" />
+    <EmbeddedResource Include="Web/native-home-rows.css" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,8 @@
+.threepic-fin-search { color: var(--primary-text-color, inherit); padding: 1rem var(--content-padding, 1rem); }
+.threepic-fin-search__cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); gap: 1rem; }
+.threepic-fin-search article { min-width: 0; background: var(--card-background, var(--background-color, transparent)); padding: .75rem; border-radius: .5rem; }
+.threepic-fin-search h3 { overflow-wrap: anywhere; }
+.threepic-fin-search button { color: var(--primary-text-color, inherit); background: var(--button-background, transparent); min-height: 2.75rem; cursor: pointer; }
+.threepic-fin-search button:focus-visible { outline: 2px solid var(--theme-primary-color, currentColor); outline-offset: 2px; }
+.threepic-fin-search nav { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; padding-block: 1rem; }
+@media (max-width: 480px) { .threepic-fin-search { padding-inline: .75rem; } }

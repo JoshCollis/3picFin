@@ -1,0 +1,73 @@
+<div class="threepic-fin-discovery" aria-labelledby="threepic-fin-discovery-title">
+    <section class="threepic-fin-discovery__content">
+        <h2 id="threepic-fin-discovery-title">3pic Fin</h2>
+        <div class="threepic-fin-discovery__tabs" aria-label="3pic Fin views">
+            <button id="threepic-fin-discover-tab" type="button" aria-controls="threepic-fin-discover-panel" aria-pressed="true">Discover</button>
+            <button id="threepic-fin-downloads-tab" type="button" aria-controls="threepic-fin-downloads-panel" aria-pressed="false">Downloads</button>
+            <button id="threepic-fin-calendar-tab" type="button" aria-controls="threepic-fin-calendar-panel" aria-pressed="false">Calendar</button>
+        </div>
+        <div id="threepic-fin-discover-panel">
+            <section aria-label="My Requests"><h3>My Requests</h3><div id="threepic-fin-requests" class="threepic-fin-discovery__cards" aria-live="polite"></div>
+                <div class="threepic-fin-discovery__pager" aria-label="My Requests pages"><button id="threepic-fin-requests-prev" type="button" aria-label="Previous requests page" disabled>Previous</button><span id="threepic-fin-requests-page" aria-live="polite"></span><button id="threepic-fin-requests-next" type="button" aria-label="Next requests page" disabled>Next</button></div>
+            </section>
+            <section aria-label="Household Requests"><h3>Household Requests</h3>
+                <button id="threepic-fin-shared-requests-load" type="button">Show household requests</button>
+                <div id="threepic-fin-shared-requests" class="threepic-fin-discovery__cards" aria-live="polite"></div>
+                <div class="threepic-fin-discovery__pager" aria-label="Household Requests pages"><button id="threepic-fin-shared-requests-prev" type="button" disabled>Previous</button><span id="threepic-fin-shared-requests-page" aria-live="polite"></span><button id="threepic-fin-shared-requests-next" type="button" disabled>Next</button></div>
+            </section>
+            <section aria-label="Suggested titles"><h3>Recommendations</h3><div id="threepic-fin-recommendations" class="threepic-fin-discovery__cards" aria-live="polite"></div></section>
+            <form id="threepic-fin-search-form" role="search">
+                <label for="threepic-fin-search">Search movies and TV</label>
+                <div class="threepic-fin-discovery__search-controls">
+                    <input id="threepic-fin-search" type="search" maxlength="200" autocomplete="off">
+                    <button type="submit">Search</button>
+                </div>
+            </form>
+            <section aria-label="Search results"><h3>Search results</h3><div id="threepic-fin-search-results" class="threepic-fin-discovery__cards" aria-live="polite"></div>
+                <div class="threepic-fin-discovery__pager"><button id="threepic-fin-search-prev" type="button" aria-label="Previous search results page" disabled>Previous</button><span id="threepic-fin-search-page" aria-live="polite"></span><button id="threepic-fin-search-next" type="button" aria-label="Next search results page" disabled>Next</button></div>
+            </section>
+            <section aria-label="Discover movies"><h3>Movies</h3><div id="threepic-fin-movies" class="threepic-fin-discovery__cards" aria-live="polite"></div>
+                <div class="threepic-fin-discovery__pager" aria-label="Movies pages"><button id="threepic-fin-movies-prev" type="button" aria-label="Previous movies page" disabled>Previous</button><span id="threepic-fin-movies-page" aria-live="polite"></span><button id="threepic-fin-movies-next" type="button" aria-label="Next movies page" disabled>Next</button></div>
+            </section>
+            <section aria-label="Discover TV"><h3>TV</h3><div id="threepic-fin-tv" class="threepic-fin-discovery__cards" aria-live="polite"></div>
+                <div class="threepic-fin-discovery__pager" aria-label="TV pages"><button id="threepic-fin-tv-prev" type="button" aria-label="Previous TV page" disabled>Previous</button><span id="threepic-fin-tv-page" aria-live="polite"></span><button id="threepic-fin-tv-next" type="button" aria-label="Next TV page" disabled>Next</button></div>
+            </section>
+        </div>
+        <div id="threepic-fin-downloads-panel" aria-labelledby="threepic-fin-downloads-tab" hidden>
+            <h3>Shared Downloads</h3>
+            <section aria-label="Movie downloads"><h3>Movies</h3><div id="threepic-fin-downloads-radarr" class="threepic-fin-discovery__downloads" aria-live="polite"></div></section>
+            <section aria-label="TV downloads"><h3>TV</h3><div id="threepic-fin-downloads-sonarr" class="threepic-fin-discovery__downloads" aria-live="polite"></div></section>
+        </div>
+        <div id="threepic-fin-calendar-panel" aria-labelledby="threepic-fin-calendar-tab" hidden>
+            <h3>Shared Calendar</h3>
+
+            <div class="threepic-fin-discovery__pager" aria-label="Calendar windows">
+                <button id="threepic-fin-calendar-prev" type="button" aria-label="Previous 31 days">Previous</button>
+                <span id="threepic-fin-calendar-window" aria-live="polite"></span>
+                <button id="threepic-fin-calendar-next" type="button" aria-label="Next 31 days">Next</button>
+            </div>
+            <section aria-label="Movie calendar"><h3>Movies</h3><div id="threepic-fin-calendar-radarr" class="threepic-fin-discovery__calendar" aria-live="polite"></div></section>
+            <section aria-label="TV calendar"><h3>TV</h3><div id="threepic-fin-calendar-sonarr" class="threepic-fin-discovery__calendar" aria-live="polite"></div></section>
+        </div>
+        <dialog id="threepic-fin-details-dialog" class="threepic-fin-discovery__dialog threepic-fin-discovery__details" aria-labelledby="threepic-fin-details-title" aria-describedby="threepic-fin-details-status">
+            <button id="threepic-fin-details-close" class="threepic-fin-discovery__details-close" type="button" aria-label="Close details">✕</button>
+            <div id="threepic-fin-details-body"></div>
+            <h3 id="threepic-fin-details-title"></h3>
+            <p id="threepic-fin-details-meta"></p>
+            <p id="threepic-fin-details-overview"></p>
+            <p id="threepic-fin-details-status" role="status" aria-live="polite"></p>
+            <div id="threepic-fin-details-seasons"></div>
+            <div class="threepic-fin-discovery__actions"><button id="threepic-fin-details-open" type="button" hidden>Open in Jellyfin</button><button id="threepic-fin-details-request" type="button" hidden>Request</button></div>
+        </dialog>
+        <dialog id="threepic-fin-request-dialog" class="threepic-fin-discovery__dialog" aria-labelledby="threepic-fin-request-title" aria-describedby="threepic-fin-request-status">
+            <form id="threepic-fin-request-form">
+                <h3 id="threepic-fin-request-title">Request media</h3>
+                <p id="threepic-fin-request-status" role="status" aria-live="polite"></p>
+                <fieldset id="threepic-fin-request-seasons" hidden><legend>Select seasons to request</legend></fieldset>
+                <label id="threepic-fin-request-4k-wrap" hidden><input id="threepic-fin-request-4k" type="checkbox"> Request in 4K</label>
+
+                <div class="threepic-fin-discovery__actions"><button id="threepic-fin-request-submit" type="submit" disabled>Submit request</button><button id="threepic-fin-request-cancel" type="button">Close</button></div>
+            </form>
+        </dialog>
+    </section>
+</div>
