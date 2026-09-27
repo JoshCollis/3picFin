@@ -56,8 +56,7 @@ public sealed class HeroController : ControllerBase
         if (!HeroPolicy.Enabled(config)) return Ok(Array.Empty<HeroSlide>());
 
         var visible = _libraries.GetUserRootFolder().GetChildren(user, true).OfType<CollectionFolder>();
-        // This is independent of the Recently Added selection: it is a visible-library-only hero.
-        if (!RecentlyAddedPolicy.TrySelectVisible(visible, null, out var libraries))
+        if (!HeroPolicy.TrySelectedLibraries(config, visible, out var libraries))
         {
             _logger.LogWarning("Hero library selection invalid; returning no slides");
             return Ok(Array.Empty<HeroSlide>());
@@ -77,10 +76,27 @@ public sealed class HeroController : ControllerBase
                 IsPlayed = null
             }, options);
             var safe = RecentlyAddedPolicy.SafeLatestItems(library, groups, _libraries.GetItemById)
+                .Where(item => _libraries.GetItemById<BaseItem>(item.Id, user) is not null &&
+                    HeroPolicy.VisibleInSelectedLibrary(item, [library.Id], _libraries.GetItemById,
+                        parent => parent.IsVisibleStandalone(user)))
                 .Take(HeroPolicy.CandidatesPerLibrary).ToArray();
             // Keep DTO visibility checks enabled. Never return an image for an unchecked item.
             candidates.AddRange(_dtos.GetBaseItemDtos(safe, options, user));
         }
-        return Ok(HeroPolicy.SelectSlides(candidates, userId, DateOnly.FromDateTime(DateTime.UtcNow)));
+        // DTO conversion and library queries can outlive a permission/configuration change.
+        user = _users.GetUserById(userId);
+        config = (_plugins.GetPlugin(PluginId)?.Instance as Plugin)?.Configuration;
+        if (user is null || !HeroPolicy.Enabled(config) ||
+            !HeroPolicy.TrySelectedLibraries(config,
+                _libraries.GetUserRootFolder().GetChildren(user, true).OfType<CollectionFolder>(), out var current))
+            return Ok(Array.Empty<HeroSlide>());
+        var roots = current.Select(folder => folder.Id).ToArray();
+        var fresh = candidates.Where(dto =>
+        {
+            var item = _libraries.GetItemById<BaseItem>(dto.Id, user);
+            return item is not null && HeroPolicy.VisibleInSelectedLibrary(item, roots,
+                _libraries.GetItemById, parent => parent.IsVisibleStandalone(user));
+        });
+        return Ok(HeroPolicy.SelectSlides(fresh, userId, DateOnly.FromDateTime(DateTime.UtcNow)));
     }
 }

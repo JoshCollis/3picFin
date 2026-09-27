@@ -136,3 +136,72 @@ test('rejects untrusted image paths and caps even a malicious response', async (
     section.children[3].dispatch('click');
     assert.equal(section.children[1].textContent, 'Safe');
 });
+test('focused hero supports keyboard arrows and touch swipe without hijacking page keys', async () => {
+    const root = new Element('div');
+    const id = '11111111-1111-1111-1111-111111111111';
+    const context = { document: { createElement: tag => new Element(tag) }, setInterval: () => 1, clearInterval() {} };
+    vm.runInNewContext(source(), context);
+    const api = { getUrl: route => route, getJSON: async () => ['One', 'Two', 'Three'].map(name => ({ id, name, imageType: 'Backdrop', imageIndex: 0, imageTag: 'a1' })),
+        getCurrentUserId: () => 'user', accessToken: () => 'token' };
+    const cleanup = context.RowanStaticHero.mount(root, api);
+    await tick();
+    const panel = root.children[0];
+    assert.equal(panel.attrs.tabindex, '0');
+    let prevented = 0;
+    panel.dispatch('keydown', { key: 'ArrowRight', target: panel, preventDefault() { prevented++; } });
+    assert.equal(panel.children[1].textContent, 'Two');
+    panel.dispatch('keydown', { key: 'ArrowLeft', target: panel, preventDefault() { prevented++; } });
+    assert.equal(panel.children[1].textContent, 'One');
+    panel.dispatch('keydown', { key: 'ArrowRight', target: { tagName: 'INPUT' }, preventDefault() { prevented++; } });
+    assert.equal(panel.children[1].textContent, 'One');
+    panel.dispatch('keydown', { key: 'ArrowDown', target: panel, preventDefault() { prevented++; } });
+    assert.equal(prevented, 2);
+    panel.dispatch('touchstart', { touches: [{ clientX: 300, clientY: 100 }] });
+    panel.dispatch('touchend', { changedTouches: [{ clientX: 180, clientY: 106 }], preventDefault() { prevented++; } });
+    assert.equal(panel.children[1].textContent, 'Two');
+    panel.dispatch('touchstart', { touches: [{ clientX: 100, clientY: 100 }] });
+    panel.dispatch('touchend', { changedTouches: [{ clientX: 200, clientY: 190 }], preventDefault() { prevented++; } });
+    assert.equal(panel.children[1].textContent, 'Two');
+    panel.dispatch('touchstart', { touches: [{ clientX: 100, clientY: 100 }, { clientX: 200, clientY: 100 }] });
+    panel.dispatch('touchend', { changedTouches: [{ clientX: 240, clientY: 100 }] });
+    assert.equal(panel.children[1].textContent, 'Two');
+    cleanup();
+    assert.equal(panel.handlers.keydown, undefined);
+    assert.equal(panel.handlers.touchend, undefined);
+});
+
+test('pagination caps untrusted data at ten and autoplay pauses for hover and reduced motion', async () => {
+    const id = '11111111-1111-1111-1111-111111111111';
+    let timer, now = 0; const root = new Element('div');
+    const context = { document: { createElement: tag => new Element(tag) }, setInterval: (fn, ms) => { if (ms === 100) timer = fn; return ms; }, clearInterval() {}, URL: { createObjectURL: () => 'blob:a', revokeObjectURL() {} },
+        performance: { now: () => now }, matchMedia: () => ({ matches: false }) };
+    vm.runInNewContext(source(), context);
+    const api = { getUrl: route => route, getJSON: async () => Array.from({length: 20}, (_, i) => ({id, name: String(i), imageType: 'Backdrop', imageIndex: 0, imageTag: 'a1'})),
+        getCurrentUserId: () => 'user', accessToken: () => 'token', fetch: async () => ({ok: false}) };
+    const cleanup = context.RowanStaticHero.mount(root, api); await tick();
+    const panel = root.children[0];
+    assert.equal(panel.children[6].children.length, 10);
+    panel.dispatch('mouseenter'); now += 12000; timer();
+    assert.equal(panel.children[1].textContent, '0');
+    panel.dispatch('mouseleave'); now += 12000; timer();
+    assert.equal(panel.children[1].textContent, '1');
+    cleanup();
+});
+
+test('only current slide image is fetched and reduced motion disables autoplay', async () => {
+    const id = '11111111-1111-1111-1111-111111111111';
+    const root = new Element('div'); let timer, fetched = 0;
+    const context = { document: { createElement: tag => new Element(tag) }, setInterval: (fn, ms) => { if (ms === 100) timer = fn; return ms; }, clearInterval() {},
+        matchMedia: () => ({matches: true}) };
+    vm.runInNewContext(source(), context);
+    const api = { getUrl: route => route, getJSON: async () => ['One','Two','Three'].map(name => ({id, name, imageType:'Backdrop', imageIndex:0, imageTag:'a1'})),
+        getCurrentUserId: () => 'user', accessToken: () => 'token', fetch: async () => { fetched++; return {ok:false}; } };
+    const cleanup = context.RowanStaticHero.mount(root, api); await tick();
+    assert.equal(fetched, 1);
+    for (let n = 0; n < 120; n++) timer();
+    assert.equal(root.children[0].children[1].textContent, 'One');
+    assert.equal(fetched, 1);
+    root.children[0].children[6].children[1].dispatch('click'); await tick();
+    assert.equal(fetched, 2);
+    cleanup();
+});

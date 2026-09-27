@@ -1,4 +1,4 @@
-"""Disposable browser geometry check for the standalone full-screen hero."""
+"""Disposable browser geometry check for the standalone featured hero."""
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -14,7 +14,7 @@ with sync_playwright() as p:
         page.add_style_tag(content=css)
         hero = page.locator('.rowan-static-hero').bounding_box()
         image = page.locator('.rowan-static-hero img').bounding_box()
-        assert hero is not None and hero['width'] == width and hero['height'] >= height
+        assert hero is not None and hero['width'] == width and hero['height'] >= height * (0.65 if width <= 600 else 0.78)
         assert image is not None and image['width'] == width and image['height'] == hero['height']
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
         assert all(page.locator('button').nth(i).bounding_box()['height'] >= 44 for i in range(2))

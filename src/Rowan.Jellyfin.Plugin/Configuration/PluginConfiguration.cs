@@ -45,6 +45,9 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     /// <summary>Explicit opt-in: media and metadata files must be writable only by trusted server operators. Disabled by default.</summary>
     public bool HeroTrustedFilesystemEnabled { get; set; }
 
+    /// <summary>Explicit hero library allowlist. Null or empty means no slides.</summary>
+    public Guid[]? HeroLibraryIds { get; set; }
+
     /// <summary>Gets or sets whether the inert Discovery resource shell is served. Disabled by default.</summary>
     public bool DiscoveryPageEnabled { get; set; }
 

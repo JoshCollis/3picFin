@@ -57,6 +57,10 @@
                         </label>
                         <div class="fieldDescription">Default off. Requires Home enabled. Hero images are confined to Jellyfin's internal metadata library root, not media/share paths. On supported Linux, the image file is opened atomically within that root; symlinks and nested mounts are rejected. Only enable after auditing metadata ownership and write access: malicious writers inside the metadata filesystem can still create hardlinks or change file contents in place. Keep off on a live server until its metadata trust and image behavior are verified. Jellyfin's separate raw image API may still serve images anonymously by item ID.</div>
                     </div>
+                    <fieldset><legend>Featured hero libraries</legend>
+                        <div id="HeroLibraries" aria-label="Featured hero libraries"></div>
+                        <div class="fieldDescription">Select libraries to feature. Empty selection shows no slides. Up to 10 still images from the signed-in user’s visible items; Home and trusted metadata must also be enabled.</div>
+                    </fieldset>
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
                             <input id="DiscoveryPageEnabled" type="checkbox" is="emby-checkbox" />
@@ -105,6 +109,7 @@
                 const page = document.querySelector('#RowanConfigPage');
                 const form = page.querySelector('#RowanConfigForm');
                 const list = page.querySelector('#RecentlyAddedLibraries');
+                const heroList = page.querySelector('#HeroLibraries');
                 const saveButton = page.querySelector('#RowanSaveButton');
                 const error = page.querySelector('#RowanConfigError');
                 const status = page.querySelector('#RowanConfigStatus');
@@ -112,6 +117,7 @@
                 let ready = false;
                 let saving = false;
                 let libraries = [];
+                let heroLibraries = [];
                 let loadSequence = 0;
 
                 function validId(value) {
@@ -155,6 +161,7 @@
                     });
                     saveButton.disabled = locked;
                     updateLibraryAvailability();
+                    heroList.querySelectorAll('input[type="checkbox"]').forEach(function (box) { box.disabled = locked; });
                 }
 
                 function renderLibraries(folders, savedIds) {
@@ -200,6 +207,32 @@
                     updateLibraryAvailability();
                 }
 
+                function renderHeroLibraries(folders, savedIds) {
+                    if (!Array.isArray(folders)) { throw new Error('Invalid library list'); }
+                    const seen = new Set();
+                    heroLibraries = [];
+                    folders.forEach(function (folder) {
+                        const id = folder && folder.ItemId;
+                        if (!validId(id) || seen.has(id.toLowerCase())) return;
+                        seen.add(id.toLowerCase());
+                        heroLibraries.push({ id, name: typeof folder.Name === 'string' && folder.Name.trim() ? folder.Name : id });
+                    });
+                    savedIds.forEach(function (id) {
+                        if (seen.has(id.toLowerCase())) return;
+                        seen.add(id.toLowerCase());
+                        heroLibraries.push({ id, name: id + ' (unavailable — previously selected)' });
+                    });
+                    const chosen = new Set(savedIds.map(id => id.toLowerCase()));
+                    heroList.replaceChildren();
+                    heroLibraries.forEach(function (library) {
+                        const label = document.createElement('label');
+                        const box = document.createElement('input');
+                        box.type = 'checkbox'; box.value = library.id; box.checked = chosen.has(library.id.toLowerCase());
+                        const name = document.createElement('span'); name.textContent = library.name;
+                        label.append(box, name); heroList.append(label, document.createElement('br'));
+                    });
+                }
+
                 page.addEventListener('pageshow', function () {
                     const sequence = ++loadSequence;
                     ready = false;
@@ -242,7 +275,12 @@
                         page.querySelector('#RecentlyAddedAll').checked = ids == null;
                         page.querySelector('#RecentlyAddedNone').checked = Array.isArray(ids) && ids.length === 0;
                         page.querySelector('#RecentlyAddedSelected').checked = Array.isArray(ids) && ids.length > 0;
+                        const heroIds = config.HeroLibraryIds;
+                        if (heroIds != null && (!Array.isArray(heroIds) || !heroIds.every(validId) || new Set(heroIds.map(id => id.toLowerCase())).size !== heroIds.length || heroIds.length > 20)) {
+                            throw new Error('Invalid saved hero libraries');
+                        }
                         renderLibraries(results[1], ids || []);
+                        renderHeroLibraries(results[1], heroIds || []);
                         ready = true;
                         updateControls();
                     }).catch(function () {
@@ -278,6 +316,11 @@
                     if (mode.value !== 'all' && mode.value !== 'selected' && mode.value !== 'none') {
                         showMessage(error, 'Choose a valid library mode.');
                         return;
+                    }
+                    const heroAllowed = new Set(heroLibraries.map(library => library.id.toLowerCase()));
+                    const heroIds = Array.from(heroList.querySelectorAll('input[type="checkbox"]:checked')).map(box => box.value);
+                    if (heroIds.length > 20 || heroIds.some(id => !validId(id) || !heroAllowed.has(id.toLowerCase())) || new Set(heroIds.map(id => id.toLowerCase())).size !== heroIds.length) {
+                        showMessage(error, 'Select no more than 20 valid hero libraries.'); return;
                     }
                     showMessage(error, '');
                     showMessage(status, '');
@@ -320,6 +363,7 @@
                         config.BecauseYouWatchedRowEnabled = becauseYouWatchedRowEnabled;
                         config.BecauseYouWatchedHideWatched = becauseYouWatchedHideWatched;
                         config.HeroTrustedFilesystemEnabled = heroTrustedFilesystemEnabled;
+                        config.HeroLibraryIds = heroIds;
                         config.DiscoveryPageEnabled = discoveryPageEnabled;
                         config.SharedRequestsEnabled = sharedRequestsEnabled;
                         Object.assign(config, downloads);
@@ -341,6 +385,7 @@
                             page.querySelector('#BecauseYouWatchedRowEnabled').checked !== becauseYouWatchedRowEnabled ||
                             page.querySelector('#BecauseYouWatchedHideWatched').checked !== becauseYouWatchedHideWatched ||
                             page.querySelector('#HeroTrustedFilesystemEnabled').checked !== heroTrustedFilesystemEnabled ||
+                            (function () { const current = Array.from(heroList.querySelectorAll('input[type="checkbox"]:checked')).map(box => box.value); return current.length !== heroIds.length || current.some((id, index) => id !== heroIds[index]); }()) ||
                             page.querySelector('#DiscoveryPageEnabled').checked !== discoveryPageEnabled ||
                             page.querySelector('#SharedRequestsEnabled').checked !== sharedRequestsEnabled ||
                             page.querySelector('#DownloadsEnabled').checked !== downloads.DownloadsEnabled ||

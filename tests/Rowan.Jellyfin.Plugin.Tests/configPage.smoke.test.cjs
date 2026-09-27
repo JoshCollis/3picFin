@@ -24,21 +24,21 @@ class Element {
         this.type = '';
     }
     appendChild(child) { this.children.push(child); return child; }
+    append(...children) { this.children.push(...children); }
     replaceChildren(...children) { this.children = children; }
     addEventListener(name, handler) { this.handlers[name] = handler; }
     dispatch(name) { this.handlers[name]({ preventDefault() {} }); }
     descendants() { return this.children.flatMap(child => [child, ...child.descendants()]); }
     querySelectorAll(selector) {
         const nodes = this.descendants();
-        if (selector === 'input[type="checkbox"]') return nodes.filter(node => node.tag === 'input' && node.type === 'checkbox');
-        if (selector === 'input[type="checkbox"]:checked') return nodes.filter(node => node.tag === 'input' && node.type === 'checkbox' && node.checked);
+        if (selector === 'input[type="checkbox"]' || selector === 'input[type="checkbox"]:checked' || selector === 'input[type=\"checkbox\"]' || selector === 'input[type=\"checkbox\"]:checked') return nodes.filter(node => node.tag === 'input' && node.type === 'checkbox' && (!selector.endsWith(':checked') || node.checked));
         throw Error(`Unimplemented selector: ${selector}`);
     }
 }
 
 function setup(config, folders, options = {}) {
     let persisted = structuredClone(config);
-    const ids = ['RowanConfigPage', 'RowanConfigForm', 'RecentlyAddedLibraries', 'RowanSaveButton',
+    const ids = ['RowanConfigPage', 'RowanConfigForm', 'RecentlyAddedLibraries', 'HeroLibraries', 'RowanSaveButton',
         'RowanConfigError', 'RowanConfigStatus', 'HomeEnabled', 'CombinedPlaybackRowEnabled', 'DiscoverRowEnabled', 'DiscoverMoviesRowEnabled', 'DiscoverTvRowEnabled', 'CombinedPlaybackHideWatched', 'MyRequestsRowEnabled', 'MyRequestsHideWatched', 'CollectionsRowEnabled', 'LiveTvRowEnabled', 'BecauseYouWatchedRowEnabled', 'BecauseYouWatchedHideWatched', 'HeroTrustedFilesystemEnabled', 'DiscoveryPageEnabled', 'SharedRequestsEnabled', 'DownloadsEnabled', 'CalendarEnabled',
         'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey', 'RecentlyAddedAll',
         'RecentlyAddedSelected', 'RecentlyAddedNone'];
@@ -529,4 +529,25 @@ test('calendar is independently opt-in and discloses all-signed-in visibility', 
     await app.load();
     assert.equal(app.elements.CalendarEnabled.checked, true);
     assert.equal(app.elements.DownloadsEnabled.checked, false);
+});
+
+ test('hero library IDs are explicit, preserved when unavailable, and snapshotted during save', async () => {
+    const pending = {}; pending.promise = new Promise(resolve => { pending.resolve = resolve; });
+    const app = setup({ RecentlyAddedLibraryIds: null, HeroLibraryIds: [B] }, [folders[0]], { update: () => pending.promise });
+    await app.load();
+    const boxes = app.elements.HeroLibraries.querySelectorAll('input[type="checkbox"]');
+    assert.equal(boxes.length, 2);
+    assert.equal(boxes[1].checked, true);
+    assert.match(app.elements.HeroLibraries.children[2].children[1].textContent, /unavailable/);
+    boxes[0].checked = true;
+    app.form.dispatch('submit'); await app.flush();
+    assert.deepEqual(Array.from(app.writes[0].HeroLibraryIds), [A, B]);
+    assert.equal(boxes[0].disabled, true);
+    boxes[1].checked = false;
+    pending.resolve({}); await app.flush();
+    assert.match(app.elements.RowanConfigError.textContent, /changed during save/);
+    await app.save();
+    assert.deepEqual(Array.from(app.writes[1].HeroLibraryIds), [A]);
+    boxes[0].checked = false; await app.save();
+    assert.deepEqual(Array.from(app.writes[2].HeroLibraryIds), []);
 });

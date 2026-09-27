@@ -57,13 +57,17 @@ public sealed class HeroImageController : ControllerBase
 
         // Jellyfin's user-aware lookup applies IsVisibleStandalone (including parental rules).
         var item = _libraries.GetItemById<BaseItem>(itemId, user);
-        var visibleLibraries = _libraries.GetUserRootFolder().GetChildren(user, true)
-            .OfType<CollectionFolder>().Select(library => library.Id).ToArray();
+        if (!HeroPolicy.TrySelectedLibraries(config,
+            _libraries.GetUserRootFolder().GetChildren(user, true).OfType<CollectionFolder>(), out var selected)) return NotFound();
+        var visibleLibraries = selected.Select(library => library.Id).ToArray();
         if (item is null) return NotFound();
         var info = item.GetImageInfo(ImageType.Backdrop, 0);
         if (info is null || !info.IsLocalFile ||
-            !HeroImagePolicy.VisibleImage(item, visibleLibraries, item.IsVisibleStandalone(user), tag,
+            !HeroImagePolicy.VisibleImage(item, visibleLibraries,
+                HeroPolicy.VisibleInSelectedLibrary(item, visibleLibraries, _libraries.GetItemById,
+                    parent => parent.IsVisibleStandalone(user)), tag,
                 _images.GetImageCacheTag(item, info))) return NotFound();
+        var originalPath = info.Path;
 
         // Only Jellyfin's internal metadata/library tree is eligible; never read media/CIFS paths.
         if (_paths is null || string.IsNullOrEmpty(_paths.InternalMetadataPath)) return NotFound();
@@ -77,7 +81,22 @@ public sealed class HeroImageController : ControllerBase
             await using var stream = ConfinedHeroImage.TryOpen(root, info.Path);
             if (stream is null) return NotFound();
             var bytes = await HeroImageBounds.TryReadJpeg(stream, deadline.Token).ConfigureAwait(false);
-            return bytes is null ? NotFound() : File(bytes, "image/jpeg");
+            if (bytes is null) return NotFound();
+            // Recheck after I/O: an old slide/tag is not authority if access or selection changed.
+            user = _users.GetUserById(userId);
+            config = (_plugins.GetPlugin(PluginId)?.Instance as Plugin)?.Configuration;
+            if (user is null || !HeroPolicy.Enabled(config) ||
+                !HeroPolicy.TrySelectedLibraries(config,
+                    _libraries.GetUserRootFolder().GetChildren(user, true).OfType<CollectionFolder>(), out selected))
+                return NotFound();
+            item = _libraries.GetItemById<BaseItem>(itemId, user);
+            info = item?.GetImageInfo(ImageType.Backdrop, 0);
+            if (item is null || info is null || !info.IsLocalFile || info.Path != originalPath ||
+                !HeroImagePolicy.VisibleImage(item, selected.Select(folder => folder.Id),
+                    HeroPolicy.VisibleInSelectedLibrary(item, selected.Select(folder => folder.Id),
+                        _libraries.GetItemById, parent => parent.IsVisibleStandalone(user)),
+                    tag, _images.GetImageCacheTag(item, info))) return NotFound();
+            return File(bytes, "image/jpeg");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
         {
