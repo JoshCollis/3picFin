@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.1.0",
+        "changelog": "Staging build from 279367f47a941e5aeed7afd06f660a5f7b051bf6; Home compatibility pins remain unset",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v0.1.1.0/3pic-fin_0.1.1.0.zip",
+        "checksum": "bf48fa2240643b97fd2f633bde3bb3a0",
+        "timestamp": "2026-09-27T13:27:27Z"
+      },
+      {
         "version": "0.1.0.0",
         "changelog": "Staging build from 9fbf86be35f7b70bab0e1bad191ca3508b81e1c6; Home compatibility pins remain unset",
         "targetAbi": "12.1.0.0",
