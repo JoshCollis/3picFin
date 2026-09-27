@@ -26,9 +26,6 @@ DEPENDENCIES = {
     'PluginPages': ('jellyfin-plugin-pages', '3.0.1.0'),
     'HomeSections': ('jellyfin-plugin-home-sections', '3.0.2.0'),
 }
-LAB_ORIGIN_INDEX = '32034be1d9d36874d2363c615beabca57377a2ad440fbf3adbdd8a2bb87fab55'
-LAB_HOME_CHUNK = 'hometab.0ec3d9a22cad691c217e.chunk.js'
-LAB_HOME_HASH = 'd4103e6d500c7e69b4952c4b3e819184ec0b7917c6b5680169c7d6e62509a986'
 
 
 def docker(*args):
@@ -60,31 +57,8 @@ def main():
         plugins.mkdir(parents=True)
         (Path(tmp) / 'cache').mkdir()
         (plugins / DLL.name).write_bytes(DLL.read_bytes())
-        if '--test-index-pin' in sys.argv:
+        if '--browser' in sys.argv:
             assert '--with-dependencies' in sys.argv
-            source = Path(tmp) / 'source'
-            shutil.copytree(ROOT / 'src/Rowan.Jellyfin.Plugin', source,
-                            ignore=shutil.ignore_patterns('bin', 'obj'))
-            injector = source / 'Web/HomeAdapterRegistration.cs'
-            code = injector.read_text()
-            original = 'private static readonly string? VerifiedIndexSha256 = null;'
-            assert code.count(original) == 1
-            injector.write_text(code.replace(original,
-                f'private static readonly string? VerifiedIndexSha256 = "{LAB_ORIGIN_INDEX}";'))
-            if '--browser' in sys.argv:
-                adapter_js = source / 'Web/home-adapter.js'
-                code = adapter_js.read_text()
-                assert code.count('VERIFIED_HOME_DISTRIBUTION = null') == 1
-                adapter_js.write_text(code.replace('VERIFIED_HOME_DISTRIBUTION = null',
-                    f"VERIFIED_HOME_DISTRIBUTION = {{ chunk: '{LAB_HOME_CHUNK}', sha256: '{LAB_HOME_HASH}' }}"))
-                host_js = source / 'Web/home-tab-host.js'
-                code = host_js.read_text()
-                assert code.count('VERIFIED_WEB_BUNDLE_SHA256 = null') == 1
-                host_js.write_text(code.replace('VERIFIED_WEB_BUNDLE_SHA256 = null',
-                    f"VERIFIED_WEB_BUNDLE_SHA256 = '{LAB_HOME_HASH}'"))
-            subprocess.run(['dotnet', 'build', str(source / 'Rowan.Jellyfin.Plugin.csproj'),
-                            '-c', 'Release', '-v', 'quiet'], check=True)
-            (plugins / DLL.name).write_bytes((source / 'bin/Release/net10.0' / DLL.name).read_bytes())
             config = plugins.parent / 'configurations'
             config.mkdir()
             (config / 'Rowan.Jellyfin.Plugin.xml').write_text(
@@ -127,7 +101,7 @@ def main():
                 if status == 200:
                     break
                 time.sleep(1)
-            if '--test-index-pin' in sys.argv:
+            if '--browser' in sys.argv:
                 for _ in range(30):
                     logs = docker('logs', cid)
                     if logs.count("Registering transformation for 'index.html'") >= 3:
@@ -138,8 +112,6 @@ def main():
                 assert b'PluginPages' in body or b'pluginPages' in body or b'plugin-pages' in body, ('Plugin Pages marker missing', body[-1500:])
                 assert b'home-screen-sections' in body or b'HomeScreen' in body, ('HSS marker missing', body[-1500:])
                 if '--browser' in sys.argv:
-                    chunk_status, chunk_body = request(base + '/web/' + LAB_HOME_CHUNK)
-                    assert chunk_status == 200 and hashlib.sha256(chunk_body).hexdigest() == LAB_HOME_HASH
                     from disposable_home_browser import run_browser
                     user = 'rowanlab'
                     password = secrets.token_urlsafe(18)
@@ -154,7 +126,7 @@ def main():
                 if status != 503:
                     break
                 time.sleep(1)
-            assert status == (200 if '--test-index-pin' in sys.argv else 404), status
+            assert status == (200 if '--browser' in sys.argv else 404), status
             logs = docker('logs', cid)
             assert 'Rowan.Jellyfin.Plugin' in logs, 'Rowan assembly was not loaded'
             if '--with-dependencies' in sys.argv:
@@ -164,7 +136,7 @@ def main():
                 assert chunk_status == 200 and b'loadSections' in chunk_body, chunk_status
                 assert hashlib.sha256(chunk_body).hexdigest() != '60abc3759584f92b0db16e71a9c6df62ba44a7278d063c75d92896470793d0d2'
             served_hash = None
-            if '--test-index-pin' in sys.argv:
+            if '--browser' in sys.argv:
                 served_hash = hashlib.sha256(body).hexdigest()
                 docker('restart', cid)
                 port = docker('port', cid, '8096/tcp').rsplit(':', 1)[1]
@@ -187,8 +159,8 @@ def main():
             print(json.dumps({'status': 'pass', 'missing_file_transformation': '--with-dependencies' not in sys.argv,
                               'dependencies': '--with-dependencies' in sys.argv,
                               'asset_status': status,
-                              'index_injected': '--test-index-pin' in sys.argv,
-                              'served_index_sha256': served_hash if '--test-index-pin' in sys.argv else None}))
+                              'index_injected': '--browser' in sys.argv,
+                              'served_index_sha256': served_hash if '--browser' in sys.argv else None}))
         except Exception:
             print(docker('logs', cid)[-6000:])
             raise

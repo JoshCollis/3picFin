@@ -33,9 +33,9 @@ public sealed class DiscoveryPageControllerTests
     }
 
     [Fact]
-    public void DiscoveryPageIsDisabledByDefault()
+    public void DiscoveryPageIsEnabledByDefaultButCanBeDisabled()
     {
-        Assert.False(new PluginConfiguration().DiscoveryPageEnabled);
+        Assert.True(new PluginConfiguration().DiscoveryPageEnabled);
         Assert.IsType<NotFoundResult>(new DiscoveryPageController(() => false).GetAsset("discovery.html"));
         Assert.IsType<NotFoundResult>(new DiscoveryPageController(() => false).GetAsset("discovery.css"));
         Assert.IsType<NotFoundResult>(new DiscoveryPageController(() => false).GetAsset("discovery.js"));

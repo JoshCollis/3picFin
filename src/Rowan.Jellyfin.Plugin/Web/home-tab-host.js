@@ -1,9 +1,7 @@
-/* Home host; loaded by the separately pinned adapter, never mutates native tabs. */
+/* Home host; loaded by the version/structure-gated adapter, never mutates native tabs. */
 (function (global) {
     'use strict';
-    // Intentionally unpinned in the public build: no production web distribution approved yet.
-    // Never enable by server version, DOM shape alone, or a caller-provided arbitrary hash.
-    const VERIFIED_WEB_BUNDLE_SHA256 = null;
+    const SUPPORTED_WEB_CONTRACT = '12.1';
     const field = (item, name) => item?.[name] ?? item?.[name[0].toLowerCase() + name.slice(1)];
     const guid = id => typeof id === 'string' && /^(?:[a-f\d]{32}|[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12})$/i.test(id);
     let nextInstanceId = 0;
@@ -21,7 +19,6 @@
     });
     function createHost({ document,
         loadFragment = defaultFragment, loadScript = url => defaultScript(url, document) } = {}) {
-        const pinnedFingerprint = VERIFIED_WEB_BUNDLE_SHA256;
         let current = null, generation = 0;
         const validSlide = slide => slide && guid(field(slide, 'Id')) &&
             field(slide, 'ImageType') === 'Backdrop' && field(slide, 'ImageIndex') === 0 &&
@@ -99,9 +96,9 @@
             pane.removeAttribute('data-threepic-fin-view');
         }
         async function mount({ pane, favorites, apiClient, fingerprint, userId, enabled = false, mode }) {
-            // A fingerprint must be computed from the exact web bundle bytes by a future
-            // adapter; this host does not trust Jellyfin server version or native tab indexes.
-            if (!enabled || !pinnedFingerprint || fingerprint !== pinnedFingerprint ||
+            // The adapter checks server version, script timing, route and native DOM.
+            // Never accept arbitrary fingerprints from a caller.
+            if (!enabled || fingerprint !== SUPPORTED_WEB_CONTRACT ||
                 !pane || !favorites || pane === favorites || !userId ||
                 !apiClient?.getUrl || !apiClient?.getJSON) { dispose(); return false; }
             const sections = Array.from(pane.children).find(child =>

@@ -141,17 +141,11 @@ def main():
         (tmp / 'cache').mkdir()
         (tmp / 'libraries' / 'alice').mkdir(parents=True)
         (tmp / 'libraries' / 'bob').mkdir(parents=True)
-        source = tmp / 'source'
-        shutil.copytree(ROOT / 'src/Rowan.Jellyfin.Plugin', source, ignore=shutil.ignore_patterns('bin', 'obj'))
-        for relative, old, new in [
-            ('Web/HomeAdapterRegistration.cs', 'private static readonly string? VerifiedIndexSha256 = null;', f'private static readonly string? VerifiedIndexSha256 = "{home.LAB_ORIGIN_INDEX}";'),
-            ('Web/home-adapter.js', 'VERIFIED_HOME_DISTRIBUTION = null', f"VERIFIED_HOME_DISTRIBUTION = {{ chunk: '{home.LAB_HOME_CHUNK}', sha256: '{home.LAB_HOME_HASH}' }}"),
-            ('Web/home-tab-host.js', 'VERIFIED_WEB_BUNDLE_SHA256 = null', f"VERIFIED_WEB_BUNDLE_SHA256 = '{home.LAB_HOME_HASH}'"),
-        ]:
-            file = source / relative; data = file.read_text(); assert data.count(old) == 1, relative
-            file.write_text(data.replace(old, new))
-        subprocess.run(['dotnet', 'build', str(source / 'Rowan.Jellyfin.Plugin.csproj'), '-c', 'Release', '-v', 'quiet'], check=True)
-        (plugins / 'Rowan.Jellyfin.Plugin.dll').write_bytes((source / 'bin/Release/net10.0/Rowan.Jellyfin.Plugin.dll').read_bytes())
+        # Test the public Release artifact unchanged, not a lab-pinned source copy.
+        subprocess.run(['dotnet', 'build', str(ROOT / 'src/Rowan.Jellyfin.Plugin/Rowan.Jellyfin.Plugin.csproj'),
+                        '-c', 'Release', '-v', 'quiet'], check=True)
+        (plugins / 'Rowan.Jellyfin.Plugin.dll').write_bytes(
+            (ROOT / 'src/Rowan.Jellyfin.Plugin/bin/Release/net10.0/Rowan.Jellyfin.Plugin.dll').read_bytes())
         config = plugins.parent / 'configurations'; config.mkdir()
         (config / 'Rowan.Jellyfin.Plugin.xml').write_text('<PluginConfiguration><HomeEnabled>true</HomeEnabled><DiscoveryPageEnabled>true</DiscoveryPageEnabled><SeerrEnabled>true</SeerrEnabled><SharedRequestsEnabled>true</SharedRequestsEnabled><SeerrBaseUrl>http://127.0.0.1:19876/</SeerrBaseUrl><SeerrApiKey>test-only</SeerrApiKey></PluginConfiguration>')
         for label, (repo, version) in home.DEPENDENCIES.items():

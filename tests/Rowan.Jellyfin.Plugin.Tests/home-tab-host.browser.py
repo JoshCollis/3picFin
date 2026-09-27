@@ -26,10 +26,9 @@ with sync_playwright() as p:
         assert page.locator('#discovery-sections').is_visible()
         assert page.locator('#favorites').is_visible()
         page.close()
-    # Exercise the actual mounted host and fragment in Chromium with a test-only pin.
+    # Exercise the actual shipped host and fragment in Chromium.
     web = Path(__file__).resolve().parents[2] / 'src/Rowan.Jellyfin.Plugin/Web'
-    host_js = (web / 'home-tab-host.js').read_text().replace(
-        'const VERIFIED_WEB_BUNDLE_SHA256 = null;', "const VERIFIED_WEB_BUNDLE_SHA256 = 'tested-hash';")
+    host_js = (web / 'home-tab-host.js').read_text()
     fragment_js = (web / 'discovery.js').read_text()
     fragment_html = (web / 'discovery.html').read_text()
     page = browser.new_page()
@@ -49,7 +48,7 @@ with sync_playwright() as p:
           Promise.resolve({Movies:{Items:[movie]}, Tv:{Items:[]}, Requests:{Items:[]}})};
       window.host = ThreePicFinHomeHost.createHost({document, loadFragment: async () => html,
         loadScript: async () => ThreePicFinDiscovery});
-      if (!await host.mount({pane, favorites, apiClient:api, fingerprint:'tested-hash', userId:user, enabled:true})) throw Error('host did not mount');
+      if (!await host.mount({pane, favorites, apiClient:api, fingerprint:'12.1', userId:user, enabled:true})) throw Error('host did not mount');
       pane.querySelectorAll('.threepic-fin-host__tab')[1].click();
     }""", fragment_html)
     page.locator('#threepic-fin-movies .threepic-fin-discovery__title-button').click()
@@ -93,7 +92,7 @@ with sync_playwright() as p:
             loadFragment: async () => '<div>Discovery</div>',
             loadScript: async route => route.endsWith('static-hero.js')
               ? RowanStaticHero : {mount: () => () => {}}});
-          if (!await host.mount({pane, favorites, apiClient:api, fingerprint:'tested-hash',
+          if (!await host.mount({pane, favorites, apiClient:api, fingerprint:'12.1',
               userId:identity, enabled:true, heroEnabled:true})) throw Error('mount failed');
         }""")
         page.wait_for_selector('#home > .threepic-fin-host__hero .rowan-static-hero')
@@ -123,7 +122,7 @@ with sync_playwright() as p:
         page.evaluate("""async () => {
           identity = 'bob'; token = 'new-token'; api.getJSON = async route => route === 'Rowan/Home/Hero' ? [] : {};
           await host.mount({pane:document.querySelector('#home'), favorites:document.querySelector('#favorites'),
-            apiClient:api, fingerprint:'tested-hash', userId:identity, enabled:true, heroEnabled:true});
+            apiClient:api, fingerprint:'12.1', userId:identity, enabled:true, heroEnabled:true});
         }""")
         assert page.locator('#home > .threepic-fin-host__hero').count() == 0
         assert page.locator('link[href="static-hero.css"]').count() == 0

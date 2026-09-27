@@ -4,12 +4,9 @@ const vm = require('node:vm');
 const fs = require('node:fs');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../../src/Rowan.Jellyfin.Plugin/Web/home-tab-host.js'), 'utf8');
-// Explicit test-only build; production source remains unpinned.
+// The public host is exercised as shipped; no lab pin is substituted.
 function testBuild(browser = {}) {
-    const pinned = source.replace('const VERIFIED_WEB_BUNDLE_SHA256 = null;',
-        "const VERIFIED_WEB_BUNDLE_SHA256 = 'tested-hash';");
-    assert.notEqual(pinned, source);
-    vm.runInNewContext(pinned, browser);
+    vm.runInNewContext(source, browser);
     return browser.ThreePicFinHomeHost.createHost;
 }
 const createHost = testBuild();
@@ -36,7 +33,7 @@ function fixture() {
     const calls = [], disposed = [];
     const api = { getUrl: route => `https://test.invalid/jellyfin/${route}`, getJSON: url => { calls.push(url); return Promise.resolve({}); } };
     const host = createHost({ document, loadFragment: async url => { calls.push(url); return '<div>Discovery</div>'; }, loadScript: async url => { calls.push(url); return { mount: (root, client) => { client.getJSON(client.getUrl('3picFin/Discovery')); return () => disposed.push(root); } }; } });
-    const mount = (overrides = {}) => host.mount({ pane, favorites, apiClient: api, fingerprint: 'tested-hash', userId: 'alice', ...overrides });
+    const mount = (overrides = {}) => host.mount({ pane, favorites, apiClient: api, fingerprint: '12.1', userId: 'alice', ...overrides });
     return { document, pane, favorites, sections, calls, disposed, host, mount };
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -49,7 +46,7 @@ test('mismatch and disabled gate leave native Home, Favorites and HSS untouched'
     assert.deepEqual(f.favorites.children, []);
     assert.deepEqual(f.calls, []);
 });
-test('browser build cannot override the unpinned production fingerprint', async () => {
+test('host refuses a caller fingerprint for an unsupported version', async () => {
     const browser = { module: { exports: {} } };
     vm.runInNewContext(source, browser);
     const f = fixture();
@@ -58,7 +55,7 @@ test('browser build cannot override the unpinned production fingerprint', async 
         loadFragment: () => { loaderCalled = true; throw Error('must fail closed'); } });
     const api = { getUrl: x => x, getJSON: async () => ({}) };
     assert.equal(await host.mount({ pane: f.pane, favorites: f.favorites, apiClient: api,
-        userId: 'alice', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false }, fingerprint: 'tested-hash' }), false);
+        userId: 'alice', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false }, fingerprint: '13.0' }), false);
     assert.equal(loaderCalled, false);
     assert.deepEqual(f.pane.children, [f.sections]);
 });
@@ -94,7 +91,7 @@ test('dispose while fragment pending prevents late script or DOM injection', asy
     const host = createHost({ document: f.document, loadFragment: () => { calls.push('fragment'); return pending; },
         loadScript: () => { calls.push('script'); return { mount() { calls.push('mount'); } }; } });
     const promise = host.mount({ pane: f.pane, favorites: f.favorites, apiClient: { getUrl: x => x, getJSON: async () => ({}) },
-        fingerprint: 'tested-hash', userId: 'bob', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } });
+        fingerprint: '12.1', userId: 'bob', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } });
     assert.deepEqual(calls, ['fragment']);
     host.dispose(); release('<div>late</div>');
     assert.equal(await promise, false);
@@ -107,7 +104,7 @@ test('concurrent mounts leave only latest view and cleanup', async () => {
     const host = createHost({ document: f.document, loadFragment: () => pending,
         loadScript: () => ({ mount: () => () => f.disposed.push('latest') }) });
     const opts = { pane: f.pane, favorites: f.favorites, apiClient: { getUrl: x => x, getJSON: async () => ({}) },
-        fingerprint: 'tested-hash', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } };
+        fingerprint: '12.1', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } };
     const first = host.mount({ ...opts, userId: 'alice' });
     const second = host.mount({ ...opts, userId: 'bob' });
     release('<div>Discovery</div>');
@@ -154,7 +151,7 @@ test('throwing discovery cleanup cannot leave host content on user switch', asyn
         } }) });
     const opts = { pane: f.pane, favorites: f.favorites,
         apiClient: { getUrl: x => x, getJSON: async () => ({}) },
-        fingerprint: 'tested-hash', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } };
+        fingerprint: '12.1', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } };
     assert.equal(await host.mount({ ...opts, userId: 'alice' }), true);
     [oldTabs, , oldPanel] = f.pane.children;
     oldStyles = [...f.document.head.children];
@@ -212,7 +209,7 @@ test('Home mount defers the bundled Discovery request until Fin selection', asyn
             return cleanup;
         } }) });
     assert.equal(await host.mount({ pane: f.pane, favorites: f.favorites, apiClient: api,
-        fingerprint: 'tested-hash', userId: 'alice', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } }), true);
+        fingerprint: '12.1', userId: 'alice', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } }), true);
     assert.deepEqual(requests, []);
     const [home, fin] = f.pane.children[0].children;
     fin.click();
@@ -229,7 +226,7 @@ test('route teardown, user switch and late assets cannot leak a previous user', 
     f.host.dispose();
     let release; const pending = new Promise(r => release = r);
     const late = createHost({ document: f.document, loadFragment: () => pending, loadScript: () => { throw Error('late script'); } });
-    const promise = late.mount({ pane: f.pane, favorites: f.favorites, apiClient: { getUrl: p => p, getJSON: async () => ({}) }, fingerprint: 'tested-hash', userId: 'bob', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } });
+    const promise = late.mount({ pane: f.pane, favorites: f.favorites, apiClient: { getUrl: p => p, getJSON: async () => ({}) }, fingerprint: '12.1', userId: 'bob', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } });
     assert.ok(release, 'loader must actually be pending');
     late.dispose(); release('<div>late</div>');
     assert.equal(await promise, false); await tick();
@@ -245,7 +242,7 @@ test('host rechecks title before native item navigation and rejects stale user, 
         loadFragment: async () => '<div>Discovery</div>', loadScript: async () => ({ mount: (_root, _api, bridge) => { callback = bridge.openItem; return () => {}; } }) });
     const api = { getUrl: (route, params) => `https://test.invalid/jellyfin/${route}?${new URLSearchParams(params)}`,
         getJSON: () => result, getCurrentUserId: () => user, serverId: () => 'server-a' };
-    const options = { pane: f.pane, favorites: f.favorites, apiClient: api, fingerprint: 'tested-hash', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } };
+    const options = { pane: f.pane, favorites: f.favorites, apiClient: api, fingerprint: '12.1', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } };
     assert.equal(await host.mount({ ...options, userId: user }), true);
     f.pane.children[0].children[1].click();
     const attempt = callback({ mediaType: 'movie', mediaId: 9, libraryItemId: guid });
@@ -278,7 +275,7 @@ test('optional hero waits for slides on Home and cleans up without moving HSS or
         } } : { mount: () => () => {} };
     } });
     assert.equal(await host.mount({ pane: f.pane, favorites: f.favorites, apiClient: api,
-        fingerprint: 'tested-hash', userId: 'alice', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: true } }), true);
+        fingerprint: '12.1', userId: 'alice', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: true } }), true);
     assert.equal(events.includes('Rowan/Home/Hero'), true);
     assert.equal(events.some(x => String(x).endsWith('static-hero.js')), false);
     f.pane.children[0].children[1].click();
@@ -304,7 +301,7 @@ test('hero fails closed for empty, malformed and stale-user replies without load
             loadScript: async url => { assets.push(url); return { mount: () => () => {} }; } });
         const api = { getUrl: x => x, getJSON: async () => slides, getCurrentUserId: () => 'alice', accessToken: () => 'token' };
         await host.mount({ pane: f.pane, favorites: f.favorites, apiClient: api,
-            fingerprint: 'tested-hash', userId: 'alice', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: true } }); await tick();
+            fingerprint: '12.1', userId: 'alice', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: true } }); await tick();
         assert.equal(assets.some(x => x.endsWith('static-hero.js')), false);
         assert.equal(f.pane.children.length, 3); host.dispose();
     }
@@ -322,7 +319,7 @@ test('hero open uses fresh user-scoped item and refuses stale route, user and mi
         ? [{ Id: id, ImageType: 'Backdrop', ImageIndex: 0, ImageTag: 'a1' }] : fresh,
         getCurrentUserId: () => user, accessToken: () => 'token', fetch: async () => ({ ok: false }), serverId: () => 'server-a' };
     await host.mount({ pane: f.pane, favorites: f.favorites, apiClient: api,
-        fingerprint: 'tested-hash', userId: user, enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: true } }); await tick();
+        fingerprint: '12.1', userId: user, enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: true } }); await tick();
     assert.equal(await callback('../bad'), false);
     assert.equal(await callback(id), true);
     assert.equal(shown[0].Id, id); assert.equal(shown[0].ServerId, 'server-a');
@@ -346,7 +343,7 @@ test('pending hero script cannot mount after teardown or user switch', async () 
     const api = { getUrl: x => x, getJSON: async () => [{ Id: id, ImageType: 'Backdrop', ImageIndex: 0, ImageTag: 'a1' }],
         getCurrentUserId: () => user, accessToken: () => 'token', fetch: async () => ({ ok: false }) };
     const options = { pane: f.pane, favorites: f.favorites, apiClient: api,
-        fingerprint: 'tested-hash', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: true } };
+        fingerprint: '12.1', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: true } };
     await host.mount({ ...options, userId: user }); await tick();
     user = 'bob'; await host.mount({ ...options, userId: user });
     host.dispose();
@@ -380,7 +377,7 @@ for (const discovery of [false, true]) test(`hero-only mode discovery=${discover
         loadScript: async url => { calls.push(url); return url.endsWith('static-hero.js')
             ? { mount: root => { root.appendChild(new Node()); return () => { cleanup++; }; } }
             : { mount: () => () => { cleanup++; } }; } });
-    const options = { pane: f.pane, favorites: f.favorites, apiClient: api, fingerprint: 'tested-hash', userId: 'alice', enabled: true };
+    const options = { pane: f.pane, favorites: f.favorites, apiClient: api, fingerprint: '12.1', userId: 'alice', enabled: true };
     assert.equal(await host.mount(options), true); await tick();
     assert.equal(calls.includes('Rowan/Home/Hero'), true);
     assert.equal(calls.some(x => String(x).endsWith('static-hero.js')), true);
@@ -404,7 +401,7 @@ test('disabled mode fails closed before loading any feature assets', async () =>
     const api = { getUrl: x => x, getJSON: async x => { calls.push(x); return { DiscoveryEnabled: false, HeroEnabled: false }; }, getCurrentUserId: () => 'alice' };
     const host = createHost({ document: f.document, loadFragment: async x => { calls.push(x); return ''; }, loadScript: async x => { calls.push(x); return {}; } });
     assert.equal(await host.mount({ pane: f.pane, favorites: f.favorites, apiClient: api,
-        userId: 'alice', fingerprint: 'tested-hash', enabled: true }), false);
+        userId: 'alice', fingerprint: '12.1', enabled: true }), false);
     assert.deepEqual(calls, ['Rowan/Home/Mode']);
     assert.deepEqual(f.pane.children, [f.sections]);
 });
@@ -414,7 +411,7 @@ test('late mode reply from previous user cannot mount a hero', async () => {
     const api = { getUrl: x => x, getJSON: x => { calls.push(x); return new Promise(r => release = r); }, getCurrentUserId: () => user };
     const host = createHost({ document: f.document, loadFragment: async x => { calls.push(x); return ''; }, loadScript: async x => { calls.push(x); return {}; } });
     const pending = host.mount({ pane: f.pane, favorites: f.favorites, apiClient: api,
-        userId: user, fingerprint: 'tested-hash', enabled: true });
+        userId: user, fingerprint: '12.1', enabled: true });
     user = 'bob'; release({ DiscoveryEnabled: false, HeroEnabled: true });
     assert.equal(await pending, false);
     assert.deepEqual(calls, ['Rowan/Home/Mode']);
@@ -429,7 +426,7 @@ test('mode changes across route teardown replace hero-only with Home/Fin and bac
     }, getCurrentUserId: () => 'alice', accessToken: () => 'token' };
     const host = createHost({ document: f.document, loadFragment: async x => { calls.push(x); return '<div>Fin</div>'; },
         loadScript: async x => { calls.push(x); return { mount: () => () => {} }; } });
-    const options = { pane: f.pane, favorites: f.favorites, apiClient: api, userId: 'alice', fingerprint: 'tested-hash', enabled: true };
+    const options = { pane: f.pane, favorites: f.favorites, apiClient: api, userId: 'alice', fingerprint: '12.1', enabled: true };
     assert.equal(await host.mount(options), true);
     assert.equal(f.pane.children.some(x => x.className === 'threepic-fin-host__tabs'), false);
     host.dispose(); discovery = true;

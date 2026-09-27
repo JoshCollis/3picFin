@@ -11,11 +11,12 @@ namespace Rowan.Jellyfin.Plugin.Tests;
 public sealed class PluginConfigurationTests
 {
     [Fact]
-    public void HomeModuleIsDisabledByDefault()
+    public void NewInstallEnablesHomeAndDiscoveryButNotTrustedImages()
     {
         var configuration = new PluginConfiguration();
 
-        Assert.False(configuration.HomeEnabled);
+        Assert.True(configuration.HomeEnabled);
+        Assert.True(configuration.DiscoveryPageEnabled);
         Assert.False(configuration.HeroTrustedFilesystemEnabled);
     }
 
@@ -25,7 +26,7 @@ public sealed class PluginConfigurationTests
         Assert.False(Rowan.Jellyfin.Plugin.Home.HeroPolicy.Enabled(null));
         Assert.False(Rowan.Jellyfin.Plugin.Home.HeroPolicy.Enabled(new PluginConfiguration()));
         Assert.False(Rowan.Jellyfin.Plugin.Home.HeroPolicy.Enabled(new PluginConfiguration { HomeEnabled = true }));
-        Assert.False(Rowan.Jellyfin.Plugin.Home.HeroPolicy.Enabled(new PluginConfiguration { HeroTrustedFilesystemEnabled = true }));
+        Assert.False(Rowan.Jellyfin.Plugin.Home.HeroPolicy.Enabled(new PluginConfiguration { HomeEnabled = false, HeroTrustedFilesystemEnabled = true }));
         var enabled = new PluginConfiguration { HomeEnabled = true, HeroTrustedFilesystemEnabled = true };
         Assert.True(Rowan.Jellyfin.Plugin.Home.HeroPolicy.Enabled(enabled));
         Assert.True(JsonSerializer.Deserialize<PluginConfiguration>(JsonSerializer.Serialize(enabled))!.HeroTrustedFilesystemEnabled);

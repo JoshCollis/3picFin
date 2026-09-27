@@ -55,16 +55,6 @@ def main():
     with tempfile.TemporaryDirectory(prefix='rowan-title-details-', dir=home.SCRATCH) as temp:
         tmp = Path(temp)
         source = ROOT/'src/Rowan.Jellyfin.Plugin'
-        if browser_mode:
-            source = tmp/'source'
-            shutil.copytree(ROOT/'src/Rowan.Jellyfin.Plugin', source, ignore=shutil.ignore_patterns('bin','obj'))
-            for relative, old, new in [
-                ('Web/HomeAdapterRegistration.cs','private static readonly string? VerifiedIndexSha256 = null;',f'private static readonly string? VerifiedIndexSha256 = "{home.LAB_ORIGIN_INDEX}";'),
-                ('Web/home-adapter.js','VERIFIED_HOME_DISTRIBUTION = null',f"VERIFIED_HOME_DISTRIBUTION = {{ chunk: '{home.LAB_HOME_CHUNK}', sha256: '{home.LAB_HOME_HASH}' }}"),
-                ('Web/home-tab-host.js','VERIFIED_WEB_BUNDLE_SHA256 = null',f"VERIFIED_WEB_BUNDLE_SHA256 = '{home.LAB_HOME_HASH}'"),
-            ]:
-                target = source/relative; data = target.read_text(); assert data.count(old) == 1, relative
-                target.write_text(data.replace(old,new))
         subprocess.run(['dotnet','build',str(source/'Rowan.Jellyfin.Plugin.csproj'),'-c','Release','-v','quiet'],check=True)
         plugins = tmp/'config/plugins/Rowan'; plugins.mkdir(parents=True)
         (tmp/'cache').mkdir()
@@ -185,8 +175,7 @@ def main():
                     status,html = home.request(base+'/web/index.html')
                     if status == 200 and html.count(b'data-threepic-fin-adapter') == 1: break
                     time.sleep(1)
-                else: raise AssertionError('lab adapter unavailable')
-                assert hashlib.sha256(home.request(base+'/web/'+home.LAB_HOME_CHUNK)[1]).hexdigest() == home.LAB_HOME_HASH
+                else: raise AssertionError('portable adapter unavailable')
                 asyncio.run(browser_probe(base,pw1,items[101]['Id'],items[201]['Id']))
         finally:
             subprocess.run(['docker','rm','-f']+([sidecar] if sidecar else [])+[cid],capture_output=True,check=True)

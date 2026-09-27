@@ -1,9 +1,7 @@
-/* Optional compatibility gate. Production distribution manifest remains unset. */
+/* Portable Jellyfin 12.1 Home adapter. No distribution-specific fingerprints. */
 (function (global) {
     'use strict';
-    // Only insert a manifest after testing the *distributed* Home chunk and final DOM.
-    // This is a drift check, NOT attestation of the script bytes already executed.
-    const VERIFIED_HOME_DISTRIBUTION = null;
+    const COMPATIBILITY = '12.1';
     function homeRoute(route) {
         return /^#\/?home\/?(?:\?tab=0)?$/i.test(route || '');
     }
@@ -58,13 +56,17 @@
         return { pane: homes[0], favorites: favorites[0] };
     }
     if (typeof module !== 'undefined' && module.exports) module.exports = { createAdapter, resolveHomeNodes };
-    if (!global.document || !VERIFIED_HOME_DISTRIBUTION) return;
+    if (!global.document) return;
     global.__threePicFinHomeAdapter?.dispose();
     const document = global.document;
     let bundleHash = null, verification = null, rejected = false, scheduled = false, stopped = false;
     let scriptPromise = null, watchTimer = null, watchedUser = null, watchedApi = null, logoutHook = null;
     let logoutPending = false;
 
+    function uniqueIndexPage() {
+        const pages = document.querySelectorAll('#indexPage');
+        return pages.length === 1 ? pages[0] : null;
+    }
     const loadHost = api => {
         if (!scriptPromise) scriptPromise = new Promise((resolve, reject) => {
             const script = document.createElement('script');
@@ -76,12 +78,12 @@
         // Never share a mutable host across overlapping identity generations.
         return scriptPromise.then(createHost => createHost({ document }));
     };
-    const adapter = createAdapter({ bundleHash: VERIFIED_HOME_DISTRIBUTION.sha256,
+    const adapter = createAdapter({ bundleHash: COMPATIBILITY,
         getState: () => {
             const api = global.ApiClient;
-            const page = document.querySelector('#indexPage');
+            const page = uniqueIndexPage();
             const { pane, favorites } = resolveHomeNodes(page);
-            return { route: global.location.hash, bundleHash, compatibilityVerified: !stopped && !rejected && !!bundleHash,
+            return { route: global.location.hash, bundleHash, compatibilityVerified: !stopped && !rejected && bundleHash === COMPATIBILITY,
                 apiClient: api, activePane: !!pane && pane.getClientRects().length > 0 &&
                     global.getComputedStyle(pane).display !== 'none' &&
                     global.getComputedStyle(pane).visibility !== 'hidden',
@@ -89,22 +91,35 @@
         }, loadHost });
     async function verify() {
         if (verification || stopped || rejected || bundleHash) return verification;
-        verification = (async () => {
+        const pending = (async () => {
             try {
-                // Check *all* Home script entries, not just entries matching the pin.
+                const api = global.ApiClient;
+                const userId = api?.getCurrentUserId?.();
+                if (!userId || !homeRoute(global.location.hash)) return;
+                const page = uniqueIndexPage();
+                const { pane, favorites } = resolveHomeNodes(page);
+                if (!pane || !favorites || !pane.getClientRects().length ||
+                    global.getComputedStyle(pane).display === 'none' ||
+                    global.getComputedStyle(pane).visibility === 'hidden') return;
+                // Resource Timing confirms a unique same-origin Home script load, not
+                // the bytes it executed. Structural checks are the compatibility gate.
                 const loaded = global.performance.getEntriesByType('resource').filter(entry =>
                     entry.initiatorType === 'script' && /\/hometab\.[a-f0-9]+\.chunk\.js(?:[?#]|$)/i.test(entry.name));
                 if (!loaded.length) return; // Home has not loaded yet.
-                const expected = new URL(VERIFIED_HOME_DISTRIBUTION.chunk, document.baseURI).href;
-                if (loaded.length !== 1 || loaded[0].name !== expected) { rejected = true; return; }
-                const response = await global.fetch(expected, { credentials: 'same-origin', cache: 'no-store' });
-                if (!response.ok || response.url !== expected) { rejected = true; return; }
-                const hash = Array.from(new Uint8Array(await global.crypto.subtle.digest('SHA-256', await response.arrayBuffer())))
-                    .map(byte => byte.toString(16).padStart(2, '0')).join('');
-                if (hash !== VERIFIED_HOME_DISTRIBUTION.sha256) { rejected = true; return; }
-                if (!stopped) bundleHash = hash;
-            } catch (_) { rejected = true; /* Unknown distribution: leave native UI intact. */ }
-        })().finally(() => { verification = null; if (!stopped) { if (bundleHash) schedule(); else adapter.refresh(); } });
+                const url = new URL(loaded[0].name, document.baseURI);
+                const base = new URL(document.baseURI);
+                if (loaded.length !== 1 || url.origin !== base.origin || url.search || url.hash ||
+                    url.pathname.slice(0, url.pathname.lastIndexOf('/') + 1) !== base.pathname.slice(0, base.pathname.lastIndexOf('/') + 1)) {
+                    rejected = true; return;
+                }
+                const info = await api.getJSON(api.getUrl('System/Info/Public'));
+                if (!/^12\.1\.\d+(?:\.\d+)?$/.test(info?.Version || '')) { rejected = true; return; }
+                if (!stopped && api === global.ApiClient && api.getCurrentUserId?.() === userId &&
+                    homeRoute(global.location.hash) && resolveHomeNodes(document.querySelector('#indexPage')).pane === pane)
+                    bundleHash = COMPATIBILITY;
+            } catch (_) { /* Transient API errors may retry; never mount on failure. */ }
+        })();
+        verification = pending.finally(() => { verification = null; if (!stopped && bundleHash) schedule(); });
         return verification;
     }
     function unhook() {
@@ -122,7 +137,7 @@
         if (logoutPending) return;
         const api = global.ApiClient;
         const id = api?.getCurrentUserId?.() || null;
-        if (!bundleHash || stopped || !homeRoute(global.location.hash)) { unwatch(); return; }
+        if (stopped || !homeRoute(global.location.hash)) { unwatch(); return; }
         if (watchedApi !== api || watchedUser !== id) {
             unhook(); watchedApi = api; watchedUser = id;
         }
@@ -171,5 +186,5 @@
         stopped = true; observer.disconnect(); global.removeEventListener('hashchange', schedule);
         global.removeEventListener('popstate', schedule); unwatch(); adapter.dispose();
     } };
-    verify();
+    schedule();
 })(typeof globalThis !== 'undefined' ? globalThis : this);

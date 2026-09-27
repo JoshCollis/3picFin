@@ -17,7 +17,7 @@ NAME = "3pic Fin"
 DLL = "Rowan.Jellyfin.Plugin.dll"
 ABI = "12.1.0.0"
 VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\Z")
-DESCRIPTION = "Modular Jellyfin Home and discovery integration (staging)."
+DESCRIPTION = "Jellyfin 12.1 Home, discovery and media-request integration."
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 
 

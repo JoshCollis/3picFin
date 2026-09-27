@@ -82,6 +82,24 @@ public sealed class HomeAdapterRegistrationTests
     }
 
     [Fact]
+    public void PortableIndexRejectsMalformedAndAmbiguousHtml()
+    {
+        foreach (var html in new[] { "hello</body>", "<html><body>x</body></html></body>", "<html><body>x</body>" })
+            Assert.Equal(html, HomeAdapterRegistration.TransformIndex(new JObject { ["contents"] = html }));
+    }
+
+    [Fact]
+    public void PortableIndexInjectsWithoutDistributionHash()
+    {
+        const string html = "<!doctype html><html><head></head><body><script data-hss></script><script data-plugin-pages></script></body></html>";
+        var output = HomeAdapterRegistration.TransformIndex(new JObject { ["contents"] = html });
+        Assert.Equal(1, output.Split("data-threepic-fin-adapter").Length - 1);
+        Assert.Contains("data-hss", output);
+        Assert.Contains("data-plugin-pages", output);
+        Assert.Equal(output, HomeAdapterRegistration.TransformIndex(new JObject { ["contents"] = output }));
+    }
+
+    [Fact]
     public void PackagedAdapterIsFlagGated()
     {
         Assert.IsType<NotFoundResult>(new DiscoveryPageController(() => false).GetAsset("home-adapter.js"));

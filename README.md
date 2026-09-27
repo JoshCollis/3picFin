@@ -4,9 +4,9 @@ A Jellyfin 12.1 plugin for Home rows, discovery and media requests. It uses Seer
 
 ## Current status
 
-The [latest release](https://github.com/JoshCollis/3picFin/releases) is a staging build. Its Home adapter has no production web-bundle compatibility pins, so installing the ZIP will not add the 3pic Fin Home switch to an unverified Jellyfin web build. Search augmentation is likewise not enabled for an unverified distribution. The current package is for disposable testing, not replacing installed UI plugins.
+Install the [latest release](https://github.com/JoshCollis/3picFin/releases) on Jellyfin 12.1 with File Transformation 3.0.1 (or a compatible version) for automatic Home integration. The portable Home/3pic Fin switch and Discovery view are enabled on a new installation. Existing saved configuration is respected. The optional featured still-image carousel (up to 10 titles) needs a selected-library allowlist and an administrator's trusted-filesystem opt-in; servers whose image writers are not trusted should leave it off. An unsupported web version or ambiguous native Home structure leaves Jellyfin's Home unchanged.
 
-The server includes user-scoped Home rows, a featured still-image carousel (up to 10 titles from selected libraries), Seerr discovery and requests, title-wide Arr downloads, and an upcoming-releases calendar. Most modules are independently configurable and default off. Household requests, downloads, calendar and upcoming rows can show titles outside a viewer's libraries when an administrator enables them. Read the disclosures in the plugin settings before enabling those feeds.
+User-scoped rows, Seerr discovery and requests, title-wide Arr downloads, and an upcoming-releases calendar are independently configurable. Seerr credentials and household-wide requests, downloads and calendar remain opt-in; the latter can reveal titles outside a viewer's Jellyfin libraries. Search augmentation is not automatically mounted yet. Keep existing UI plugins until their household features are verified side by side.
 
 ## Packages
 
@@ -16,7 +16,7 @@ The Jellyfin repository URL is:
 https://raw.githubusercontent.com/JoshCollis/3picFin/catalog/manifest.json
 ```
 
-Versioned ZIPs are on the [releases page](https://github.com/JoshCollis/3picFin/releases). The `catalog` branch retains the version list. Adding the repository to a live server does not make this staging build ready for Home replacement; test it on a disposable Jellyfin 12.1 instance first. The optional Home injection uses the File Transformation plugin and is disabled without verified compatibility pins for the exact web distribution. See [Home adapter compatibility](docs/home-adapter-integration.md) and [release packaging](docs/release-packaging.md).
+Versioned ZIPs are on the [releases page](https://github.com/JoshCollis/3picFin/releases); the `catalog` branch retains the version list. Add the repository URL above in Jellyfin's Plugins → Repositories, install 3pic Fin, and restart Jellyfin. File Transformation is required for automatic Home mounting; other user-facing integrations are configured in the 3pic Fin admin settings. The Home adapter checks Jellyfin 12.1 and native route/DOM compatibility at runtime rather than a server-specific asset hash. See [Home adapter compatibility](docs/home-adapter-integration.md) and [release packaging](docs/release-packaging.md).
 
 ## Build and test
 

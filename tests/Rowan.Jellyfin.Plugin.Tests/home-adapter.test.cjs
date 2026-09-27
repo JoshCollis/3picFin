@@ -8,10 +8,8 @@ const { createAdapter, resolveHomeNodes } = require('../../src/Rowan.Jellyfin.Pl
 const body = Buffer.from('tested Home distribution');
 const digest = crypto.createHash('sha256').update(body).digest('hex');
 function runtime({ timing = ['https://example.test/jellyfin/web/hometab.abc.chunk.js'],
-    bytes = body, hash = digest, route = '#/home', children, user = 'alice' } = {}) {
-    const source = fs.readFileSync(require.resolve('../../src/Rowan.Jellyfin.Plugin/Web/home-adapter.js'), 'utf8')
-        .replace('VERIFIED_HOME_DISTRIBUTION = null',
-            `VERIFIED_HOME_DISTRIBUTION = { chunk: 'hometab.abc.chunk.js', sha256: '${hash}' }`);
+    version = '12.1.0', route = '#/home', children, user = 'alice', duplicatePages = false } = {}) {
+    const source = fs.readFileSync(require.resolve('../../src/Rowan.Jellyfin.Plugin/Web/home-adapter.js'), 'utf8');
     let appended = 0, mounts = 0, disposals = 0, stableMounts = 0, stableDisposals = 0;
     let fetches = [], listeners = {}, observer, ticks, watchReady = false, schedules = 0;
     // Publish host events after the adapter's awaited mount/refresh continuation has run.
@@ -33,15 +31,18 @@ function runtime({ timing = ['https://example.test/jellyfin/web/hometab.abc.chun
     });
     const pane = { id: 'homeTab', getAttribute: () => '0', querySelector: () => ({}), getClientRects: () => [{}] };
     const favorites = { id: 'favoritesTab', getAttribute: () => '1' };
+    const page = { children: children || [pane, favorites] };
     const document = { documentElement: {}, baseURI: 'https://example.test/jellyfin/web/index.html',
-        querySelector: () => ({ children: children || [pane, favorites] }),
+        querySelector: () => page,
+        querySelectorAll: () => duplicatePages ? [page, {children:[pane, favorites]}] : [page],
         createElement: () => ({ remove() {}, set src(value) { this.url = value; }, get src() { return this.url; } }),
         head: { appendChild(script) { appended++; signal(); script.onload?.(); } } };
     const context = { document, location: { hash: route },
-        ApiClient: { getCurrentUserId: () => user, getUrl: path => `/jellyfin/${path}`, getJSON() {}, logout() { user = null; } },
+        ApiClient: { getCurrentUserId: () => user, getUrl: path => `/jellyfin/${path}`,
+            getJSON: async () => ({ Version: version }), logout() { user = null; } },
         getComputedStyle: () => ({ display: 'block', visibility: 'visible' }),
         performance: { getEntriesByType: () => timing.map(name => ({ name, initiatorType: 'script' })) },
-        fetch: async (url, options) => { fetches.push([url, options]); return { ok: true, url, arrayBuffer: async () => bytes }; },
+        fetch: async (url, options) => { fetches.push([url, options]); return { ok: true, url, arrayBuffer: async () => body }; },
         MutationObserver: class { constructor(callback) { observer = callback; } observe() {} disconnect() {} },
         addEventListener: (name, handler) => listeners[name] = handler,
         removeEventListener: name => delete listeners[name],
@@ -71,16 +72,17 @@ test('native v12.1 DOM has distinct homeTab and favoritesTab children', () => {
     assert.deepEqual(resolveHomeNodes({ children: [home, favorites, favorites] }), { pane: null, favorites: null });
 });
 
-test('distribution-gated active Home loads from exact URL with matching refetched body under base path', async () => {
+test('supported signed-in Home loads without distribution pin under base path', async () => {
     const app = runtime(); await app.waitForMounts(1);
     assert.equal(app.appended, 1);
-    assert.equal(app.fetches.length, 1);
-    assert.equal(app.fetches[0][0], 'https://example.test/jellyfin/web/hometab.abc.chunk.js');
+    assert.equal(app.fetches.length, 0);
     app.dispose();
 });
 for (const [name, options] of [
-    ['wrong body at same URL', { bytes: Buffer.from('different') }],
-    ['wrong loaded URL', { timing: ['https://example.test/jellyfin/web/hometab.other.chunk.js'] }],
+    ['unsupported major', { version: '13.0.0' }],
+    ['unsupported minor', { version: '12.2.0' }],
+    ['missing version', { version: null }],
+    ['invalid version', { version: '12.1-preview' }],
     ['missing resource timing', { timing: [] }],
     ['ambiguous duplicate resource timing', { timing: ['https://example.test/jellyfin/web/hometab.abc.chunk.js', 'https://example.test/jellyfin/web/hometab.abc.chunk.js'] }],
     ['cross-origin script URL', { timing: ['https://evil.test/jellyfin/web/hometab.abc.chunk.js'] }],
@@ -95,10 +97,13 @@ test('ambiguous native Home nodes fail closed', async () => {
         { id: 'homeTab', getAttribute: () => '0', querySelector: () => ({}) }] });
     await app.settle(); assert.equal(app.appended, 0); app.dispose();
 });
-test('missing production manifest is inert', async () => {
-    const source = fs.readFileSync(require.resolve('../../src/Rowan.Jellyfin.Plugin/Web/home-adapter.js'), 'utf8');
-    const app = runtime(); app.dispose();
-    assert.match(source, /VERIFIED_HOME_DISTRIBUTION = null/);
+test('duplicate native index pages fail closed even if the first has valid Home nodes', async () => {
+    const app = runtime({ duplicatePages: true });
+    await app.settle(); assert.equal(app.appended, 0); app.dispose();
+});
+test('another same-origin Home chunk hash is portable', async () => {
+    const app = runtime({ timing: ['https://example.test/jellyfin/web/hometab.deadbeef.chunk.js'] });
+    await app.waitForMounts(1); assert.equal(app.appended, 1); app.dispose();
 });
 
 test('route exit and user switch tear down and remount only verified Home', async () => {

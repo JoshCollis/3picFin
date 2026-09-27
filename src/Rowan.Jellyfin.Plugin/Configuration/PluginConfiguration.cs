@@ -6,8 +6,8 @@ namespace Rowan.Jellyfin.Plugin.Configuration;
 /// <summary>Saved configuration. A null library selection means all eligible libraries; an empty array means none.</summary>
 public sealed class PluginConfiguration : BasePluginConfiguration
 {
-    /// <summary>Gets or sets whether the future Home module is enabled. Disabled by default.</summary>
-    public bool HomeEnabled { get; set; }
+    /// <summary>Enable portable Home integration on new installs. Existing saved choices remain unchanged.</summary>
+    public bool HomeEnabled { get; set; } = true;
 
     /// <summary>Opt-in combined playback row; requires Home enabled.</summary>
     public bool CombinedPlaybackRowEnabled { get; set; }
@@ -48,8 +48,8 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     /// <summary>Explicit hero library allowlist. Null or empty means no slides.</summary>
     public Guid[]? HeroLibraryIds { get; set; }
 
-    /// <summary>Gets or sets whether the inert Discovery resource shell is served. Disabled by default.</summary>
-    public bool DiscoveryPageEnabled { get; set; }
+    /// <summary>Serve the Discovery view on new installs. Seerr and cross-user modules remain independent opt-ins.</summary>
+    public bool DiscoveryPageEnabled { get; set; } = true;
 
     /// <summary>Serves the isolated global search adapter; disabled by default and does not inject it.</summary>
     public bool GlobalSearchEnabled { get; set; }
