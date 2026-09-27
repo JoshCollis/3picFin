@@ -4,9 +4,9 @@ A Jellyfin 12.1 plugin for Home rows, discovery and media requests. It uses Seer
 
 ## Current status
 
-The [v0.1.0.0 release](https://github.com/JoshCollis/3picFin/releases/tag/v0.1.0.0) is a staging build. Its Home adapter has no production web-bundle compatibility pins, so installing the ZIP will not add the 3pic Fin Home switch to an unverified Jellyfin web build. Search augmentation is likewise not enabled for an unverified distribution. The current package is for disposable testing, not replacing installed UI plugins.
+The [latest release](https://github.com/JoshCollis/3picFin/releases) is a staging build. Its Home adapter has no production web-bundle compatibility pins, so installing the ZIP will not add the 3pic Fin Home switch to an unverified Jellyfin web build. Search augmentation is likewise not enabled for an unverified distribution. The current package is for disposable testing, not replacing installed UI plugins.
 
-The server includes user-scoped Home rows, a still-image hero, Seerr discovery and requests, title-wide Arr downloads, and an upcoming-releases calendar. Most modules are independently configurable and default off. Household requests, downloads, calendar and upcoming rows can show titles outside a viewer's libraries when an administrator enables them. Read the disclosures in the plugin settings before enabling those feeds.
+The server includes user-scoped Home rows, a featured still-image carousel (up to 10 titles from selected libraries), Seerr discovery and requests, title-wide Arr downloads, and an upcoming-releases calendar. Most modules are independently configurable and default off. Household requests, downloads, calendar and upcoming rows can show titles outside a viewer's libraries when an administrator enables them. Read the disclosures in the plugin settings before enabling those feeds.
 
 ## Packages
 
