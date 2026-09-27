@@ -24,15 +24,21 @@
         const tmdbId = field(item, 'TmdbId');
         const poster = field(item, 'PosterPath');
         const canInspect = !request && (type === 'movie' || type === 'tv') && Number.isInteger(tmdbId) && tmdbId > 0;
-        const posterHost = canInspect ? document.createElement('button') : article;
-        if (canInspect) { posterHost.type = 'button'; posterHost.className = 'threepic-fin-discovery__poster-button'; posterHost.setAttribute('aria-label', `Details for ${typeof title === 'string' && title.trim() ? title : label(type)}`); posterHost.addEventListener('click', () => openDetails(item, posterHost)); article.appendChild(posterHost); }
+        const posterHost = canInspect ? document.createElement('button') : document.createElement('div');
+        posterHost.className = canInspect ? 'threepic-fin-discovery__poster-button' : 'threepic-fin-discovery__poster-frame';
+        if (canInspect) { posterHost.type = 'button'; posterHost.setAttribute('aria-label', `Details for ${typeof title === 'string' && title.trim() ? title : label(type)}`); posterHost.addEventListener('click', () => openDetails(item, posterHost)); }
+        article.appendChild(posterHost);
         if (validPoster(poster)) {
             const image = document.createElement('img');
             image.src = `https://image.tmdb.org/t/p/w342${poster}`;
             image.alt = '';
             image.loading = 'lazy';
+            image.addEventListener('error', () => {
+                posterHost.replaceChildren();
+                text(posterHost, 'div', 'Poster unavailable', 'threepic-fin-discovery__poster-fallback');
+            });
             posterHost.appendChild(image);
-        } else text(posterHost, 'div', label(type), 'threepic-fin-discovery__poster-fallback');
+        } else text(posterHost, 'div', 'No poster', 'threepic-fin-discovery__poster-fallback');
         const info = document.createElement('div');
         info.className = 'threepic-fin-discovery__card-info';
         const displayTitle = typeof title === 'string' && title.trim() ? title : `${label(type)}${Number.isInteger(tmdbId) && tmdbId > 0 ? ` · TMDb #${tmdbId}` : ' · details unavailable'}`;
@@ -126,6 +132,44 @@
         let calendarGeneration = 0, calendarAbort = null, calendarOffset = 0, calendarLoading = false;
         const calendarEpoch = Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
         let sharedPage = 1, sharedMax = 1;
+        let requestListGeneration = 0, sharedListGeneration = 0;
+        const metadata = new Map(), metadataAbort = new AbortController();
+        // Request rows contain media identity, not TMDb presentation metadata. Only
+        // this signed-in, mapped route may resolve titles; never use a public TMDb key.
+        async function requestCards(container, source, empty, shared = false) {
+            const generation = shared ? ++sharedListGeneration : ++requestListGeneration;
+            if (!source || field(source, 'Error') || !Array.isArray(field(source, 'Items'))) {
+                render(container, source, empty, true); return;
+            }
+            const original = field(source, 'Items');
+            const rows = original.map(item => ({ ...item }));
+            const paint = () => {
+                if (disposed || generation !== (shared ? sharedListGeneration : requestListGeneration)) return;
+                render(container, { Items: rows }, empty, true);
+            };
+            for (const row of rows) {
+                const type = field(row, 'MediaType') || field(row, 'Type'), id = field(row, 'TmdbId');
+                if (type === 'movie' || type === 'tv') row.Title = Number.isInteger(id) && id > 0 ? 'Loading title…' : 'Title unavailable';
+            }
+            paint();
+            // Bound fan-out per mounted user. A title may appear in both personal
+            // and opt-in household lists; share only within this mount, never across users.
+            const pending = rows.filter(row => ['movie', 'tv'].includes(field(row, 'MediaType') || field(row, 'Type')) && Number.isInteger(field(row, 'TmdbId')) && field(row, 'TmdbId') > 0);
+            let next = 0;
+            async function worker() {
+                while (!disposed && next < pending.length) {
+                    const row = pending[next++], type = field(row, 'MediaType') || field(row, 'Type'), id = field(row, 'TmdbId');
+                    const key = `${type}:${id}`;
+                    if (!metadata.has(key)) metadata.set(key, ApiClient.getJSON(ApiClient.getUrl('3picFin/TitleDetails', { mediaType: type, mediaId: id }), { signal: metadataAbort.signal }).catch(() => null));
+                    const detail = await metadata.get(key);
+                    if (disposed || generation !== (shared ? sharedListGeneration : requestListGeneration)) return;
+                    row.Title = field(detail, 'MediaType') === type && field(detail, 'TmdbId') === id && typeof field(detail, 'Title') === 'string' && field(detail, 'Title').trim() ? field(detail, 'Title') : 'Title unavailable';
+                    row.PosterPath = row.Title !== 'Title unavailable' ? field(detail, 'PosterPath') : null;
+                    paint();
+                }
+            }
+            await Promise.all(Array.from({ length: Math.min(3, pending.length) }, worker));
+        }
         const pages = { movies: 1, tv: 1, requests: 1 };
         const maxima = { movies: 1, tv: 1, requests: 1 };
         let searchPage = 1, searchQuery = '', searchMax = 1;
@@ -155,7 +199,7 @@
             if (!detailsDialog.open) detailsDialog.showModal();
             try {
                 const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/TitleDetails', { mediaType, mediaId }), { signal: detailsAbort.signal });
-                if (disposed || generation !== detailsGeneration || !detailsDialog.open) return;
+                if (disposed || generation !== detailsGeneration || !detailsDialog.open || host.isCurrent && !host.isCurrent()) return;
                 if (field(result, 'MediaType') !== mediaType || field(result, 'TmdbId') !== mediaId) throw Error('Invalid details');
                 detailsItem = item;
                 const title = field(result, 'Title'), overview = field(result, 'Overview'), poster = field(result, 'PosterPath');
@@ -196,7 +240,7 @@
                     mediaType === 'tv' && (!Array.isArray(seasons) || !seasons.some(n => Number.isInteger(n) && n > 0 && n <= 1000));
                 if (!el('details-request').hidden && mediaType === 'tv') el('details-request').textContent = 'Request seasons';
             } catch (_) {
-                if (disposed || generation !== detailsGeneration || !detailsDialog.open) return;
+                if (disposed || generation !== detailsGeneration || !detailsDialog.open || host.isCurrent && !host.isCurrent()) return;
                 el('details-status').textContent = 'Details unavailable right now.';
                 el('details-open').hidden = true; el('details-request').hidden = true;
             } finally { if (generation === detailsGeneration) { detailsBusy = false; detailsAbort = null; } }
@@ -222,7 +266,7 @@
             selection = null; options = null;
         }
         async function openRequest(item, button) {
-            if (disposed || submitting) return;
+            if (disposed || submitting || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
             const generation = ++requestGeneration;
             trigger = button;
             const mediaType = field(item, 'MediaType'), mediaId = field(item, 'TmdbId');
@@ -237,7 +281,7 @@
             if (!dialog.open) dialog.showModal();
             try {
                 const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/RequestOptions', { mediaType, mediaId }));
-                if (disposed || generation !== requestGeneration || !dialog.open) return;
+                if (disposed || generation !== requestGeneration || !dialog.open || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
                 if (typeof field(result, 'CanRequest') !== 'boolean' || typeof field(result, 'CanRequest4k') !== 'boolean' ||
                     !Array.isArray(field(result, 'Seasons'))) throw Error('Invalid options');
                 options = result;
@@ -265,14 +309,14 @@
                 updateRequestStatus();
                 el('request-submit').disabled = false;
             } catch (_) {
-                if (disposed || generation !== requestGeneration || !dialog.open) return;
+                if (disposed || generation !== requestGeneration || !dialog.open || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
                 status('Request details unavailable. No request was sent.');
                 el('request-submit').disabled = true;
             }
         }
         async function submitRequest(event) {
             event.preventDefault();
-            if (disposed || !dialog.open || !selection || !options || submitting || locked || el('request-submit').disabled) return;
+            if (disposed || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId || !dialog.open || !selection || !options || submitting || locked || el('request-submit').disabled) return;
             const is4k = !el('request-4k-wrap').hidden && el('request-4k').checked;
             if (field(options, 'MediaStatus') === 6) { status('This title is blocklisted. No request can be submitted.'); el('request-submit').disabled = true; return; }
             if (!(is4k ? field(options, 'CanRequest4k') : field(options, 'CanRequest'))) {
@@ -301,10 +345,10 @@
                 const found = existing(personal, chosen);
                 if (verified) {
                     status(`Request ${requestStatus(field(verified, 'Status'))}. Check My Requests for updates.`);
-                    render(el('requests'), personal, 'Requests', true);
+                    requestCards(el('requests'), personal, 'Requests');
                 } else if (found && !created) {
                     status('A matching request appears in My Requests, but this submission could not be verified. Do not retry without checking it.');
-                    render(el('requests'), personal, 'Requests', true);
+                    requestCards(el('requests'), personal, 'Requests');
                 } else if (failure?.status === 409) status('Already requested. Check My Requests; the matching request was not verified here.');
                 else status('Outcome unknown: could not verify the request. Check My Requests before trying again.');
             } catch (_) {
@@ -329,7 +373,7 @@
             try {
                 const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/SharedRequests', { page }));
                 if (disposed || generation !== sharedGeneration) return;
-                render(el('shared-requests'), result, 'Household requests', true);
+                requestCards(el('shared-requests'), result, 'Household requests', true);
                 sharedMax = field(result, 'Error') || !Array.isArray(field(result, 'Items')) ? 1 : maxPages(result);
                 pager('shared-requests', page, sharedMax);
             } catch (_) {
@@ -350,7 +394,7 @@
                 personal = requests;
                 render(el('movies'), movies, 'Movies', false, openRequest, openDetails);
                 render(el('tv'), tv, 'TV', false, openRequest, openDetails);
-                render(el('requests'), requests, 'Requests', true);
+                requestCards(el('requests'), requests, 'Requests');
                 // A small sample from the current discovery pages, not personalized recommendations.
                 const suggestions = [...list(field(movies, 'Items')).slice(0, 2), ...list(field(tv, 'Items')).slice(0, 2)];
                 render(el('recommendations'), { Items: suggestions, Error: field(movies, 'Error') && field(tv, 'Error') }, 'titles', false, openRequest, openDetails);
@@ -504,14 +548,23 @@
         if (!deferInitialLoad) activate();
         const cleanup = () => {
             if (disposed) return;
-            disposed = true; closeDetails(false); stopDownloads(); stopCalendar(); ++searchGeneration; ++discoveryGeneration; ++requestGeneration; ++sharedGeneration;
-            for (const name of ['calendar-radarr', 'calendar-sonarr']) el(name).replaceChildren();
+            disposed = true; metadataAbort.abort(); metadata.clear(); ++requestListGeneration; ++sharedListGeneration; closeDetails(false); stopDownloads(); stopCalendar(); ++searchGeneration; ++discoveryGeneration; ++requestGeneration; ++sharedGeneration;
+            for (const name of ['movies', 'tv', 'requests', 'recommendations', 'shared-requests', 'search-results', 'downloads-radarr', 'downloads-sonarr', 'calendar-radarr', 'calendar-sonarr']) el(name).replaceChildren();
             el('calendar-panel').hidden = true;
             if (dialog.open) dialog.close();
             controls.forEach(remove => remove());
             instances.delete(root);
         };
         cleanup.activate = activate;
+        // Search reuses this exact dialog/options/POST/read-back controller; the
+        // caller owns the fragment and must dispose it on route/user teardown.
+        cleanup.openRequest = (item, button) => {
+            if (!disposed && ApiClient.getCurrentUserId?.() === host.userId) openRequest(item, button);
+        };
+        cleanup.openDetails = (item, button) => {
+            if (!disposed && ApiClient.getCurrentUserId?.() === host.userId &&
+                (!host.isCurrent || host.isCurrent())) openDetails(item, button);
+        };
         instances.set(root, cleanup);
         return cleanup;
     }

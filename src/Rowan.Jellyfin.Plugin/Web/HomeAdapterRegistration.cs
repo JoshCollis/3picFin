@@ -100,16 +100,22 @@ public sealed class HomeAdapterRegistration : IHostedService
     public static bool HeroConfigured(PluginConfiguration? config) => HeroPolicy.Enabled(config) &&
         HeroPolicy.TrySelectLibraryIds(config!.HeroLibraryIds, config.HeroLibraryIds ?? [], out var ids) && ids.Count > 0;
 
-    public static bool ShouldInject(PluginConfiguration? config) => config?.HomeEnabled == true &&
-        (config.DiscoveryPageEnabled || HeroConfigured(config));
+    public static bool ShouldInject(PluginConfiguration? config) => config?.GlobalSearchEnabled == true ||
+        config?.HomeEnabled == true && (config.DiscoveryPageEnabled || HeroConfigured(config) ||
+            (config.NativeHomeRowsEnabled && config.NativeHomeRowKinds?.Length > 0));
 
-    public static string Transform(JObject input) => TransformIndex(input, enabled: ShouldInject(Plugin.Current?.Configuration));
+    public static string Transform(JObject input) => TransformIndex(input,
+        enabled: Plugin.Current?.Configuration is { } config && config.HomeEnabled &&
+            (config.DiscoveryPageEnabled || HeroConfigured(config) ||
+                (config.NativeHomeRowsEnabled && config.NativeHomeRowKinds?.Length > 0)),
+        searchEnabled: Plugin.Current?.Configuration.GlobalSearchEnabled == true);
 
-    public static string TransformIndex(JObject input, string? expectedSha256 = null, bool enabled = true)
+    public static string TransformIndex(JObject input, string? expectedSha256 = null, bool enabled = true, bool searchEnabled = false)
     {
         var html = (string?)input["contents"] ?? string.Empty;
-        if (!enabled) return html;
-        if (html.Contains("data-threepic-fin-adapter", StringComparison.Ordinal)) return html;
+        if (!enabled && !searchEnabled) return html;
+        if (html.Contains("data-threepic-fin-adapter", StringComparison.Ordinal) ||
+            html.Contains("data-threepic-fin-search", StringComparison.Ordinal)) return html;
         // Only inject a complete, unambiguous HTML document; runtime checks the
         // server/web contract and native Home structure before mounting anything.
         if (!html.Contains("<html", StringComparison.OrdinalIgnoreCase) ||
@@ -122,7 +128,10 @@ public sealed class HomeAdapterRegistration : IHostedService
             var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(html)));
             if (!string.Equals(hash, expectedSha256, StringComparison.Ordinal)) return html;
         }
-        return html.Replace(anchor, "<script data-threepic-fin-adapter src=\"../3picFin/Web/home-adapter.js\"></script>" + anchor, StringComparison.Ordinal);
+        var loader = (enabled ? "<script data-threepic-fin-adapter src=\"../3picFin/Web/home-adapter.js\"></script>" : string.Empty) +
+            (searchEnabled ? "<script data-threepic-fin-search src=\"../3picFin/Web/global-search-addon.js\"></script>" +
+                "<script data-threepic-fin-search-host src=\"../3picFin/Web/search-adapter.js\"></script>" : string.Empty);
+        return html.Replace(anchor, loader + anchor, StringComparison.Ordinal);
     }
 }
 

@@ -1,108 +1,250 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>3pic Fin</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3pic Fin</title>
 </head>
 <body>
-    <div id="RowanConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-checkbox">
-        <div data-role="content">
-            <div class="content-primary">
-                <h1>3pic Fin</h1>
-                <form id="RowanConfigForm">
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="HomeEnabled" type="checkbox" is="emby-checkbox" />
-                            <span>Enable Home module</span>
-                        </label>
-                        <div class="fieldDescription">Enables Home APIs; no Home row is inserted by this plugin.</div>
-                    </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label"><input id="CombinedPlaybackRowEnabled" type="checkbox" is="emby-checkbox" /><span>Enable combined Continue Watching / Next Up API</span></label>
-                        <div class="fieldDescription">Default off. Requires Home. User-specific resumable and aired Next Up items; no automatic Home insertion.</div>
-                    </div>
-                    <fieldset>
-                        <legend>Seerr Discover Home data (independent switches, default off)</legend>
-                        <label><input id="DiscoverRowEnabled" type="checkbox" is="emby-checkbox" /> Enable HSS Discover (trending) data</label><br />
-                        <label><input id="DiscoverMoviesRowEnabled" type="checkbox" is="emby-checkbox" /> Enable HSS Discover Movies data</label><br />
-                        <label><input id="DiscoverTvRowEnabled" type="checkbox" is="emby-checkbox" /> Enable HSS Discover TV data</label>
-                        <div class="fieldDescription">Requires Home and Seerr. Candidate titles are not Jellyfin library items or playable claims. Seerr discovery can reveal non-adult titles outside each user's Jellyfin libraries and parental visibility. No HSS or native Home row is inserted; leave off if that disclosure is unsuitable.</div>
-                    </fieldset>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label"><input id="CombinedPlaybackHideWatched" type="checkbox" is="emby-checkbox" /><span>Hide watched items in combined row</span></label>
-                    </div>
-                    <fieldset>
-                        <legend>Personal My Requests Home data</legend>
-                        <label><input id="MyRequestsRowEnabled" type="checkbox" is="emby-checkbox" /> Enable personal available My Requests row</label><br />
-                        <label><input id="MyRequestsHideWatched" type="checkbox" is="emby-checkbox" /> Hide watched requested items</label>
-                        <div class="fieldDescription">Default off. Requires Home and Seerr. Only the signed-in user's mapped requests with locally available, currently visible Jellyfin media are returned; this is independent of household requests. No automatic Home insertion.</div>
-                    </fieldset>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label"><input id="CollectionsRowEnabled" type="checkbox" is="emby-checkbox" /><span>Enable Collections API</span></label>
-                        <div class="fieldDescription">Default off. Requires Home. Only collections with a currently visible member are returned; no automatic Home insertion.</div>
-                    </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label"><input id="LiveTvRowEnabled" type="checkbox" is="emby-checkbox" /><span>Enable Live TV guide row API</span></label>
-                        <div class="fieldDescription">Default off. Requires Home and each user's Live TV permission. Only currently airing programs on that user's visible channels; no streams or automatic Home insertion.</div>
-                    </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label"><input id="BecauseYouWatchedRowEnabled" type="checkbox" is="emby-checkbox" /><span>Enable Because You Watched Home data</span></label>
-                        <label class="emby-checkbox-label"><input id="BecauseYouWatchedHideWatched" type="checkbox" is="emby-checkbox" /><span>Hide watched similar cards</span></label>
-                        <div class="fieldDescription">Default off independently. Requires Home. Per-user played movie seeds and visible similar movies only. No automatic Home insertion.</div>
-                    </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="HeroTrustedFilesystemEnabled" type="checkbox" is="emby-checkbox" />
-                            <span>Enable still-image hero from trusted metadata</span>
-                        </label>
-                        <div class="fieldDescription">Default off. Requires Home enabled. Hero images are confined to Jellyfin's internal metadata library root, not media/share paths. On supported Linux, the image file is opened atomically within that root; symlinks and nested mounts are rejected. Only enable after auditing metadata ownership and write access: malicious writers inside the metadata filesystem can still create hardlinks or change file contents in place. Keep off on a live server until its metadata trust and image behavior are verified. Jellyfin's separate raw image API may still serve images anonymously by item ID.</div>
-                    </div>
-                    <fieldset><legend>Featured hero libraries</legend>
-                        <div id="HeroLibraries" aria-label="Featured hero libraries"></div>
-                        <div class="fieldDescription">Select libraries to feature. Empty selection shows no slides. Up to 10 still images from the signed-in user’s visible items; Home and trusted metadata must also be enabled.</div>
-                    </fieldset>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="DiscoveryPageEnabled" type="checkbox" is="emby-checkbox" />
-                            <span>Enable Discovery shell assets</span>
-                        </label>
-                        <div class="fieldDescription">Serves the inert Discovery fragment and CSS. This does not add a Home tab or enable user-facing Discovery.</div>
-                    </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="SharedRequestsEnabled" type="checkbox" is="emby-checkbox" />
-                            <span>Enable household Seerr requests</span>
-                        </label>
-                        <div class="fieldDescription">Default off. All signed-in Jellyfin users can see request statuses, including titles outside their library. Anonymous users and userless API keys cannot. This does not grant request creation; Seerr permissions still apply. Requires Seerr integration separately.</div>
-                    </div>
-                    <fieldset>
-                        <legend>Household-wide Arr activity (independent switches, default off)</legend>
-                        <label><input id="DownloadsEnabled" type="checkbox" is="emby-checkbox" /> Enable shared title-level Downloads</label>
-                        <div class="fieldDescription">Every existing signed-in Jellyfin user can see all configured Radarr/Sonarr queue titles, including titles outside their libraries or parental restrictions. This does not establish who requested a title, ownership, or Jellyfin watchability. Never enable if this disclosure is unsuitable for the household. API keys remain server-side; configure trusted Arr URLs only.</div>
-                        <label><input id="CalendarEnabled" type="checkbox" is="emby-checkbox" /> Enable shared Arr Calendar independently (default off)</label>
-                        <div class="fieldDescription">Every existing signed-in Jellyfin user can see upcoming Radarr movie releases and Sonarr episode titles/dates, including titles outside their libraries or parental restrictions. This does not imply who requested them, file presence, or Jellyfin watchability. The Calendar and Downloads switches are independent; both reuse the server-only Arr connections below. Never enable if household-wide disclosure is unsuitable.</div>
-                        <label><input id="UpcomingMoviesRowEnabled" type="checkbox" is="emby-checkbox" /> Enable household Upcoming Movies Home data</label><br />
-                        <label><input id="UpcomingShowsRowEnabled" type="checkbox" is="emby-checkbox" /> Enable household Upcoming Shows Home data</label>
-                        <div class="fieldDescription">Each row is independently default off; both require Home and Calendar. Every existing signed-in user can see monitored, no-file Arr titles with future release or air dates, including titles outside their Jellyfin libraries or parental restrictions. These are candidates, not playable Jellyfin items. No native Home insertion is enabled; only the staged opt-in renderer requests these rows. Do not enable if cross-library disclosure is unsuitable.</div>
-                        <label for="RadarrBaseUrl">Radarr base URL</label><input id="RadarrBaseUrl" type="url" autocomplete="off" />
-                        <label for="RadarrApiKey">Radarr API key</label><input id="RadarrApiKey" type="password" autocomplete="new-password" />
-                        <label for="SonarrBaseUrl">Sonarr base URL</label><input id="SonarrBaseUrl" type="url" autocomplete="off" />
-                        <label for="SonarrApiKey">Sonarr API key</label><input id="SonarrApiKey" type="password" autocomplete="new-password" />
-                    </fieldset>
-                    <fieldset>
-                        <legend>Recently Added libraries</legend>
-                        <label><input id="RecentlyAddedAll" type="radio" name="RecentlyAddedMode" value="all" /> All libraries</label><br />
-                        <label><input id="RecentlyAddedSelected" type="radio" name="RecentlyAddedMode" value="selected" /> Selected libraries</label><br />
-                        <label><input id="RecentlyAddedNone" type="radio" name="RecentlyAddedMode" value="none" /> No libraries</label>
-                        <div id="RecentlyAddedLibraries" aria-label="Available libraries"></div>
-                        <div class="fieldDescription">Select at least one library when using Selected libraries.</div>
-                    </fieldset>
-                    <div id="RowanConfigError" role="alert" hidden></div>
-                    <div id="RowanConfigStatus" role="status" hidden></div>
-                    <button id="RowanSaveButton" is="emby-button" type="submit" class="raised button-submit block emby-button" disabled><span>Save</span></button>
-                </form>
-            </div>
-        </div>
+<div id="RowanConfigPage" data-role="page" class="page type-interior pluginConfigurationPage">
+<style>
+#RowanConfigPage .fin-settings { max-width: 52rem; margin: 0 auto; padding: 1rem 1rem 5rem; color: inherit; font-family: system-ui, sans-serif; }
+#RowanConfigPage .fin-settings h1 { margin: 0 0 .25rem; font-size: 1.7rem; }
+#RowanConfigPage .fin-intro, #RowanConfigPage .fin-help { opacity: .82; line-height: 1.45; }
+#RowanConfigPage .fin-section { border: 1px solid currentColor; border-color: rgba(128,128,128,.45); border-radius: .7rem; margin: .8rem 0; background: rgba(128,128,128,.07); }
+#RowanConfigPage .fin-section > summary { cursor: pointer; padding: 1rem; font-weight: 650; font-size: 1.1rem; min-height: 2.8rem; box-sizing: border-box; }
+#RowanConfigPage .fin-section-body { padding: .2rem 1rem 1rem; display: grid; gap: .55rem; }
+#RowanConfigPage .fin-choice, #RowanConfigPage .fin-library-list label { display: flex; align-items: center; gap: .75rem; min-height: 2.75rem; cursor: pointer; line-height: 1.35; }
+#RowanConfigPage .fin-choice input, #RowanConfigPage .fin-library-list input { appearance: auto; -webkit-appearance: auto; position: static; opacity: 1; width: 1.2rem; height: 1.2rem; flex: none; margin: 0; pointer-events: auto; accent-color: var(--theme-primary-color, #729bdf); }
+#RowanConfigPage .fin-choice input:focus-visible, #RowanConfigPage .fin-library-list input:focus-visible, #RowanConfigPage summary:focus-visible, #RowanConfigPage button:focus-visible { outline: 2px solid var(--theme-primary-color, #729bdf); outline-offset: 3px; }
+#RowanConfigPage .fin-choice:has(input:disabled), #RowanConfigPage .fin-library-list label:has(input:disabled) { opacity: .55; cursor: not-allowed; }
+#RowanConfigPage .fin-settings fieldset { min-width: 0; padding: .7rem; margin: .5rem 0; border: 1px solid rgba(128,128,128,.4); border-radius: .5rem; }
+#RowanConfigPage .fin-settings legend { font-weight: 600; padding: 0 .35rem; }
+#RowanConfigPage .fin-field { display: grid; gap: .3rem; min-width: 0; }
+#RowanConfigPage .fin-field input { box-sizing: border-box; width: 100%; min-width: 0; padding: .65rem; border: 1px solid rgba(128,128,128,.7); border-radius: .4rem; background: var(--input-background, rgba(128,128,128,.1)); color: inherit; }
+#RowanConfigPage .fin-grid { display: grid; gap: .8rem; }
+#RowanConfigPage .fin-note { border-inline-start: .2rem solid #d6a248; padding: .35rem .7rem; line-height: 1.45; }
+#RowanConfigPage .fin-note summary { cursor: pointer; min-height: 2.5rem; display: flex; align-items: center; }
+#RowanConfigPage .fin-note p { margin: .5rem 0; }
+#RowanConfigPage .fin-library-list { max-height: 14rem; overflow-y: auto; }
+#RowanConfigPage .fin-settings [hidden] { display: none !important; }
+#RowanConfigPage #RowanConfigError, #RowanConfigPage #RowanConfigStatus { padding: .75rem; border-radius: .4rem; margin: .6rem 0; }
+#RowanConfigPage #RowanConfigError { border: 1px solid #d56f6f; }
+#RowanConfigPage #RowanConfigStatus { border: 1px solid #69a884; }
+#RowanConfigPage #RowanSaveButton { min-height: 2.75rem; padding: .6rem 1.5rem; cursor: pointer; }
+@media (min-width: 40rem) { #RowanConfigPage .fin-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+</style>
+<div data-role="content">
+<div class="content-primary fin-settings">
+<h1>3pic Fin</h1>
+<p class="fin-intro">Choose what appears for your household. Save, then reload the client; newly enabled web features may require a Jellyfin restart.</p>
+<form id="RowanConfigForm">
+<details class="fin-section" open>
+<summary>Home</summary>
+<div class="fin-section-body">
+<label class="fin-choice">
+<input id="HomeEnabled" type="checkbox" />
+<span>Enable Home integration</span>
+</label>
+<fieldset>
+<legend>Personal Home rows</legend>
+<label class="fin-choice"><input id="NativeHomeRowsEnabled" type="checkbox" /><span>Show additional Home rows</span></label>
+<details class="fin-note"><summary>Choose rows</summary>
+<label class="fin-choice"><input id="NativeRowContinueWatching" type="checkbox" /><span>Continue Watching</span></label>
+<label class="fin-choice"><input id="NativeRowNextUp" type="checkbox" /><span>Next Up</span></label>
+<label class="fin-choice"><input id="NativeRowLatestMovies" type="checkbox" /><span>Latest Movies</span></label>
+<label class="fin-choice"><input id="NativeRowLatestShows" type="checkbox" /><span>Latest Shows</span></label>
+<label class="fin-choice"><input id="NativeRowMyMedia" type="checkbox" /><span>My Media</span></label>
+<label class="fin-choice"><input id="NativeRowContinueWatchingNextUp" type="checkbox" /><span>Continue Watching / Next Up</span></label>
+<label class="fin-choice"><input id="NativeRowCollections" type="checkbox" /><span>Collections</span></label>
+<label class="fin-choice"><input id="NativeRowBecauseYouWatched" type="checkbox" /><span>Because You Watched</span></label>
+<label class="fin-choice"><input id="NativeRowMyRequests" type="checkbox" /><span>My Requests</span></label>
+</details>
+<p class="fin-help">Rows are scoped to the signed-in user. Choose at least one row when enabling; row order follows this list. Some rows require their corresponding feed to be enabled below.</p>
+</fieldset>
+<label class="fin-choice">
+<input id="CombinedPlaybackRowEnabled" type="checkbox" />
+<span>Continue Watching / Next Up</span>
+</label>
+<label class="fin-choice">
+<input id="CombinedPlaybackHideWatched" type="checkbox" />
+<span>Hide watched playback items</span>
+</label>
+<label class="fin-choice">
+<input id="CollectionsRowEnabled" type="checkbox" />
+<span>Collections</span>
+</label>
+<label class="fin-choice">
+<input id="LiveTvRowEnabled" type="checkbox" />
+<span>Live TV guide</span>
+</label>
+<label class="fin-choice">
+<input id="BecauseYouWatchedRowEnabled" type="checkbox" />
+<span>Because You Watched</span>
+</label>
+<label class="fin-choice">
+<input id="BecauseYouWatchedHideWatched" type="checkbox" />
+<span>Hide watched similar cards</span>
+</label>
+<p class="fin-help">Rows require Home. Live TV respects each user’s channel permissions; recommendations and collections use visible library items.</p>
+</div>
+</details>
+<details class="fin-section">
+<summary>Featured hero</summary>
+<div class="fin-section-body">
+<label class="fin-choice">
+<input id="HeroTrustedFilesystemEnabled" type="checkbox" />
+<span>Enable still-image hero from trusted metadata</span>
+</label>
+<fieldset>
+<legend>Featured hero libraries</legend>
+<div id="HeroLibraries" class="fin-library-list" aria-label="Featured hero libraries">
+</div>
+<p class="fin-help">Empty selection shows no slides. Up to 10 still images from the signed-in user’s visible items; Home and trusted metadata must also be enabled.</p>
+</fieldset>
+<details class="fin-note">
+<summary>Privacy and safety details</summary>
+<p>Default off. Requires Home enabled. Hero images are confined to Jellyfin's internal metadata library root, not media/share paths. On supported Linux, the image file is opened atomically within that root; symlinks and nested mounts are rejected. Only enable after auditing metadata ownership and write access: malicious writers inside the metadata filesystem can still create hardlinks or change file contents in place. Keep off on a live server until its metadata trust and image behavior are verified. Jellyfin's separate raw image API may still serve images anonymously by item ID.</p>
+</details>
+</div>
+</details>
+<details class="fin-section">
+<summary>Libraries</summary>
+<div class="fin-section-body">
+<fieldset>
+<legend>Recently Added libraries</legend>
+<div class="fin-options">
+<label class="fin-choice">
+<input id="RecentlyAddedAll" type="radio" name="RecentlyAddedMode" value="all" />
+<span>All libraries</span>
+</label>
+<label class="fin-choice">
+<input id="RecentlyAddedSelected" type="radio" name="RecentlyAddedMode" value="selected" />
+<span>Selected libraries</span>
+</label>
+<label class="fin-choice">
+<input id="RecentlyAddedNone" type="radio" name="RecentlyAddedMode" value="none" />
+<span>No libraries</span>
+</label>
+</div>
+<div id="RecentlyAddedLibraries" class="fin-library-list" aria-label="Available libraries">
+</div>
+<p class="fin-help">Select at least one library in Selected mode.</p>
+</fieldset>
+</div>
+</details>
+<details class="fin-section">
+<summary>Seerr &amp; Discovery</summary>
+<div class="fin-section-body">
+<label class="fin-choice">
+<input id="SeerrEnabled" type="checkbox" />
+<span>Enable Seerr integration</span>
+</label>
+<label class="fin-field" for="SeerrBaseUrl">Seerr base URL<input id="SeerrBaseUrl" type="url" autocomplete="off" />
+</label>
+<label class="fin-field" for="SeerrApiKey">Seerr API key<input id="SeerrApiKey" type="password" autocomplete="new-password" />
+</label>
+<label class="fin-choice">
+<input id="ClearSeerrApiKey" type="checkbox" />
+<span>Clear saved Seerr key</span>
+</label>
+<p class="fin-help">Leave the key blank to retain the saved key; replace it by entering a new one. Only configure a trusted Seerr URL.</p>
+<label class="fin-choice">
+<input id="DiscoveryPageEnabled" type="checkbox" />
+<span>Enable Discovery page</span>
+</label>
+<label class="fin-choice">
+<input id="GlobalSearchEnabled" type="checkbox" />
+<span>Show Seerr results alongside Jellyfin Search</span>
+</label>
+<fieldset>
+<legend>Discovery feeds</legend>
+<label class="fin-choice">
+<input id="DiscoverRowEnabled" type="checkbox" />
+<span>Trending</span>
+</label>
+<label class="fin-choice">
+<input id="DiscoverMoviesRowEnabled" type="checkbox" />
+<span>Movies</span>
+</label>
+<label class="fin-choice">
+<input id="DiscoverTvRowEnabled" type="checkbox" />
+<span>TV</span>
+</label>
+</fieldset>
+<fieldset>
+<legend>Requests</legend>
+<label class="fin-choice">
+<input id="MyRequestsRowEnabled" type="checkbox" />
+<span>Personal available requests</span>
+</label>
+<label class="fin-choice">
+<input id="MyRequestsHideWatched" type="checkbox" />
+<span>Hide watched requests</span>
+</label>
+<label class="fin-choice">
+<input id="SharedRequestsEnabled" type="checkbox" />
+<span>Household requests</span>
+</label>
+</fieldset>
+<details class="fin-note">
+<summary>Privacy and safety details</summary>
+<p>Requires Home and Seerr for Home feeds. Candidate titles are not Jellyfin library items or playable claims. Seerr discovery can reveal non-adult titles outside each user's Jellyfin libraries and parental visibility. All signed-in Jellyfin users can see household request statuses, including titles outside their library; anonymous users and userless API keys cannot. Only the signed-in user's mapped requests with locally available, currently visible Jellyfin media are returned in Personal My Requests. Seerr permissions still govern request creation.</p>
+</details>
+</div>
+</details>
+<details class="fin-section">
+<summary>Arr &amp; household activity</summary>
+<div class="fin-section-body">
+<label class="fin-choice">
+<input id="DownloadsEnabled" type="checkbox" />
+<span>Household Downloads</span>
+</label>
+<label class="fin-choice">
+<input id="CalendarEnabled" type="checkbox" />
+<span>Household Calendar</span>
+</label>
+<label class="fin-choice">
+<input id="UpcomingMoviesRowEnabled" type="checkbox" />
+<span>Upcoming Movies Home data</span>
+</label>
+<label class="fin-choice">
+<input id="UpcomingShowsRowEnabled" type="checkbox" />
+<span>Upcoming Shows Home data</span>
+</label>
+<div class="fin-grid">
+<label class="fin-field" for="RadarrBaseUrl">Radarr base URL<input id="RadarrBaseUrl" type="url" autocomplete="off" />
+</label>
+<label class="fin-field" for="RadarrApiKey">Radarr API key<input id="RadarrApiKey" type="password" autocomplete="new-password" />
+</label>
+<label class="fin-choice">
+<input id="ClearRadarrApiKey" type="checkbox" />
+<span>Clear saved Radarr key</span>
+</label>
+<label class="fin-field" for="SonarrBaseUrl">Sonarr base URL<input id="SonarrBaseUrl" type="url" autocomplete="off" />
+</label>
+<label class="fin-field" for="SonarrApiKey">Sonarr API key<input id="SonarrApiKey" type="password" autocomplete="new-password" />
+</label>
+<label class="fin-choice">
+<input id="ClearSonarrApiKey" type="checkbox" />
+<span>Clear saved Sonarr key</span>
+</label>
+</div>
+<p class="fin-help">Leave API keys blank to retain saved keys. Calendar and Downloads are independent; upcoming rows require Home and Calendar.</p>
+<details class="fin-note">
+<summary>Privacy and safety details</summary>
+<p>Every existing signed-in Jellyfin user can see upcoming Radarr movie releases and Sonarr episode titles/dates, including titles outside their libraries or parental restrictions. Downloads expose queue titles including titles outside their libraries or parental restrictions. Upcoming rows expose monitored no-file Arr titles including titles outside their Jellyfin libraries or parental restrictions. These are candidates, not playable Jellyfin items; activity does not establish request ownership, file presence, or Jellyfin watchability. Never enable if household-wide disclosure is unsuitable. API keys remain server-side; configure trusted Arr URLs only.</p>
+</details>
+</div>
+</details>
+<div id="RowanConfigError" role="alert" hidden>
+</div>
+<div id="RowanConfigStatus" role="status" hidden>
+</div>
+<button id="RowanSaveButton" type="submit" class="raised button-submit emby-button" disabled>Save settings</button>
+</form>
+</div>
+</div>
         <script type="text/javascript">
             (function () {
                 const pluginId = 'bd36ab75-0f4a-49b6-92ef-3a93da040c7a';
@@ -114,6 +256,8 @@
                 const error = page.querySelector('#RowanConfigError');
                 const status = page.querySelector('#RowanConfigStatus');
                 const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                const nativeRowKinds = ['ContinueWatching', 'NextUp', 'LatestMovies', 'LatestShows', 'MyMedia',
+                    'ContinueWatchingNextUp', 'Collections', 'BecauseYouWatched', 'MyRequests'];
                 let ready = false;
                 let saving = false;
                 let libraries = [];
@@ -140,6 +284,8 @@
                 function updateControls() {
                     const locked = !ready || saving;
                     page.querySelector('#HomeEnabled').disabled = locked;
+                    page.querySelector('#NativeHomeRowsEnabled').disabled = locked;
+                    nativeRowKinds.forEach(function (kind) { page.querySelector('#NativeRow' + kind).disabled = locked; });
                     page.querySelector('#CombinedPlaybackRowEnabled').disabled = locked;
                     ['DiscoverRowEnabled', 'DiscoverMoviesRowEnabled', 'DiscoverTvRowEnabled'].forEach(function (id) {
                         page.querySelector('#' + id).disabled = locked;
@@ -153,6 +299,12 @@
                     page.querySelector('#HeroTrustedFilesystemEnabled').disabled = locked;
                     page.querySelector('#DiscoveryPageEnabled').disabled = locked;
                     page.querySelector('#SharedRequestsEnabled').disabled = locked;
+                    ['SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'GlobalSearchEnabled'].forEach(function (id) {
+                        page.querySelector('#' + id).disabled = locked;
+                    });
+                    ['ClearSeerrApiKey', 'ClearRadarrApiKey', 'ClearSonarrApiKey'].forEach(function (id) {
+                        page.querySelector('#' + id).disabled = locked;
+                    });
                     ['DownloadsEnabled', 'CalendarEnabled', 'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey'].forEach(function (id) {
                         page.querySelector('#' + id).disabled = locked;
                     });
@@ -197,7 +349,6 @@
                         name.textContent = library.name;
                         label.appendChild(name);
                         list.appendChild(label);
-                        list.appendChild(document.createElement('br'));
                     });
                     if (!libraries.length) {
                         const empty = document.createElement('div');
@@ -229,7 +380,7 @@
                         const box = document.createElement('input');
                         box.type = 'checkbox'; box.value = library.id; box.checked = chosen.has(library.id.toLowerCase());
                         const name = document.createElement('span'); name.textContent = library.name;
-                        label.append(box, name); heroList.append(label, document.createElement('br'));
+                        label.append(box, name); heroList.append(label);
                     });
                 }
 
@@ -251,6 +402,9 @@
                             throw new Error('Invalid saved library selection');
                         }
                         page.querySelector('#HomeEnabled').checked = !!config.HomeEnabled;
+                        page.querySelector('#NativeHomeRowsEnabled').checked = config.NativeHomeRowsEnabled === true;
+                        const savedNativeRows = Array.isArray(config.NativeHomeRowKinds) ? config.NativeHomeRowKinds : [];
+                        nativeRowKinds.forEach(function (kind) { page.querySelector('#NativeRow' + kind).checked = savedNativeRows.includes(kind); });
                         page.querySelector('#CombinedPlaybackRowEnabled').checked = config.CombinedPlaybackRowEnabled === true;
                         ['DiscoverRowEnabled', 'DiscoverMoviesRowEnabled', 'DiscoverTvRowEnabled'].forEach(function (id) {
                             page.querySelector('#' + id).checked = config[id] === true;
@@ -264,13 +418,25 @@
                         page.querySelector('#HeroTrustedFilesystemEnabled').checked = config.HeroTrustedFilesystemEnabled === true;
                         page.querySelector('#DiscoveryPageEnabled').checked = !!config.DiscoveryPageEnabled;
                         page.querySelector('#SharedRequestsEnabled').checked = config.SharedRequestsEnabled === true;
+                        page.querySelector('#SeerrEnabled').checked = config.SeerrEnabled === true;
+                        page.querySelector('#GlobalSearchEnabled').checked = config.GlobalSearchEnabled === true;
+                        page.querySelector('#SeerrBaseUrl').value = config.SeerrBaseUrl || '';
+                        page.querySelector('#SeerrApiKey').value = '';
+                        page.querySelector('#SeerrApiKey').placeholder = config.SeerrApiKey ? 'Saved key — leave blank to keep' : 'No key saved';
                         page.querySelector('#DownloadsEnabled').checked = config.DownloadsEnabled === true;
                         page.querySelector('#CalendarEnabled').checked = config.CalendarEnabled === true;
                         ['UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled'].forEach(function (id) {
                             page.querySelector('#' + id).checked = config[id] === true;
                         });
-                        ['RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey'].forEach(function (id) {
+                        ['RadarrBaseUrl', 'SonarrBaseUrl'].forEach(function (id) {
                             page.querySelector('#' + id).value = config[id] || '';
+                        });
+                        ['RadarrApiKey', 'SonarrApiKey'].forEach(function (id) {
+                            page.querySelector('#' + id).value = '';
+                            page.querySelector('#' + id).placeholder = config[id] ? 'Saved key — leave blank to keep' : 'No key saved';
+                        });
+                        ['ClearSeerrApiKey', 'ClearRadarrApiKey', 'ClearSonarrApiKey'].forEach(function (id) {
+                            page.querySelector('#' + id).checked = false;
                         });
                         page.querySelector('#RecentlyAddedAll').checked = ids == null;
                         page.querySelector('#RecentlyAddedNone').checked = Array.isArray(ids) && ids.length === 0;
@@ -325,6 +491,11 @@
                     showMessage(error, '');
                     showMessage(status, '');
                     const homeEnabled = page.querySelector('#HomeEnabled').checked;
+                    const nativeHomeRowsEnabled = page.querySelector('#NativeHomeRowsEnabled').checked;
+                    const nativeHomeRowKinds = nativeRowKinds.filter(function (kind) { return page.querySelector('#NativeRow' + kind).checked; });
+                    if (nativeHomeRowsEnabled && !nativeHomeRowKinds.length) {
+                        showMessage(error, 'Choose at least one personal Home row, or disable additional rows.'); return;
+                    }
                     const combinedPlaybackRowEnabled = page.querySelector('#CombinedPlaybackRowEnabled').checked;
                     const discoverFlags = Object.fromEntries(['DiscoverRowEnabled', 'DiscoverMoviesRowEnabled', 'DiscoverTvRowEnabled'].map(function (id) {
                         return [id, page.querySelector('#' + id).checked];
@@ -338,22 +509,37 @@
                     const heroTrustedFilesystemEnabled = page.querySelector('#HeroTrustedFilesystemEnabled').checked;
                     const discoveryPageEnabled = page.querySelector('#DiscoveryPageEnabled').checked;
                     const sharedRequestsEnabled = page.querySelector('#SharedRequestsEnabled').checked;
+                    const seerr = {
+                        SeerrEnabled: page.querySelector('#SeerrEnabled').checked,
+                        GlobalSearchEnabled: page.querySelector('#GlobalSearchEnabled').checked,
+                        SeerrBaseUrl: page.querySelector('#SeerrBaseUrl').value.trim(),
+                        SeerrApiKey: page.querySelector('#SeerrApiKey').value.trim()
+                    };
                     const downloads = {
                         DownloadsEnabled: page.querySelector('#DownloadsEnabled').checked,
                         CalendarEnabled: page.querySelector('#CalendarEnabled').checked,
                         UpcomingMoviesRowEnabled: page.querySelector('#UpcomingMoviesRowEnabled').checked,
                         UpcomingShowsRowEnabled: page.querySelector('#UpcomingShowsRowEnabled').checked
                     };
-                    ['RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey'].forEach(function (id) {
+                    ['RadarrBaseUrl', 'SonarrBaseUrl'].forEach(function (id) {
                         downloads[id] = page.querySelector('#' + id).value.trim();
                     });
+                    ['RadarrApiKey', 'SonarrApiKey'].forEach(function (id) {
+                        downloads[id] = page.querySelector('#' + id).value.trim();
+                    });
+                    const clearKeys = Object.fromEntries(['SeerrApiKey', 'RadarrApiKey', 'SonarrApiKey'].map(function (id) {
+                        return [id, page.querySelector('#Clear' + id).checked];
+                    }));
                     const selectedMode = mode.value;
                     const selectedIds = selectedMode === 'all' ? null : selectedMode === 'none' ? [] : ids;
                     saving = true;
                     updateControls();
                     Dashboard.showLoadingMsg();
+                    let submitted;
                     ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                         config.HomeEnabled = homeEnabled;
+                        config.NativeHomeRowsEnabled = nativeHomeRowsEnabled;
+                        config.NativeHomeRowKinds = nativeHomeRowKinds;
                         config.CombinedPlaybackRowEnabled = combinedPlaybackRowEnabled;
                         Object.assign(config, discoverFlags);
                         config.CombinedPlaybackHideWatched = combinedPlaybackHideWatched;
@@ -366,16 +552,31 @@
                         config.HeroLibraryIds = heroIds;
                         config.DiscoveryPageEnabled = discoveryPageEnabled;
                         config.SharedRequestsEnabled = sharedRequestsEnabled;
-                        Object.assign(config, downloads);
+                        const savedKeys = Object.fromEntries(['SeerrApiKey', 'RadarrApiKey', 'SonarrApiKey'].map(function (id) { return [id, config[id]]; }));
+                        Object.assign(config, seerr, downloads);
+                        ['SeerrApiKey', 'RadarrApiKey', 'SonarrApiKey'].forEach(function (id) {
+                            config[id] = clearKeys[id] ? null : config[id] || savedKeys[id] || null;
+                        });
                         config.RecentlyAddedLibraryIds = selectedIds;
+                        submitted = Object.fromEntries(Object.keys(config).filter(function (id) {
+                            return ['HomeEnabled', 'NativeHomeRowsEnabled', 'NativeHomeRowKinds', 'CombinedPlaybackRowEnabled', 'DiscoverRowEnabled', 'DiscoverMoviesRowEnabled', 'DiscoverTvRowEnabled', 'CombinedPlaybackHideWatched', 'MyRequestsRowEnabled', 'MyRequestsHideWatched', 'CollectionsRowEnabled', 'LiveTvRowEnabled', 'BecauseYouWatchedRowEnabled', 'BecauseYouWatchedHideWatched', 'HeroTrustedFilesystemEnabled', 'HeroLibraryIds', 'DiscoveryPageEnabled', 'GlobalSearchEnabled', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'SharedRequestsEnabled', 'DownloadsEnabled', 'CalendarEnabled', 'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey', 'RecentlyAddedLibraryIds'].includes(id);
+                        }).map(function (id) { return [id, config[id]]; }));
                         return ApiClient.updatePluginConfiguration(pluginId, config);
                     }).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
+                        return ApiClient.getPluginConfiguration(pluginId);
+                    }).then(function (persisted) {
+                        if (Object.keys(submitted).some(function (id) { return JSON.stringify(persisted[id] ?? null) !== JSON.stringify(submitted[id] ?? null); })) {
+                            showMessage(error, 'Configuration did not persist as requested. Review and save again.');
+                            return;
+                        }
                         const currentMode = page.querySelector('input[name="RecentlyAddedMode"]:checked');
                         const currentIds = Array.from(list.querySelectorAll('input[type="checkbox"]:checked'))
                             .map(function (checkbox) { return checkbox.value; })
                             .filter(function (id) { return validId(id) && allowed.has(id.toLowerCase()); });
                         if (page.querySelector('#HomeEnabled').checked !== homeEnabled ||
+                            page.querySelector('#NativeHomeRowsEnabled').checked !== nativeHomeRowsEnabled ||
+                            nativeRowKinds.some(function (kind) { return page.querySelector('#NativeRow' + kind).checked !== nativeHomeRowKinds.includes(kind); }) ||
                             page.querySelector('#CombinedPlaybackRowEnabled').checked !== combinedPlaybackRowEnabled ||
                             Object.keys(discoverFlags).some(function (id) { return page.querySelector('#' + id).checked !== discoverFlags[id]; }) ||
                             page.querySelector('#CombinedPlaybackHideWatched').checked !== combinedPlaybackHideWatched ||
@@ -388,11 +589,19 @@
                             (function () { const current = Array.from(heroList.querySelectorAll('input[type="checkbox"]:checked')).map(box => box.value); return current.length !== heroIds.length || current.some((id, index) => id !== heroIds[index]); }()) ||
                             page.querySelector('#DiscoveryPageEnabled').checked !== discoveryPageEnabled ||
                             page.querySelector('#SharedRequestsEnabled').checked !== sharedRequestsEnabled ||
+                            page.querySelector('#SeerrEnabled').checked !== seerr.SeerrEnabled ||
+                            page.querySelector('#GlobalSearchEnabled').checked !== seerr.GlobalSearchEnabled ||
+                            page.querySelector('#SeerrBaseUrl').value.trim() !== seerr.SeerrBaseUrl ||
+                            page.querySelector('#SeerrApiKey').value.trim() !== seerr.SeerrApiKey ||
+                            Object.keys(clearKeys).some(function (id) { return page.querySelector('#Clear' + id).checked !== clearKeys[id]; }) ||
                             page.querySelector('#DownloadsEnabled').checked !== downloads.DownloadsEnabled ||
                             page.querySelector('#CalendarEnabled').checked !== downloads.CalendarEnabled ||
                             page.querySelector('#UpcomingMoviesRowEnabled').checked !== downloads.UpcomingMoviesRowEnabled ||
                             page.querySelector('#UpcomingShowsRowEnabled').checked !== downloads.UpcomingShowsRowEnabled ||
-                            ['RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey'].some(function (id) {
+                            ['RadarrBaseUrl', 'SonarrBaseUrl'].some(function (id) {
+                                return page.querySelector('#' + id).value.trim() !== downloads[id];
+                            }) ||
+                            ['RadarrApiKey', 'SonarrApiKey'].some(function (id) {
                                 return page.querySelector('#' + id).value.trim() !== downloads[id];
                             }) ||
                             !currentMode || currentMode.value !== selectedMode ||
@@ -400,6 +609,11 @@
                                 currentIds.some(function (id, index) { return id !== ids[index]; })))) {
                             showMessage(error, 'Form changed during save; saved values may differ from what is shown. Review and save again.');
                         } else {
+                            ['SeerrApiKey', 'RadarrApiKey', 'SonarrApiKey'].forEach(function (id) {
+                                page.querySelector('#' + id).value = '';
+                                page.querySelector('#' + id).placeholder = persisted[id] ? 'Saved key — leave blank to keep' : 'No key saved';
+                                page.querySelector('#Clear' + id).checked = false;
+                            });
                             showMessage(status, 'Configuration saved.');
                         }
                     }).catch(function () {
@@ -412,6 +626,4 @@
                 });
             }());
         </script>
-    </div>
-</body>
-</html>
+</div></body></html>

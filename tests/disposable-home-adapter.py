@@ -66,6 +66,8 @@ def main():
                 '<DiscoveryPageEnabled>true</DiscoveryPageEnabled></PluginConfiguration>')
         if '--with-dependencies' in sys.argv:
             for label, (repository, version) in DEPENDENCIES.items():
+                if label == 'HomeSections' and '--without-hss' in sys.argv:
+                    continue
                 url = f'https://github.com/IAmParadox27/{repository}/releases/download/{version}/Release-12.1.0.zip'
                 with urllib.request.urlopen(url, timeout=30) as response:
                     archive = zipfile.ZipFile(io.BytesIO(response.read()))
@@ -102,15 +104,17 @@ def main():
                     break
                 time.sleep(1)
             if '--browser' in sys.argv:
-                for _ in range(30):
-                    logs = docker('logs', cid)
-                    if logs.count("Registering transformation for 'index.html'") >= 3:
-                        status, body = request(base + '/web/index.html')
+                for _ in range(45):
+                    status, body = request(base + '/web/index.html')
+                    if (status == 200 and body.count(b'data-threepic-fin-adapter') == 1
+                            and (b'PluginPages' in body or b'pluginPages' in body or b'plugin-pages' in body)
+                            and ('--without-hss' in sys.argv or b'home-screen-sections' in body or b'HomeScreen' in body)):
                         break
                     time.sleep(1)
                 assert status == 200 and body.count(b'data-threepic-fin-adapter') == 1, (status, body[-500:], docker('logs', cid)[-1800:])
                 assert b'PluginPages' in body or b'pluginPages' in body or b'plugin-pages' in body, ('Plugin Pages marker missing', body[-1500:])
-                assert b'home-screen-sections' in body or b'HomeScreen' in body, ('HSS marker missing', body[-1500:])
+                if '--without-hss' not in sys.argv:
+                    assert b'home-screen-sections' in body or b'HomeScreen' in body, ('HSS marker missing', body[-1500:])
                 if '--browser' in sys.argv:
                     from disposable_home_browser import run_browser
                     user = 'rowanlab'
@@ -130,11 +134,13 @@ def main():
             logs = docker('logs', cid)
             assert 'Rowan.Jellyfin.Plugin' in logs, 'Rowan assembly was not loaded'
             if '--with-dependencies' in sys.argv:
-                assert all(label in logs for label in ('File Transformation', 'Plugin Pages', 'Home Screen Sections')), logs[-2500:]
-                chunk = '65126.1932a6d52e2f813f2205.chunk.js'
-                chunk_status, chunk_body = request(base + '/web/' + chunk)
-                assert chunk_status == 200 and b'loadSections' in chunk_body, chunk_status
-                assert hashlib.sha256(chunk_body).hexdigest() != '60abc3759584f92b0db16e71a9c6df62ba44a7278d063c75d92896470793d0d2'
+                expected = ('File Transformation', 'Plugin Pages') + (() if '--without-hss' in sys.argv else ('Home Screen Sections',))
+                assert all(label in logs for label in expected), logs[-2500:]
+                if '--without-hss' not in sys.argv:
+                    chunk = '65126.1932a6d52e2f813f2205.chunk.js'
+                    chunk_status, chunk_body = request(base + '/web/' + chunk)
+                    assert chunk_status == 200 and b'loadSections' in chunk_body, chunk_status
+                    assert hashlib.sha256(chunk_body).hexdigest() != '60abc3759584f92b0db16e71a9c6df62ba44a7278d063c75d92896470793d0d2'
             served_hash = None
             if '--browser' in sys.argv:
                 served_hash = hashlib.sha256(body).hexdigest()
@@ -146,14 +152,16 @@ def main():
                     try:
                         restarted_status, restarted_body = request(base + '/web/index.html')
                         if (restarted_status == 200 and restarted_body.count(b'data-threepic-fin-adapter') == 1
-                                and docker('logs', cid).count("Registering transformation for 'index.html'") >= 6):
+                                and ('--without-hss' in sys.argv or b'home-screen-sections' in restarted_body or b'HomeScreen' in restarted_body)
+                                and (b'PluginPages' in restarted_body or b'pluginPages' in restarted_body or b'plugin-pages' in restarted_body)):
                             break
                     except (OSError, TimeoutError):
                         pass
                     time.sleep(1)
                 else:
                     raise AssertionError('Adapter absent after disposable restart: ' + str((restarted_status, restarted_body[-350:])))
-                assert b'home-screen-sections' in restarted_body or b'HomeScreen' in restarted_body
+                if '--without-hss' not in sys.argv:
+                    assert b'home-screen-sections' in restarted_body or b'HomeScreen' in restarted_body
                 assert b'PluginPages' in restarted_body or b'pluginPages' in restarted_body or b'plugin-pages' in restarted_body
             assert 'Disposable probe requires' not in logs
             print(json.dumps({'status': 'pass', 'missing_file_transformation': '--with-dependencies' not in sys.argv,

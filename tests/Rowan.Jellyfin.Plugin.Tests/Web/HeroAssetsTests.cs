@@ -8,6 +8,17 @@ namespace Rowan.Jellyfin.Plugin.Tests.Web;
 
 public sealed class HeroAssetsTests
 {
+    [Fact]
+    public void RowsOnlyAssetsRequireExplicitHomeRowsFlag()
+    {
+        var enabled = new DiscoveryPageController(() => false, () => false, () => true, () => false, () => true);
+        foreach (var asset in new[] { "home-adapter.js", "home-tab-host.js", "native-home-rows.js", "native-home-rows.css" })
+            Assert.IsType<FileStreamResult>(enabled.GetAsset(asset)).FileStream.Dispose();
+        Assert.IsType<NotFoundResult>(enabled.GetAsset("discovery.js"));
+        Assert.IsType<NotFoundResult>(enabled.GetAsset("static-hero.js"));
+        Assert.IsType<NotFoundResult>(new DiscoveryPageController(() => false, () => false, () => true, () => false)
+            .GetAsset("home-tab-host.js"));
+    }
     [Theory]
     [InlineData(false, false, false)]
     [InlineData(false, true, true)]

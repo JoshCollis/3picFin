@@ -68,7 +68,7 @@ jobs:
             --manifest catalog-input.json --output dist --version "$VERSION" \
             --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip" \
             --epoch "$(git show -s --format=%ct HEAD)" \
-            --changelog "Portable Jellyfin 12.1 Home and Discovery integration; runtime compatibility checks and featured hero"
+            --changelog "Native Home navigation and personal rows; Seerr Search and request-card metadata; redesigned settings"
           python3 scripts/package_plugin.py validate --package "dist/3pic-fin_$VERSION.zip" \
             --manifest dist/manifest.json --version "$VERSION" \
             --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip"
@@ -85,7 +85,7 @@ jobs:
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" "dist/3pic-fin_$VERSION.zip" dist/SHA256SUMS \
               --verify-tag --draft --title "3pic Fin $VERSION" \
-              --notes 'Installable on Jellyfin 12.1. Requires File Transformation 3.0.1 or compatible for automatic Home integration. New installs enable Home and Discovery; optional Seerr, household-wide feeds and metadata-image trust require administrator configuration. Keep existing UI plugins until their features are verified side by side.'
+              --notes 'Installable on Jellyfin 12.1 with File Transformation 3.0.1 or compatible for automatic Home and Search integration. Home and Discovery are enabled on new installs; configure Seerr, Search, personal rows and trusted hero independently in the administrator page. Verify your own web/theme and household policies before replacing other UI plugins.'
           fi
           gh release view "$TAG" --json isDraft,assets | jq -e --arg version "$VERSION" \
             '.isDraft and ([.assets[].name] | sort == (["3pic-fin_" + $version + ".zip", "SHA256SUMS"] | sort))'

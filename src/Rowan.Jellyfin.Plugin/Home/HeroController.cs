@@ -50,8 +50,20 @@ public sealed class HeroController : ControllerBase
         if (!RecentlyAddedPolicy.TryGetUserId(User, out var userId) || _users.GetUserById(userId) is null) return Forbid();
         var config = (_plugins.GetPlugin(PluginId)?.Instance as Plugin)?.Configuration;
         var enabled = config?.HomeEnabled == true;
+        var allowed = new[] { "ContinueWatching", "NextUp", "LatestMovies", "LatestShows", "MyMedia",
+            "ContinueWatchingNextUp", "Collections", "BecauseYouWatched", "MyRequests" };
+        var selected = enabled && config?.NativeHomeRowsEnabled == true
+            ? (config.NativeHomeRowKinds ?? []).Where(kind => allowed.Contains(kind, StringComparer.Ordinal))
+                .Where(kind => kind switch {
+                    "ContinueWatchingNextUp" => config.CombinedPlaybackRowEnabled,
+                    "Collections" => config.CollectionsRowEnabled,
+                    "BecauseYouWatched" => config.BecauseYouWatchedRowEnabled,
+                    "MyRequests" => config.MyRequestsRowEnabled && config.SeerrEnabled,
+                    _ => true
+                }).Distinct(StringComparer.Ordinal).Take(9).ToArray()
+            : [];
         return Ok(new HomeMode(enabled && config?.DiscoveryPageEnabled == true,
-            HomeAdapterRegistration.HeroConfigured(config)));
+            HomeAdapterRegistration.HeroConfigured(config), selected.Length > 0, selected));
     }
 
     [HttpGet("Hero")]
@@ -115,4 +127,4 @@ public sealed class HeroController : ControllerBase
 }
 
 /// <summary>Only public feature flags; no credentials or library inventory.</summary>
-public sealed record HomeMode(bool DiscoveryEnabled, bool HeroEnabled);
+public sealed record HomeMode(bool DiscoveryEnabled, bool HeroEnabled, bool RowsEnabled = false, string[]? Rows = null);

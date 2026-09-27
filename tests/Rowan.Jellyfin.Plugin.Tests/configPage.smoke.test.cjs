@@ -40,6 +40,8 @@ function setup(config, folders, options = {}) {
     let persisted = structuredClone(config);
     const ids = ['RowanConfigPage', 'RowanConfigForm', 'RecentlyAddedLibraries', 'HeroLibraries', 'RowanSaveButton',
         'RowanConfigError', 'RowanConfigStatus', 'HomeEnabled', 'CombinedPlaybackRowEnabled', 'DiscoverRowEnabled', 'DiscoverMoviesRowEnabled', 'DiscoverTvRowEnabled', 'CombinedPlaybackHideWatched', 'MyRequestsRowEnabled', 'MyRequestsHideWatched', 'CollectionsRowEnabled', 'LiveTvRowEnabled', 'BecauseYouWatchedRowEnabled', 'BecauseYouWatchedHideWatched', 'HeroTrustedFilesystemEnabled', 'DiscoveryPageEnabled', 'SharedRequestsEnabled', 'DownloadsEnabled', 'CalendarEnabled',
+        'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'ClearSeerrApiKey', 'GlobalSearchEnabled', 'ClearRadarrApiKey', 'ClearSonarrApiKey',
+        'NativeHomeRowsEnabled', 'NativeRowContinueWatching', 'NativeRowNextUp', 'NativeRowLatestMovies', 'NativeRowLatestShows', 'NativeRowMyMedia', 'NativeRowContinueWatchingNextUp', 'NativeRowCollections', 'NativeRowBecauseYouWatched', 'NativeRowMyRequests',
         'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey', 'RecentlyAddedAll',
         'RecentlyAddedSelected', 'RecentlyAddedNone'];
     const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
@@ -64,7 +66,7 @@ function setup(config, folders, options = {}) {
             if (options.saveFails) throw Error('save failed');
             writes.push(updated);
             const result = options.update ? await options.update(updated) : {};
-            persisted = structuredClone(updated);
+            persisted = structuredClone(options.readback ? options.readback(updated) : updated);
             return result;
         }
     };
@@ -86,6 +88,29 @@ function setup(config, folders, options = {}) {
 }
 
 const folders = [{ Name: '<img src=x onerror=alert(1)>', ItemId: A }, { Name: 'Movies', ItemId: B }];
+
+test('personal Home row selection is editable and saved in a stable order', async () => {
+    assert.match(html, /id="NativeHomeRowsEnabled"/);
+    assert.match(html, /id="NativeRowLatestMovies"/);
+    const app = setup({ HomeEnabled: true, NativeHomeRowsEnabled: true,
+        NativeHomeRowKinds: ['LatestMovies', 'ContinueWatching'], RecentlyAddedLibraryIds: null }, folders);
+    await app.load();
+    assert.equal(app.elements.NativeHomeRowsEnabled.checked, true);
+    assert.equal(app.elements.NativeRowContinueWatching.checked, true);
+    assert.equal(app.elements.NativeRowLatestMovies.checked, true);
+    app.elements.NativeRowNextUp.checked = true;
+    await app.save();
+    assert.deepEqual(Array.from(app.writes[0].NativeHomeRowKinds), ['ContinueWatching', 'NextUp', 'LatestMovies']);
+    assert.equal(app.writes[0].NativeHomeRowsEnabled, true);
+    assert.equal(app.elements.RowanConfigStatus.textContent, 'Configuration saved.');
+});
+
+test('disabled Home rows preserve explicit selected kinds on save', async () => {
+    const app = setup({ NativeHomeRowsEnabled: true, NativeHomeRowKinds: ['MyMedia'], RecentlyAddedLibraryIds: null }, folders);
+    await app.load(); app.elements.NativeHomeRowsEnabled.checked = false; await app.save();
+    assert.equal(app.writes[0].NativeHomeRowsEnabled, false);
+    assert.deepEqual(Array.from(app.writes[0].NativeHomeRowKinds), ['MyMedia']);
+});
 
 test('personal My Requests flag and watched filter snapshot independently of household requests', async () => {
     const pending = deferred();
@@ -341,6 +366,84 @@ test('failed pending save unlocks choices and shows error without success', asyn
     assert.equal(app.list.querySelectorAll('input[type="checkbox"]')[0].disabled, false);
 });
 
+test('save reads persisted configuration back before reporting success', async () => {
+    const app = setup({ HomeEnabled: false, RecentlyAddedLibraryIds: null }, folders,
+        { readback: updated => ({ ...updated, HomeEnabled: false }) });
+    await app.load();
+    app.elements.HomeEnabled.checked = true;
+    await app.save();
+    assert.equal(app.writes[0].HomeEnabled, true);
+    assert.equal(app.elements.RowanConfigStatus.hidden, true);
+    assert.match(app.elements.RowanConfigError.textContent, /did not persist/i);
+});
+
+test('Seerr and search controls independently persist and mask credentials', async () => {
+    for (const id of ['SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'GlobalSearchEnabled'])
+        assert.match(html, new RegExp(`id="${id}"`));
+    assert.match(html, /id="SeerrApiKey" type="password"/);
+    const pending = deferred();
+    const app = setup({ RecentlyAddedLibraryIds: null, SeerrApiKey: 'existing' }, folders,
+        { update: () => pending.promise });
+    await app.load();
+    assert.equal(app.elements.SeerrApiKey.value, '');
+    app.elements.SeerrEnabled.checked = true;
+    app.elements.GlobalSearchEnabled.checked = true;
+    app.elements.SeerrBaseUrl.value = 'https://seerr.example/';
+    app.form.dispatch('submit'); await app.flush();
+    assert.equal(app.writes[0].SeerrApiKey, 'existing');
+    assert.equal(app.writes[0].SeerrEnabled, true);
+    assert.equal(app.writes[0].GlobalSearchEnabled, true);
+    assert.equal(app.elements.SeerrEnabled.disabled, true);
+    pending.resolve({}); await app.flush();
+    assert.equal(app.elements.RowanConfigStatus.hidden, false);
+});
+
+test('admin page has scoped sections, usable native labels and concealed security notes', () => {
+    assert.match(html, /#RowanConfigPage \.fin-settings/);
+    assert.match(html, /<details[^>]*class="fin-section"/);
+    assert.match(html, /<summary>.*Home.*<\/summary>/);
+    assert.match(html, /<label[^>]*for="RadarrApiKey"/);
+    assert.match(html, /<details[^>]*class="fin-note"/);
+    assert.doesNotMatch(html, /<br\s*\/>/);
+});
+
+test('explicitly clearing a saved key persists null while blank retains it', async () => {
+    const app = setup({ RecentlyAddedLibraryIds: null, SeerrApiKey: 'existing' }, folders);
+    await app.load();
+    app.elements.ClearSeerrApiKey.checked = true;
+    await app.save();
+    assert.equal(app.writes[0].SeerrApiKey, null);
+    assert.equal(app.elements.RowanConfigStatus.hidden, false);
+});
+
+test('new keys are replaced without exposing saved values in inputs', async () => {
+    const app = setup({ RecentlyAddedLibraryIds: null, SeerrApiKey: 'old', RadarrApiKey: 'old-r' }, folders);
+    await app.load();
+    assert.equal(app.elements.RadarrApiKey.value, '');
+    app.elements.SeerrApiKey.value = 'new';
+    app.elements.RadarrApiKey.value = 'new-r';
+    await app.save();
+    assert.equal(app.writes[0].SeerrApiKey, 'new');
+    assert.equal(app.writes[0].RadarrApiKey, 'new-r');
+    assert.equal(app.elements.SeerrApiKey.value, '');
+    assert.equal(app.elements.RadarrApiKey.value, '');
+    await app.load();
+    assert.equal(app.elements.SeerrApiKey.value, '');
+    assert.equal(app.elements.RadarrApiKey.value, '');
+});
+
+test('changed Seerr switch during pending save is never reported successful', async () => {
+    const pending = deferred();
+    const app = setup({ RecentlyAddedLibraryIds: null }, folders, { update: () => pending.promise });
+    await app.load();
+    app.elements.SeerrEnabled.checked = true;
+    app.form.dispatch('submit'); await app.flush();
+    app.elements.SeerrEnabled.checked = false;
+    pending.resolve({}); await app.flush();
+    assert.match(app.elements.RowanConfigError.textContent, /changed during save/i);
+    assert.equal(app.elements.RowanConfigStatus.hidden, true);
+});
+
 test('successful pending save reports success only after update settles', async () => {
     const request = deferred();
     const app = setup({ RecentlyAddedLibraryIds: [A] }, folders, { update: () => request.promise });
@@ -450,8 +553,8 @@ test('partial missing selected IDs remain visible, checked, and saved', async ()
     assert.equal(boxes[1].checked, true);
     assert.equal(boxes[1].disabled, false);
     assert.equal(boxes[1].value, B.toUpperCase());
-    assert.match(app.list.children[2].children[1].textContent, /unavailable/i);
-    assert.match(app.list.children[2].children[1].textContent, new RegExp(B, 'i'));
+    assert.match(app.list.children[1].children[1].textContent, /unavailable/i);
+    assert.match(app.list.children[1].children[1].textContent, new RegExp(B, 'i'));
     await app.save();
     assert.deepEqual(Array.from(app.writes[0].RecentlyAddedLibraryIds), [A, B.toUpperCase()]);
 });
@@ -538,7 +641,7 @@ test('calendar is independently opt-in and discloses all-signed-in visibility', 
     const boxes = app.elements.HeroLibraries.querySelectorAll('input[type="checkbox"]');
     assert.equal(boxes.length, 2);
     assert.equal(boxes[1].checked, true);
-    assert.match(app.elements.HeroLibraries.children[2].children[1].textContent, /unavailable/);
+    assert.match(app.elements.HeroLibraries.children[1].children[1].textContent, /unavailable/);
     boxes[0].checked = true;
     app.form.dispatch('submit'); await app.flush();
     assert.deepEqual(Array.from(app.writes[0].HeroLibraryIds), [A, B]);
