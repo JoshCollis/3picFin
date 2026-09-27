@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.4.1",
+        "changelog": "Native Home navigation and personal rows; Seerr Search and request-card metadata; redesigned settings",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v0.1.4.1/3pic-fin_0.1.4.1.zip",
+        "checksum": "3508c2aedd643b9acbe37327342c1681",
+        "timestamp": "2026-09-27T20:45:35Z"
+      },
+      {
         "version": "0.1.4.0",
         "changelog": "Native Home navigation and personal rows; Seerr Search and request-card metadata; redesigned settings",
         "targetAbi": "12.1.0.0",
