@@ -1,6 +1,7 @@
 /* Load explicitly alongside native-home-rows.js in the caller-owned Home container. */
 .rowan-native-rows { min-width: 0; padding: 0 3.3%; }
 .rowan-native-row { min-width: 0; margin: 1.5rem 0; color: var(--primary-text-color, #fff); }
+.rowan-native-row[hidden] { display: none; }
 .rowan-native-row h2 { margin: .5rem 0; font-size: 1.3rem; }
 .rowan-native-row__seed { margin: 1rem 0; }
 .rowan-native-row__items { display: flex; gap: .75rem; overflow-x: auto; padding: .5rem 0 1rem; scroll-snap-type: x proximity; }
