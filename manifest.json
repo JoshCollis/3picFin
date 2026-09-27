@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "guid": "bd36ab75-0f4a-49b6-92ef-3a93da040c7a",
+    "name": "3pic Fin",
+    "description": "Modular Jellyfin Home and discovery integration (staging).",
+    "overview": "Modular Home and discovery integration",
+    "owner": "Rowan",
+    "category": "General",
+    "versions": [
+      {
+        "version": "0.1.0.0",
+        "changelog": "Staging build from 9fbf86be35f7b70bab0e1bad191ca3508b81e1c6; Home compatibility pins remain unset",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v0.1.0.0/3pic-fin_0.1.0.0.zip",
+        "checksum": "1fd153a8f2af27f3d2e0483de3f5b1c1",
+        "timestamp": "2026-09-27T11:31:07Z"
+      }
+    ]
+  }
+]
