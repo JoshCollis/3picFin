@@ -60,7 +60,7 @@
                         (attempts.get(index) || 0) >= 2) continue;
                     requested.add(index);
                     attempts.set(index, (attempts.get(index) || 0) + 1);
-                    const body = sections[index].children[1], kind = kinds[index];
+                    const section = sections[index], body = section.children[1], kind = kinds[index];
                     body.textContent = 'Loading…';
                     const path = kind === 'BecauseYouWatched' ? 'Rowan/Home/BecauseYouWatched' : `Rowan/Home/Rows/${kind}`;
                     Promise.resolve().then(() => active() ? apiClient.getJSON(apiClient.getUrl(path)) : null)
@@ -78,14 +78,21 @@
                                     for (const item of items) { const card = makeCard(item, true); if (card) cards.appendChild(card); }
                                     group.append(heading, cards); return group;
                                 });
-                                body.replaceChildren(...groups); if (!groups.length) body.textContent = 'No items'; return;
+                                body.replaceChildren(...groups);
+                                section.hidden = !groups.length;
+                                return;
                             }
                             const items = field(row, 'Items');
                             if (field(row, 'Error') || !Array.isArray(items) || items.length > 64 || field(row, 'Kind') !== kind)
                                 throw Error('Invalid row');
                             const cards = items.map(item => makeCard(item, ['ContinueWatching', 'NextUp', 'ContinueWatchingNextUp'].includes(kind))).filter(Boolean);
                             body.replaceChildren(...cards);
-                            if (!cards.length) body.textContent = 'No items';
+                            if (!cards.length) {
+                                section.hidden = true;
+                                body.replaceChildren(); body.textContent = '';
+                                return;
+                            }
+                            section.hidden = false;
                         }).catch(() => {
                             if (active()) { requested.delete(index); body.textContent = 'Row unavailable'; }
                         });

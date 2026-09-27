@@ -68,6 +68,14 @@ test('failed visible row retries once on a later intersection without a remount'
     f.observers[0].fire(section); await tick(); assert.equal(f.calls.length, 2);
 });
 
+test('empty personal rows disappear instead of leaving blank Home sections', async () => {
+    const f = fixture(); f.rows.mount(f.root, f.api, 'alice');
+    const section = f.root.children[0]; f.observers[0].fire(section); await tick();
+    f.reply({ Kind: 'LatestMovies', Items: [] }); await tick();
+    assert.equal(section.hidden, true);
+    assert.equal(section.children[1].textContent, '');
+});
+
 test('malformed rows fail without rendering item data', async () => {
     const f = fixture(); f.rows.mount(f.root, f.api, 'alice');
     f.observers[0].fire(f.root.children[0]); await tick();
