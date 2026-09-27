@@ -22,6 +22,7 @@
     <EmbeddedResource Include="Web/home-tab-host.js" />
     <EmbeddedResource Include="Web/home-tab-host.css" />
     <EmbeddedResource Include="Web/global-search-addon.js" />
+    <EmbeddedResource Include="Web/search-adapter.js" />
     <EmbeddedResource Include="Web/global-search-addon.css" />
     <EmbeddedResource Include="Web/static-hero.js" />
     <EmbeddedResource Include="Web/static-hero.css" />

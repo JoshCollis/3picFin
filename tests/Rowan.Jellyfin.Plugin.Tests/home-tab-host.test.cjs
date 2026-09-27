@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../../src/Rowan.Jellyfin.Plugin/Web/home-tab-host.js'), 'utf8');
 // The public host is exercised as shipped; no lab pin is substituted.
-function testBuild(browser = {}) {
+function testBuild(browser = { location: { hash: '#/home' } }) {
     vm.runInNewContext(source, browser);
     return browser.ThreePicFinHomeHost.createHost;
 }
@@ -15,6 +15,10 @@ class Node {
     constructor(tag = 'div') { this.tagName = tag; this.children = []; this.handlers = {}; this.className = ''; this.hidden = false; this.parentNode = null; this.attributes = {}; this.textContent = ''; }
     appendChild(node) { node.remove(); this.children.push(node); node.parentNode = this; return node; }
     insertBefore(node, before) { node.remove(); const at = this.children.indexOf(before); this.children.splice(at < 0 ? this.children.length : at, 0, node); node.parentNode = this; return node; }
+    insertAdjacentElement(position, node) { assert.equal(position, 'afterend'); this.parentNode.insertBefore(node, this.parentNode.children[this.parentNode.children.indexOf(this) + 1]); }
+    get parentElement() { return this.parentNode; }
+    get classList() { return { contains: name => this.className.split(/\s+/).includes(name) }; }
+    getBoundingClientRect() { return { width: 100 }; }
     remove() { if (this.parentNode) this.parentNode.children.splice(this.parentNode.children.indexOf(this), 1); this.parentNode = null; }
     setAttribute(k, v) { this.attributes[k] = String(v); }
     removeAttribute(k) { delete this.attributes[k]; }
@@ -25,16 +29,44 @@ class Node {
     focus() { this.focused = true; }
     keydown(key) { const event = { key, prevented: false, preventDefault() { this.prevented = true; } }; for (const fn of this.handlers.keydown || []) fn(event); return event; }
     contains(n) { return this === n || this.children.some(c => c.contains(n)); }
-    querySelectorAll(k) { return this.children.flatMap(c => [...(k === '.sections' && c.className === 'sections' ? [c] : []), ...c.querySelectorAll(k)]); }
+    querySelectorAll(k) {
+        if (k === '.skinHeader .headerTabs') return this.querySelectorAll('.skinHeader').flatMap(n => n.querySelectorAll('.headerTabs'));
+        const parts = k.replace(/^:scope > /, '').split(' > ');
+        const match = (node, part) => {
+            const tag = part.match(/^[a-z-]+/i)?.[0];
+            const cls = part.match(/\.([\w-]+)/)?.[1];
+            const attr = part.match(/\[([\w-]+)="([^"]+)"\]/);
+            return (!tag || node.tagName === tag) && (!cls || node.classList.contains(cls)) &&
+                (!attr || node.getAttribute(attr[1]) === attr[2]);
+        };
+        if (parts.length > 1) return this.children.filter(n => match(n, parts[0])).flatMap(n => n.querySelectorAll(':scope > ' + parts.slice(1).join(' > ')));
+        if (k.startsWith(':scope > ')) return this.children.filter(n => match(n, parts[0]));
+        return this.children.flatMap(n => [...(match(n, parts[0]) ? [n] : []), ...n.querySelectorAll(k)]);
+    }
+    querySelector(k) { return this.querySelectorAll(k)[0] || null; }
 }
 function fixture() {
-    const document = { head: new Node('head'), createElement: tag => new Node(tag) };
+    const root = new Node('html'), head = new Node('head'), body = new Node('body');
+    root.appendChild(head); root.appendChild(body);
+    const document = { head, documentElement: root, createElement: tag => new Node(tag),
+        querySelectorAll: selector => root.querySelectorAll(selector), querySelector: selector => root.querySelector(selector) };
+    const header = new Node(); header.className = 'headerTabs'; const skin = new Node(); skin.className = 'skinHeader';
+    const native = new Node(); native.setAttribute('is', 'emby-tabs'); const slider = new Node(); slider.className = 'emby-tabs-slider';
+    const home = new Node('button'), favoriteTab = new Node('button');
+    home.className = 'emby-tab-button emby-tab-button-active'; home.textContent = 'Home'; home.setAttribute('data-index', '0');
+    favoriteTab.className = 'emby-tab-button'; favoriteTab.textContent = 'Favorites'; favoriteTab.setAttribute('data-index', '1');
+    slider.appendChild(home); slider.appendChild(favoriteTab); native.appendChild(slider); header.appendChild(native); skin.appendChild(header); body.appendChild(skin);
+    const toolbar = new Node(); toolbar.className = 'MuiToolbar-root'; const stack = new Node(); stack.className = 'MuiStack-root';
+    const logo = new Node('a'), favoritesLink = new Node('a'); logo.setAttribute('href', '#/'); favoritesLink.setAttribute('href', '#/home?tab=1');
+    stack.appendChild(logo); stack.appendChild(favoritesLink); toolbar.appendChild(stack); body.appendChild(toolbar);
     const pane = new Node(), favorites = new Node(), sections = new Node(); sections.className = 'sections'; pane.appendChild(sections);
+    body.appendChild(pane); body.appendChild(favorites);
     const calls = [], disposed = [];
     const api = { getUrl: route => `https://test.invalid/jellyfin/${route}`, getJSON: url => { calls.push(url); return Promise.resolve({}); } };
     const host = createHost({ document, loadFragment: async url => { calls.push(url); return '<div>Discovery</div>'; }, loadScript: async url => { calls.push(url); return { mount: (root, client) => { client.getJSON(client.getUrl('3picFin/Discovery')); return () => disposed.push(root); } }; } });
     const mount = (overrides = {}) => host.mount({ pane, favorites, apiClient: api, fingerprint: '12.1', userId: 'alice', ...overrides });
-    return { document, pane, favorites, sections, calls, disposed, host, mount };
+    return { document, pane, favorites, sections, calls, disposed, host, mount, home, favoriteTab, favoritesLink, toolbar, stack,
+        nav: () => stack.querySelector('.threepic-fin-host__nav') };
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
@@ -59,31 +91,24 @@ test('host refuses a caller fingerprint for an unsupported version', async () =>
     assert.equal(loaderCalled, false);
     assert.deepEqual(f.pane.children, [f.sections]);
 });
-test('tabs expose panels and roving arrow/home/end keyboard navigation', async () => {
-    const f = fixture(); await f.mount({ enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } });
-    const [home, fin] = f.pane.children[0].children;
-    const panel = f.pane.children[2];
-    assert.equal(home.getAttribute('aria-controls'), f.sections.getAttribute('id'));
-    assert.equal(fin.getAttribute('aria-controls'), panel.getAttribute('id'));
-    assert.ok(home.getAttribute('id'));
-    assert.ok(fin.getAttribute('id'));
-    assert.equal(f.sections.getAttribute('aria-labelledby'), home.getAttribute('id'));
-    assert.equal(panel.getAttribute('aria-labelledby'), fin.getAttribute('id'));
-    assert.equal(f.sections.getAttribute('role'), 'tabpanel');
-    assert.equal(home.getAttribute('tabindex'), '0');
-    assert.equal(fin.getAttribute('tabindex'), '-1');
-    assert.equal(home.keydown('ArrowRight').prevented, true);
-    assert.equal(fin.getAttribute('aria-selected'), 'true');
-    assert.equal(fin.getAttribute('tabindex'), '0');
-    assert.ok(fin.focused);
-    fin.keydown('ArrowRight'); assert.equal(home.getAttribute('aria-selected'), 'true');
-    fin.keydown('Home'); assert.equal(home.getAttribute('aria-selected'), 'true');
-    home.keydown('End'); assert.equal(fin.getAttribute('aria-selected'), 'true');
-    fin.keydown('ArrowLeft'); assert.equal(home.getAttribute('aria-selected'), 'true');
+test('native tabs retain indexes and Fin is a separate accessible action', async () => {
+    const f = fixture(); assert.equal(await f.mount({ enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } }), true);
+    const nav = f.nav(), panel = f.pane.children[1];
+    assert.equal(nav.tagName, 'button'); assert.equal(nav.type, 'button');
+    assert.equal(nav.textContent, '3pic Fin'); assert.equal(nav.getAttribute('aria-pressed'), 'false');
+    assert.equal(f.home.getAttribute('data-index'), '0');
+    assert.equal(f.favoriteTab.getAttribute('data-index'), '1');
+    assert.equal(f.home.getAttribute('tabindex'), undefined);
+    assert.equal(f.sections.getAttribute('role'), undefined);
+    assert.equal(panel.getAttribute('aria-label'), '3pic Fin');
+    nav.click(); assert.equal(nav.getAttribute('aria-pressed'), 'true');
+    assert.equal(f.pane.getAttribute('data-threepic-fin-view'), 'discovery');
+    f.stack.children[0].click(); assert.equal(nav.getAttribute('aria-pressed'), 'false');
     f.host.dispose();
     assert.equal(f.sections.getAttribute('id'), undefined);
     assert.equal(f.sections.getAttribute('role'), undefined);
     assert.equal(f.sections.getAttribute('aria-labelledby'), undefined);
+    assert.equal(f.stack.children.length, 2);
 });
 test('dispose while fragment pending prevents late script or DOM injection', async () => {
     const f = fixture(); let release; const pending = new Promise(r => release = r);
@@ -109,7 +134,7 @@ test('concurrent mounts leave only latest view and cleanup', async () => {
     const second = host.mount({ ...opts, userId: 'bob' });
     release('<div>Discovery</div>');
     assert.equal(await first, false); assert.equal(await second, true);
-    assert.equal(f.pane.children.length, 3);
+    assert.equal(f.pane.children.length, 2);
     host.dispose(); assert.deepEqual(f.disposed, ['latest']);
     assert.deepEqual(f.pane.children, [f.sections]);
 });
@@ -119,7 +144,8 @@ test('teardown restores preexisting native section attributes across user switch
     f.sections.setAttribute('role', 'region');
     f.sections.setAttribute('aria-labelledby', 'native-heading');
     await f.mount({ enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } });
-    assert.equal(f.pane.children[0].children[0].getAttribute('aria-controls'), 'native-hss');
+    assert.equal(f.sections.getAttribute('id'), 'native-hss');
+    assert.equal(f.nav().getAttribute('aria-pressed'), 'false');
     await f.mount({ enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false }, userId: 'bob' });
     assert.equal(f.disposed.length, 1);
     f.host.dispose();
@@ -132,7 +158,7 @@ test('throwing discovery cleanup cannot leave host content on user switch', asyn
     f.sections.setAttribute('id', 'native-hss');
     f.sections.setAttribute('role', 'region');
     f.sections.setAttribute('aria-labelledby', 'native-heading');
-    let mounts = 0, oldTabs, oldPanel, oldStyles;
+    let mounts = 0, oldNav, oldPanel, oldStyles;
     const host = createHost({ document: f.document,
         loadFragment: async () => {
             if (mounts === 1) {
@@ -153,15 +179,14 @@ test('throwing discovery cleanup cannot leave host content on user switch', asyn
         apiClient: { getUrl: x => x, getJSON: async () => ({}) },
         fingerprint: '12.1', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } };
     assert.equal(await host.mount({ ...opts, userId: 'alice' }), true);
-    [oldTabs, , oldPanel] = f.pane.children;
+    oldNav = f.nav(); oldPanel = f.pane.children[1];
     oldStyles = [...f.document.head.children];
     assert.equal(await host.mount({ ...opts, userId: 'bob' }), true);
     assert.equal(mounts, 2);
-    assert.equal(oldTabs.parentNode, null);
+    assert.equal(oldNav.parentNode, null);
     assert.equal(oldPanel.parentNode, null);
     assert.ok(oldStyles.every(style => style.parentNode === null));
-    assert.deepEqual(oldTabs.children[0].handlers.click, []);
-    assert.deepEqual(oldTabs.children[1].handlers.keydown, []);
+    assert.equal(f.stack.children[0].handlers.click.length, 1, 'only the new user Home listener remains');
     assert.doesNotThrow(() => host.dispose());
     assert.deepEqual(f.pane.children, [f.sections]);
     assert.deepEqual(f.document.head.children, []);
@@ -173,22 +198,23 @@ test('throwing discovery cleanup cannot leave host content on user switch', asyn
     assert.equal(mounts, 3);
     assert.doesNotThrow(() => host.dispose());
 });
-test('mount and remount own only inner tabs and one HSS sections node', async () => {
+test('mount and remount own a nav action, panel and one HSS sections node', async () => {
     const f = fixture();
     assert.equal(await f.mount({ enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } }), true);
     assert.equal(await f.mount({ enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } }), true);
     assert.equal(f.pane.querySelectorAll('.sections').length, 1);
     assert.equal(f.sections.parentNode, f.pane);
     assert.equal(f.favorites.children.length, 0);
-    assert.equal(f.pane.children.length, 3);
-    const tabs = f.pane.children[0];
-    assert.equal(tabs.children.map(x => x.textContent).join(','), 'Home,3pic Fin');
-    tabs.children[1].click();
+    assert.equal(f.pane.children.length, 2);
+    assert.equal(f.pane.children[0], f.sections);
+    assert.equal(f.stack.children.length, 3);
+    assert.equal(f.nav().textContent, '3pic Fin');
+    f.nav().click();
     assert.equal(f.pane.getAttribute('data-threepic-fin-view'), 'discovery');
     assert.equal(f.sections.hidden, false);
-    tabs.children[0].click();
+    f.stack.children[0].click();
     assert.equal(f.pane.getAttribute('data-threepic-fin-view'), 'home');
-    assert.ok(tabs.children[0].focused);
+    assert.equal(f.nav().getAttribute('aria-pressed'), 'false');
     assert.ok(f.document.head.children.some(x => x.href === 'https://test.invalid/jellyfin/3picFin/Web/discovery.css'));
     assert.ok(f.document.head.children.some(x => x.href === 'https://test.invalid/jellyfin/3picFin/Web/home-tab-host.css'));
     assert.ok(f.calls.includes('https://test.invalid/jellyfin/3picFin/Discovery'));
@@ -211,10 +237,9 @@ test('Home mount defers the bundled Discovery request until Fin selection', asyn
     assert.equal(await host.mount({ pane: f.pane, favorites: f.favorites, apiClient: api,
         fingerprint: '12.1', userId: 'alice', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } }), true);
     assert.deepEqual(requests, []);
-    const [home, fin] = f.pane.children[0].children;
-    fin.click();
+    f.nav().click();
     assert.deepEqual(requests, ['3picFin/Discovery']);
-    home.click(); fin.click();
+    f.stack.children[0].click(); f.nav().click();
     assert.deepEqual(requests, ['3picFin/Discovery'], 'host does not re-activate on each selection');
     host.dispose();
 });
@@ -222,7 +247,7 @@ test('route teardown, user switch and late assets cannot leak a previous user', 
     const f = fixture(); await f.mount({ enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } });
     await f.mount({ enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false }, userId: 'bob' });
     assert.equal(f.disposed.length, 1);
-    assert.equal(f.pane.children.length, 3);
+    assert.equal(f.pane.children.length, 2);
     f.host.dispose();
     let release; const pending = new Promise(r => release = r);
     const late = createHost({ document: f.document, loadFragment: () => pending, loadScript: () => { throw Error('late script'); } });
@@ -244,11 +269,11 @@ test('host rechecks title before native item navigation and rejects stale user, 
         getJSON: () => result, getCurrentUserId: () => user, serverId: () => 'server-a' };
     const options = { pane: f.pane, favorites: f.favorites, apiClient: api, fingerprint: '12.1', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: false } };
     assert.equal(await host.mount({ ...options, userId: user }), true);
-    f.pane.children[0].children[1].click();
+    f.nav().click();
     const attempt = callback({ mediaType: 'movie', mediaId: 9, libraryItemId: guid });
     user = 'bob'; pending.resolve({ MediaType: 'movie', TmdbId: 9, LibraryItemId: guid });
     assert.equal(await attempt, false); assert.equal(shown.length, 0);
-    await host.mount({ ...options, userId: user }); f.pane.children[0].children[1].click();
+    await host.mount({ ...options, userId: user }); f.nav().click();
     result = Promise.resolve({ MediaType: 'movie', TmdbId: 9, LibraryItemId: guid });
     assert.equal(await callback({ mediaType: 'movie', mediaId: 9, libraryItemId: guid }), true);
     assert.equal(shown[0].Id, guid); assert.equal(shown[0].Type, 'Movie'); assert.equal(shown[0].ServerId, 'server-a');
@@ -278,19 +303,19 @@ test('optional hero waits for slides on Home and cleans up without moving HSS or
         fingerprint: '12.1', userId: 'alice', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: true } }), true);
     assert.equal(events.includes('Rowan/Home/Hero'), true);
     assert.equal(events.some(x => String(x).endsWith('static-hero.js')), false);
-    f.pane.children[0].children[1].click();
+    f.nav().click();
     release([{ Id: id, ImageType: 'Backdrop', ImageIndex: 0, ImageTag: 'a1' }]); await tick();
     assert.equal(events.some(x => String(x).endsWith('static-hero.js')), false);
-    f.pane.children[0].children[0].click(); await tick();
+    f.stack.children[0].click(); await tick();
     assert.equal(events.some(x => String(x).endsWith('static-hero.js')), true);
-    assert.equal(f.pane.children[1].className, 'threepic-fin-host__hero');
-    assert.equal(f.pane.children[2], f.sections);
+    assert.equal(f.pane.children[0].className, 'threepic-fin-host__hero');
+    assert.equal(f.pane.children[1], f.sections);
     assert.equal(f.sections.parentNode, f.pane);
     assert.equal(f.favorites.children.length, 0);
     assert.equal(f.document.head.children.some(x => x.href?.endsWith('static-hero.css')), true);
-    f.pane.children[0].children[1].click();
+    f.nav().click();
     assert.equal(events.includes('hero-dispose'), true);
-    assert.equal(f.pane.children.length, 3);
+    assert.equal(f.pane.children.length, 2);
     host.dispose(); assert.deepEqual(f.pane.children, [f.sections]);
 });
 
@@ -303,7 +328,7 @@ test('hero fails closed for empty, malformed and stale-user replies without load
         await host.mount({ pane: f.pane, favorites: f.favorites, apiClient: api,
             fingerprint: '12.1', userId: 'alice', enabled: true, mode: { DiscoveryEnabled: true, HeroEnabled: true } }); await tick();
         assert.equal(assets.some(x => x.endsWith('static-hero.js')), false);
-        assert.equal(f.pane.children.length, 3); host.dispose();
+        assert.equal(f.pane.children.length, 2); host.dispose();
     }
 });
 
@@ -384,12 +409,11 @@ for (const discovery of [false, true]) test(`hero-only mode discovery=${discover
     assert.equal(calls.some(x => String(x).includes('discovery.')), discovery);
     assert.equal(f.sections.parentNode, f.pane);
     assert.equal(f.favorites.children.length, 0);
-    assert.equal(f.pane.children.some(x => x.className === 'threepic-fin-host__tabs'), discovery);
+    assert.equal(!!f.nav(), discovery);
     if (discovery) {
-        const tabs = f.pane.children[0].children;
-        tabs[1].click(); assert.equal(f.pane.getAttribute('data-threepic-fin-view'), 'discovery');
+        f.nav().click(); assert.equal(f.pane.getAttribute('data-threepic-fin-view'), 'discovery');
         assert.equal(cleanup, 1);
-        tabs[0].click(); await tick(); assert.equal(f.pane.getAttribute('data-threepic-fin-view'), 'home');
+        f.stack.children[0].click(); await tick(); assert.equal(f.pane.getAttribute('data-threepic-fin-view'), 'home');
     }
     user = 'bob'; host.dispose();
     assert.deepEqual(f.pane.children, [f.sections]);
@@ -428,14 +452,14 @@ test('mode changes across route teardown replace hero-only with Home/Fin and bac
         loadScript: async x => { calls.push(x); return { mount: () => () => {} }; } });
     const options = { pane: f.pane, favorites: f.favorites, apiClient: api, userId: 'alice', fingerprint: '12.1', enabled: true };
     assert.equal(await host.mount(options), true);
-    assert.equal(f.pane.children.some(x => x.className === 'threepic-fin-host__tabs'), false);
+    assert.equal(!!f.nav(), false);
     host.dispose(); discovery = true;
     assert.equal(await host.mount(options), true);
-    assert.equal(f.pane.children.some(x => x.className === 'threepic-fin-host__tabs'), true);
+    assert.equal(!!f.nav(), true);
     assert.equal(calls.filter(x => x.endsWith('discovery.html')).length, 1);
     host.dispose(); discovery = false;
     assert.equal(await host.mount(options), true);
-    assert.equal(f.pane.children.some(x => x.className === 'threepic-fin-host__tabs'), false);
+    assert.equal(!!f.nav(), false);
     assert.equal(calls.filter(x => x.endsWith('discovery.html')).length, 1);
     host.dispose(); assert.deepEqual(f.pane.children, [f.sections]);
 });

@@ -9,6 +9,12 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     /// <summary>Enable portable Home integration on new installs. Existing saved choices remain unchanged.</summary>
     public bool HomeEnabled { get; set; } = true;
 
+    /// <summary>Opt-in supplementary native-looking Home rows; never replaces Jellyfin's own sections.</summary>
+    public bool NativeHomeRowsEnabled { get; set; }
+
+    /// <summary>Ordered, explicitly selected row kinds. Null/empty renders no supplementary rows.</summary>
+    public string[]? NativeHomeRowKinds { get; set; }
+
     /// <summary>Opt-in combined playback row; requires Home enabled.</summary>
     public bool CombinedPlaybackRowEnabled { get; set; }
 

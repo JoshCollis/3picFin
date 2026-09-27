@@ -16,7 +16,11 @@
                 state.apiClient?.getCurrentUserId?.() === state.userId &&
                 state.apiClient?.getUrl && state.apiClient?.getJSON;
             const next = allowed ? { userId: state.userId, pane: state.pane, apiClient: state.apiClient } : null;
-            if (next && identity && Object.keys(next).every(key => next[key] === identity[key])) return;
+            if (next && identity && Object.keys(next).every(key => next[key] === identity[key])) {
+                // Native header can be replaced without a route/identity change.
+                host?.sync?.();
+                return;
+            }
             ++generation;
             host?.dispose(); host = null; identity = null;
             if (!next) return;
@@ -182,9 +186,11 @@
     observer.observe(document.documentElement, { childList: true, subtree: true });
     global.addEventListener('hashchange', schedule);
     global.addEventListener('popstate', schedule);
+    global.addEventListener('resize', schedule);
     global.__threePicFinHomeAdapter = { dispose() {
         stopped = true; observer.disconnect(); global.removeEventListener('hashchange', schedule);
-        global.removeEventListener('popstate', schedule); unwatch(); adapter.dispose();
+        global.removeEventListener('popstate', schedule); global.removeEventListener('resize', schedule);
+        unwatch(); adapter.dispose();
     } };
     schedule();
 })(typeof globalThis !== 'undefined' ? globalThis : this);

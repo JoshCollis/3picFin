@@ -23,7 +23,7 @@ class Element {
 }
 function deferred() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 async function flush() { for (let i = 0; i < 6; i++) await new Promise(resolve => setImmediate(resolve)); }
-function setup(responses = [], posts = [], host = {}) {
+function setup(responses = [], posts = [], host = {}, details = []) {
     const ids = ['threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-seasons', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-discover-tab', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-recommendations', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
     for (const id of ids) assert.match(fragment, new RegExp(`id="${id}"`));
     const nodes = Object.fromEntries(ids.map(id => [id, new Element()]));
@@ -31,7 +31,7 @@ function setup(responses = [], posts = [], host = {}) {
     const calls = [];
     const api = {
         getUrl: (route, params) => { calls.push(['url', route, params]); const u = new URL(route, 'https://example.test/jellyfin/'); for (const [k, v] of Object.entries(params || {})) u.searchParams.set(k, v); return u.href; },
-        getJSON: (url, options) => { calls.push(['getJSON', url, options]); const reply = responses.shift(); return reply?.promise || (reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply)); },
+        getJSON: (url, options) => { calls.push(['getJSON', url, options]); const isDetail = url.includes('TitleDetails'); const queue = isDetail && details.length ? details : responses; if (isDetail && queue === responses && !(responses[0] && (responses[0].MediaType || responses[0].mediaType))) return Promise.resolve(null); const reply = queue.shift(); return reply?.promise || (reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply)); },
         ajax: options => { calls.push(['ajax', options]); const reply = posts.shift(); return reply?.promise || (reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply)); }
     };
     const context = { document: { createElement: tag => new Element(tag) }, URL, AbortController };
@@ -94,13 +94,13 @@ test('household list is a deliberate separate read with source pagination, not r
     app.el('shared-requests-load').dispatch('click');
     assert.match(app.text('shared-requests'), /Loading/);
     pending.resolve(source([{ Id: 4, Status: 2, Type: 'movie', TmdbId: 42, requestedBy: { name: 'secret' } }], { TotalPages: 2 })); await app.flush();
-    assert.match(app.text('shared-requests'), /TMDb #42/);
+    assert.match(app.text('shared-requests'), /Title unavailable/);
     assert.doesNotMatch(app.text('shared-requests'), /secret/);
     assert.equal(app.el('shared-requests-next').disabled, false);
     app.el('shared-requests-next').dispatch('click');
-    assert.match(app.calls.filter(c => c[0] === 'getJSON')[2][1], /\/jellyfin\/3picFin\/SharedRequests\?page=2/);
+    assert.match(app.calls.filter(c => c[0] === 'getJSON').at(-1)[1], /\/jellyfin\/3picFin\/SharedRequests\?page=2/);
     second.resolve(source([{ Id: 5, Status: 1, Type: 'tv', TmdbId: 44 }], { TotalPages: 2 })); await app.flush();
-    assert.match(app.text('shared-requests'), /TMDb #44/);
+    assert.match(app.text('shared-requests'), /Title unavailable/);
     assert.match(app.text('requests'), /No Requests/);
 });
 
@@ -120,11 +120,43 @@ test('discovery renders movies, TV, recommendations and null-metadata personal r
     assert.match(app.text('movies'), /<script>x<\/script>/);
     assert.match(app.text('tv'), /A show/);
     assert.match(app.text('recommendations'), /A show|<script>x<\/script>/);
-    assert.match(app.text('requests'), /TV.*TMDb #20/);
+    assert.match(app.text('requests'), /Title unavailable.*TV/);
     assert.doesNotMatch(app.text('requests'), /undefined|null/);
     assert.equal(app.el('discover-panel').hidden, false);
     assert.equal(app.el('movies').descendants().some(n => Object.hasOwn(n, 'innerHTML')), false);
-    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery']);
+    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery', '3picFin/TitleDetails']);
+});
+test('source-shaped Seerr request resolves metadata through authenticated detail without changing request ownership', async () => {
+    // Seerr v3.4.1 (69f73a6f) server/routes/request.ts GET / joins
+    // request.media; server/entity/Media.ts has tmdbId/mediaType/status but no
+    // title/posterPath. Request-level title/poster are absent on the wire.
+    // https://github.com/seerr-team/seerr/blob/v3.4.1/server/routes/request.ts#L125-L130
+    const request = { Id: 4, Status: 2, Type: 'tv', TmdbId: 20, MediaType: 'tv', Title: null, PosterPath: null };
+    const app = setup([bundle(source(), source(), source([request])),
+        { MediaType: 'tv', TmdbId: 20, Title: 'Actual Series', PosterPath: '/actual.jpg' }]);
+    await app.flush();
+    assert.match(app.text('requests'), /Actual Series/);
+    assert.doesNotMatch(app.text('requests'), /TMDb #20/);
+    assert.equal(app.el('requests').descendants().find(n => n.tagName === 'IMG')?.src, 'https://image.tmdb.org/t/p/w342/actual.jpg');
+    app.el('requests').descendants().find(n => n.tagName === 'IMG').dispatch('error');
+    assert.match(app.text('requests'), /Poster unavailable/);
+    assert.match(app.text('requests'), /Approved/);
+    assert.equal(app.calls.filter(c => c[0] === 'url')[1][1], '3picFin/TitleDetails');
+});
+test('request enrichment refuses mismatched detail and never paints after disposal', async () => {
+    const pending = deferred();
+    const app = setup([bundle(source(), source(), source([{ Id: 8, Status: 1, Type: 'movie', MediaType: 'movie', TmdbId: 9 }]))], [], {}, [pending]);
+    await app.flush();
+    assert.match(app.text('requests'), /Loading title/);
+    app.cleanup();
+    pending.resolve({ MediaType: 'movie', TmdbId: 9, Title: 'Previous user', PosterPath: '/old.jpg' }); await app.flush();
+    assert.doesNotMatch(app.text('requests'), /Previous user/);
+    assert.equal(app.el('requests').children.length, 0);
+    const mismatch = setup([bundle(source(), source(), source([{ Id: 8, Status: 1, Type: 'movie', MediaType: 'movie', TmdbId: 9 }])),
+        { MediaType: 'movie', TmdbId: 10, Title: 'Wrong', PosterPath: '/wrong.jpg' }]);
+    await mismatch.flush();
+    assert.doesNotMatch(mismatch.text('requests'), /Wrong/);
+    assert.match(mismatch.text('requests'), /Title unavailable/);
 });
 test('per-source error, loading, and empty states stay independent', async () => {
     const pending = deferred(); const app = setup([pending]);
@@ -134,7 +166,7 @@ test('per-source error, loading, and empty states stay independent', async () =>
     await app.flush();
     assert.match(app.text('movies'), /unavailable/i);
     assert.match(app.text('tv'), /No TV/);
-    assert.match(app.text('requests'), /Movie.*TMDb #3/);
+    assert.match(app.text('requests'), /Title unavailable.*Movie/);
 });
 test('search uses ApiClient subpath URL, pagination and suppresses stale responses', async () => {
     const first = deferred(), second = deferred();

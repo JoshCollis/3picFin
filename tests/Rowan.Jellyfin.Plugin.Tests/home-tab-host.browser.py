@@ -4,9 +4,10 @@ from playwright.sync_api import sync_playwright
 
 css = (Path(__file__).resolve().parents[2] / 'src/Rowan.Jellyfin.Plugin/Web/home-tab-host.css').read_text()
 html = '''<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
-<body style="margin:0"><div id="home"><div class="threepic-fin-host__tabs" role="tablist">
-<button class="threepic-fin-host__tab">Home</button><button class="threepic-fin-host__tab">3pic Fin</button></div>
-<div class="sections">Native HSS rows</div><div class="threepic-fin-host__panel">Discovery
+<body style="margin:0"><div class="skinHeader"><div class="headerTabs"><div is="emby-tabs"><div class="emby-tabs-slider">
+<button class="emby-tab-button emby-tab-button-active" data-index="0">Home</button><button class="emby-tab-button" data-index="1">Favorites</button></div></div>
+</div></div><div class="MuiToolbar-root"><div class="MuiStack-root"><a href="#/">Logo</a><a href="#/home?tab=1">Favorites</a><button class="threepic-fin-host__nav">3pic Fin</button></div></div>
+<div id="home"><div class="sections">Native HSS rows</div><div class="threepic-fin-host__panel">Discovery
 <div class="sections" id="discovery-sections">Nested Discovery cards</div></div></div>
 <div id="favorites">Native Favorites</div></body></html>'''
 with sync_playwright() as p:
@@ -15,9 +16,9 @@ with sync_playwright() as p:
         page = browser.new_page(viewport={'width': width, 'height': 800})
         page.set_content(html)
         page.add_style_tag(content=css)
-        buttons = page.locator('.threepic-fin-host__tab')
-        assert buttons.count() == 2
-        boxes = [buttons.nth(i).bounding_box() for i in range(2)]
+        buttons = page.locator('.threepic-fin-host__nav')
+        assert buttons.count() == 1
+        boxes = [buttons.nth(i).bounding_box() for i in range(1)]
         assert all(box is not None and box['height'] >= 44 for box in boxes)
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
         assert page.locator('#home > .sections').is_visible()
@@ -32,7 +33,7 @@ with sync_playwright() as p:
     fragment_js = (web / 'discovery.js').read_text()
     fragment_html = (web / 'discovery.html').read_text()
     page = browser.new_page()
-    page.set_content('<html><head></head><body><div id="home"><div class="sections">Native rows</div></div><div id="favorites"></div></body></html>')
+    page.set_content('<html><head></head><body><div class="skinHeader"><div class="headerTabs"><div is="emby-tabs"><div class="emby-tabs-slider"><button class="emby-tab-button emby-tab-button-active" data-index="0">Home</button><button class="emby-tab-button" data-index="1">Favorites</button></div></div></div></div><div class="MuiToolbar-root"><div class="MuiStack-root"><a href="#/">Logo</a><a href="#/home?tab=1">Favorites</a></div></div><div id="home"><div class="sections">Native rows</div></div><div id="favorites"></div></body></html>')
     page.evaluate("location.hash = '#/home'")
     page.add_script_tag(content=fragment_js)
     page.add_script_tag(content=host_js)
@@ -49,7 +50,7 @@ with sync_playwright() as p:
       window.host = ThreePicFinHomeHost.createHost({document, loadFragment: async () => html,
         loadScript: async () => ThreePicFinDiscovery});
       if (!await host.mount({pane, favorites, apiClient:api, fingerprint:'12.1', userId:user, enabled:true})) throw Error('host did not mount');
-      pane.querySelectorAll('.threepic-fin-host__tab')[1].click();
+      document.querySelector('.threepic-fin-host__nav').click();
     }""", fragment_html)
     page.locator('#threepic-fin-movies .threepic-fin-discovery__title-button').click()
     page.locator('#threepic-fin-details-open').click()
@@ -67,7 +68,7 @@ with sync_playwright() as p:
     hero_css = (web / 'static-hero.css').read_text()
     for width in (360, 1280):
         page = browser.new_page(viewport={'width': width, 'height': 800})
-        page.set_content('''<html><head></head><body style="margin:0"><div id="home">
+        page.set_content('''<html><head></head><body style="margin:0"><div class="skinHeader"><div class="headerTabs"><div is="emby-tabs"><div class="emby-tabs-slider"><button class="emby-tab-button emby-tab-button-active" data-index="0">Home</button><button class="emby-tab-button" data-index="1">Favorites</button></div></div></div></div><div class="MuiToolbar-root"><div class="MuiStack-root"><a href="#/">Logo</a><a href="#/home?tab=1">Favorites</a></div></div><div id="home">
           <div class="sections" style="height:1200px">HSS sentinel</div></div>
           <div id="favorites">Favorites sentinel</div></body></html>''')
         page.evaluate("location.hash = '#/home'")
@@ -107,10 +108,10 @@ with sync_playwright() as p:
         page.locator('.rowan-hero-open').click()
         page.wait_for_function('shown.length === 1')
         page.evaluate('scrollTo(0, 500)')
-        page.locator('.threepic-fin-host__tab').nth(1).click()
+        page.locator('.threepic-fin-host__nav').click()
         assert page.locator('#home > .threepic-fin-host__hero').count() == 0
         assert not page.locator('#home > .sections').is_visible()
-        page.locator('.threepic-fin-host__tab').nth(0).click()
+        page.locator('.MuiStack-root > a[href="#/"]').click()
         page.wait_for_selector('#home > .threepic-fin-host__hero .rowan-static-hero')
         assert page.evaluate('document.scrollingElement.scrollHeight > innerHeight')
         page.evaluate('scrollTo(0, 500)')

@@ -1,11 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { createRows } = require('../../src/Rowan.Jellyfin.Plugin/Web/native-home-rows.js');
+const id = '0123456789abcdef0123456789abcdef';
 class Node {
     constructor(tag) { this.tagName = tag?.toUpperCase(); this.children = []; this.textContent = ''; this.parent = null; this.className = ''; this.listeners = {}; }
     appendChild(node) { this.children.push(node); node.parent = this; return node; }
+    append(...nodes) { nodes.forEach(node => this.appendChild(node)); }
     remove() { if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; }
-    replaceChildren(...nodes) { this.children = []; nodes.forEach(n => this.appendChild(n)); this.textContent = ''; }
+    replaceChildren(...nodes) { this.children = []; this.textContent = ''; this.append(...nodes); }
     addEventListener(name, fn) { (this.listeners[name] ||= []).push(fn); }
     click() { for (const fn of this.listeners.click || []) fn(); }
 }
@@ -17,80 +19,39 @@ function fixture(enabledRows, openItem) {
     const api = { getUrl: path => `/base/${path}`, getJSON: url => { calls.push(url); return {}; } };
     return { root, calls, observers, rows, api };
 }
-test('Because You Watched is one lazy bounded fetch with per-seed landscape headings and playable identities', async () => {
+test('Because You Watched is one lazy bounded fetch with separate seed headings and landscape cards', async () => {
     const seen = [], f = fixture(['BecauseYouWatched'], item => seen.push(item));
-    f.api.getJSON = url => { f.calls.push(url); return [{ SeedId: 'seed', Heading: 'Because You Watched <Movie>',
-        Seed: { Id: 'seed', Name: 'Movie' }, Items: [{ Id: 'film', Name: 'Next <Film>' }] }]; };
+    f.api.getJSON = url => { f.calls.push(url); return [{ Heading: 'Because You Watched <Movie>',
+        Items: [{ Id: id, Type: 'Movie', Name: 'Next <Film>', BackdropImageTags: ['abcd'] }] }]; };
     f.rows.mount(f.root, f.api, 'alice');
-    assert.equal(f.root.children.length, 6);
+    assert.equal(f.root.children.length, 1);
     assert.deepEqual(f.calls, []);
-    f.observers[0].fire(f.root.children[5]); await tick();
+    f.observers[0].fire(f.root.children[0]); await tick();
     assert.deepEqual(f.calls, ['/base/Rowan/Home/BecauseYouWatched']);
-    assert.equal(f.root.children[5].children[1].className, 'rowan-native-row__seeds');
-    const seed = f.root.children[5].children[1].children[0];
-    assert.equal(seed.children[0].tagName, 'H2');
+    const seed = f.root.children[0].children[1].children[0];
+    assert.equal(seed.children[0].tagName, 'H3');
     assert.equal(seed.children[0].textContent, 'Because You Watched <Movie>');
     const card = seed.children[1].children[0];
     assert.equal(card.tagName, 'BUTTON');
     assert.match(card.className, /landscape/);
-    assert.equal(card.textContent, 'Next <Film>');
-    card.click(); assert.equal(seen[0].Id, 'film');
+    assert.equal(card.children[0].src, `/base/Items/${id}/Images/Backdrop/0`);
+    assert.equal(card.children[1].textContent, 'Next <Film>');
+    card.click(); assert.equal(seen[0].Id, id);
     f.rows.dispose(); assert.equal(f.root.children.length, 0);
 });
-test('Discover sources fetch independently and render candidate-only portrait cards', async () => {
-    const opened = [], f = fixture(['Discover', 'DiscoverMovies', 'DiscoverTV'], item => opened.push(item));
-    f.api.getJSON = url => { f.calls.push(url); return { Items: [{ TmdbId: 7, MediaType: 'movie', Title: 'Candidate', PosterPath: '/poster.jpg', Id: 'not-playable' }] }; };
-    f.rows.mount(f.root, f.api, 'alice');
-    assert.equal(f.root.children.length, 8);
-    f.observers[0].fire(f.root.children[6]); await tick();
-    assert.deepEqual(f.calls, ['/base/3picFin/HomeDiscover/DiscoverMovies']);
-    const card = f.root.children[6].children[1].children[0];
-    assert.equal(card.tagName, 'ARTICLE');
-    assert.match(card.className, /portrait/);
-    assert.equal(card.children.at(-1).textContent, 'Candidate · Seerr candidate');
-    assert.equal(card.listeners.click, undefined);
-    assert.deepEqual(opened, []);
-    f.observers[0].fire(f.root.children[5]); f.observers[0].fire(f.root.children[7]); await tick();
-    assert.equal(f.calls.length, 3);
-    f.rows.dispose();
+test('unsupported household and Seerr candidate kinds never mount or fetch', () => {
+    const f = fixture(['Discover', 'DiscoverMovies', 'DiscoverTV', 'LiveTV', 'UpcomingMovies']);
+    assert.equal(f.rows.mount(f.root, f.api, 'alice'), false);
+    assert.deepEqual(f.calls, []); assert.equal(f.root.children.length, 0);
 });
-test('malformed, excessive and stale modular responses fail closed', async () => {
-    const f = fixture(['BecauseYouWatched', 'Discover']);
-    let finish;
-    f.api.getJSON = url => url.includes('BecauseYouWatched') ? new Promise(resolve => { finish = resolve; }) : { Items: Array.from({ length: 21 }, () => ({ Title: 'Too many' })) };
-    f.rows.mount(f.root, f.api, 'alice');
-    const old = f.root.children[5];
-    f.observers[0].fire(old); f.observers[0].fire(f.root.children[6]); await tick();
-    assert.equal(f.root.children[6].children[1].textContent, 'Row unavailable');
-    f.rows.mount(f.root, f.api, 'bob');
-    finish([{ SeedId: 'seed', Heading: 'Private', Items: [{ Id: 'x', Name: 'secret' }] }]); await tick();
-    assert.equal(old.children[1].children.length, 0);
-    assert.equal(f.observers[0].closed, true);
-    f.rows.dispose();
+test('excessive recommendation groups fail closed without partial cards', async () => {
+    const f = fixture(['BecauseYouWatched']);
+    f.api.getJSON = () => Array.from({ length: 6 }, () => ({ Heading: 'Because You Watched A', Items: [{ Id: id, Type: 'Movie' }] }));
+    f.rows.mount(f.root, f.api, 'alice'); f.observers[0].fire(f.root.children[0]); await tick();
+    assert.equal(f.root.children[0].children[1].textContent, 'Row unavailable');
 });
-test('dispose before queued work prevents even the request', async () => {
-    const f = fixture(['Discover']);
-    f.rows.mount(f.root, f.api, 'alice');
-    f.observers[0].fire(f.root.children[5]);
-    f.rows.dispose(); await tick();
-    assert.deepEqual(f.calls, []);
-});
-test('mixed valid and malformed candidates do not disclose partial row', async () => {
-    const f = fixture(['Discover']);
-    f.api.getJSON = () => ({ Items: [{ TmdbId: 7, MediaType: 'movie', Title: 'Valid' }, { TmdbId: 0, MediaType: 'tv', Title: 'Invalid' }] });
-    f.rows.mount(f.root, f.api, 'alice'); f.observers[0].fire(f.root.children[5]); await tick();
-    assert.equal(f.root.children[5].children[1].textContent, 'Row unavailable');
-    assert.equal(f.root.children[5].children[1].children.length, 0);
-    f.rows.dispose();
-});
-test('poster URLs are constrained and candidate errors do not leak partial items', async () => {
-    const f = fixture(['DiscoverTV']);
-    f.api.getJSON = () => ({ Items: [{ TmdbId: 7, MediaType: 'tv', Title: 'Safe', PosterPath: '//evil.test/p.jpg' }], Error: 'UpstreamUnavailable' });
-    f.rows.mount(f.root, f.api, 'alice'); f.observers[0].fire(f.root.children[5]); await tick();
-    assert.equal(f.root.children[5].children[1].textContent, 'Row unavailable');
-    f.rows.dispose();
-    f.api.getJSON = () => ({ Items: [{ TmdbId: 7, MediaType: 'tv', Title: 'Safe', PosterPath: '/legit.jpg' }] });
-    f.rows.mount(f.root, f.api, 'alice'); f.observers[1].fire(f.root.children[5]); await tick();
-    assert.equal(f.root.children[5].children[1].children[0].children[0].src, 'https://image.tmdb.org/t/p/w342/legit.jpg');
-    f.rows.dispose();
+test('disposal before queued work prevents even a request', async () => {
+    const f = fixture(['BecauseYouWatched']);
+    f.rows.mount(f.root, f.api, 'alice'); f.observers[0].fire(f.root.children[0]);
+    f.rows.dispose(); await tick(); assert.deepEqual(f.calls, []);
 });

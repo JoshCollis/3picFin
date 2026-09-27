@@ -1,4 +1,8 @@
-# Global search Seerr slice (isolated; not injected)
+# Native Search augmentation (Jellyfin 12.1)
+
+> **Current implementation supersedes the staging notes below.** With `GlobalSearchEnabled`, File Transformation injects `global-search-addon.js` and `search-adapter.js` into the complete index, without a distribution hash. It mounts a separate Seerr section on signed-in, unscoped 12.1.x `/search?query=...` or `#/search?query=...`, preserving native results. Details and request buttons lazy-load the existing Discovery details and request-options/modal/POST/read-back flow. Search DTO title/poster render when present. Native Jellyfin cards lack complete TMDb identities, so **cross-section duplicates are possible**; only repeated catalog items are suppressed. Scoped filters fail closed. Tests: `python3 tests/Rowan.Jellyfin.Plugin.Tests/native-search.browser.py`, `node --test tests/Rowan.Jellyfin.Plugin.Tests/global-search-addon.test.cjs`, and `dotnet test`. Synthetic browser proof is not stock or custom Jellyfin installation proof; verify separately before deployment.
+
+## Historical staging notes (obsolete)
 
 Pinned source reviewed: Jellyfin-web `fae41f33eb7cd636a9ef68984adb82bb247a6e1b`, `src/apps/legacy/routes/search.tsx` uses `/search?query=...` with a 500 ms debounced query, then mounts React `SearchResults` or suggestions inside `#searchPage`; `SearchResults.tsx` renders grouped native `useSearchItems` results. A plugin has no React extension point here. This slice does **not** transform native search, patch webpack or register a route. SeerrFin 1.7.1.2 internals were not independently verified in this slice; do not claim behavioral parity.
 

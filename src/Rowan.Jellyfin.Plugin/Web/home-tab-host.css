@@ -1,12 +1,40 @@
-/* Only the host-owned inner navigation and its native Home pane scope. */
-.threepic-fin-host__tabs { display: flex; flex-wrap: wrap; gap: .5rem; padding: .75rem 1rem; }
-.threepic-fin-host__tab { min-height: 44px; padding: .5rem 1rem; border: 0; border-radius: .5rem; color: var(--primary-text-color, #fff); background: var(--card-background, #333); cursor: pointer; }
-.threepic-fin-host__tab[aria-selected="true"] { background: var(--theme-primary-color, #5655bc); }
-.threepic-fin-host__tab:focus-visible { outline: 2px solid var(--theme-primary-color, #9b9aff); outline-offset: 2px; }
+/* Outside the native tabs manager; mimic the visible 12.1 toolbar action. */
+.MuiToolbar-root > .MuiStack-root > .threepic-fin-host__nav {
+    appearance: none; border: 0; border-radius: 4px;
+    background: transparent; color: inherit; font: inherit; cursor: pointer;
+    padding: 6px 8px; min-height: 44px; white-space: nowrap;
+    text-transform: uppercase; font-weight: 500; letter-spacing: .02857em;
+}
+.MuiToolbar-root > .MuiStack-root > .threepic-fin-host__nav:hover,
+.MuiToolbar-root > .MuiStack-root > .threepic-fin-host__nav[aria-pressed="true"] {
+    background: rgba(255,255,255,.12);
+}
+.MuiToolbar-root > .MuiStack-root > .threepic-fin-host__nav:focus-visible {
+    outline: 2px solid var(--theme-primary-color, #00a4dc); outline-offset: -2px;
+}
+/* Mobile uses the native drawer list, not a second content header. */
+.threepic-fin-host__nav-item > .threepic-fin-host__nav {
+    width: 100%; min-height: 48px; border: 0; background: transparent;
+    color: inherit; font: inherit; text-align: left; padding: 10px 16px 10px 52px; cursor: pointer;
+}
+.threepic-fin-host__nav-item > .threepic-fin-host__nav[aria-pressed="true"] {
+    background: rgba(255,255,255,.12);
+}
+/* Stock Home tabbar: an adjacent action, never a managed tab/slider child. */
+.headerTabs > .threepic-fin-host__nav--stock {
+    appearance: none; border: 0; background: transparent; color: inherit;
+    font: inherit; cursor: pointer; min-height: 44px; padding: 8px 12px;
+    max-width: 100%; white-space: nowrap;
+}
+.headerTabs > .threepic-fin-host__nav--stock[aria-pressed="true"],
+.headerTabs > .threepic-fin-host__nav--stock:hover { background: rgba(255,255,255,.12); }
+.headerTabs > .threepic-fin-host__nav--stock:focus-visible {
+    outline: 2px solid var(--theme-primary-color, #00a4dc); outline-offset: -2px;
+}
 [data-threepic-fin-view="discovery"] > .sections { display: none; }
+[data-threepic-fin-view="discovery"] > .rowan-native-rows { display: none; }
 .threepic-fin-host__panel[hidden] { display: none; }
 @media (max-width: 360px) {
-    .threepic-fin-host__tabs { padding: .5rem; gap: .25rem; }
-    .threepic-fin-host__tab { flex: 1 1 auto; min-width: 0; }
+    .MuiToolbar-root > .MuiStack-root > .threepic-fin-host__nav { padding-inline: 4px; }
     .threepic-fin-host__panel { min-width: 0; overflow-wrap: anywhere; }
 }

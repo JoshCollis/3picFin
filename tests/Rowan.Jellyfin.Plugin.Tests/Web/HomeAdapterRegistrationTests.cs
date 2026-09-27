@@ -100,6 +100,21 @@ public sealed class HomeAdapterRegistrationTests
     }
 
     [Fact]
+    public void SearchOnlyIndexInjectsPortableLoaderAndKeepsPriorTags()
+    {
+        const string html = "<html><body><script data-hss></script><script data-plugin-pages></script></body></html>";
+        var output = HomeAdapterRegistration.TransformIndex(new JObject { ["contents"] = html }, enabled: false, searchEnabled: true);
+        Assert.DoesNotContain("data-threepic-fin-adapter", output);
+        Assert.Equal(1, output.Split("data-threepic-fin-search src=").Length - 1);
+        Assert.Contains("search-adapter.js", output);
+        Assert.Contains("data-hss", output);
+        Assert.Contains("data-plugin-pages", output);
+        Assert.Equal(output, HomeAdapterRegistration.TransformIndex(new JObject { ["contents"] = output }, enabled: false, searchEnabled: true));
+        Assert.IsType<NotFoundResult>(new DiscoveryPageController(() => false, () => false).GetAsset("search-adapter.js"));
+        Assert.IsType<FileStreamResult>(new DiscoveryPageController(() => false, () => true).GetAsset("search-adapter.js"));
+    }
+
+    [Fact]
     public void PackagedAdapterIsFlagGated()
     {
         Assert.IsType<NotFoundResult>(new DiscoveryPageController(() => false).GetAsset("home-adapter.js"));
