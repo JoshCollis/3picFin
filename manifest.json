@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.3.0",
+        "changelog": "Portable Jellyfin 12.1 Home and Discovery integration; runtime compatibility checks and featured hero",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v0.1.3.0/3pic-fin_0.1.3.0.zip",
+        "checksum": "cf20597c6b9529fa5679ec81671a8b46",
+        "timestamp": "2026-09-27T17:19:22Z"
+      },
+      {
         "version": "0.1.2.0",
         "changelog": "Staging build from 819a61bcf416ca62daee44d43c15c121573601b9; Home compatibility pins remain unset",
         "targetAbi": "12.1.0.0",
