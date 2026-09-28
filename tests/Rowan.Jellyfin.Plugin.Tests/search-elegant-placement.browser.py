@@ -26,7 +26,7 @@ with sync_playwright() as p:
         page.route('https://image.tmdb.org/**', lambda route: route.fulfill(status=200, content_type='image/png', body=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=')))
         page.goto('http://localhost:8765/web/index.html#/search?query=Alien')
         page.add_style_tag(content='''#searchPage { padding: 1rem; } .searchField { margin-bottom: 1rem; }
-          .searchResults .card { width: 11rem; } .searchResults .cardPadder { aspect-ratio: 2 / 3; }
+          .searchResults .card, .threepic-fin-search__card { width: 11rem; } .searchResults .cardPadder { aspect-ratio: 2 / 3; }
           .searchResults .cardImageContainer { background: #39536b; } .cardPadder-overflowPortrait { padding-top: 150%; }''')
         if theme:
             for i in (0, 1):
@@ -55,8 +55,8 @@ with sync_playwright() as p:
         native_box = page.locator('.searchResults .verticalSection').first.bounding_box()
         assert input_box and section_box and native_box
         assert section_box['y'] >= input_box['y'] + input_box['height'], (width, input_box, section_box)
-        assert section_box['y'] < native_box['y'], (width, section_box, native_box)
-        assert section_box['y'] - (input_box['y'] + input_box['height']) < 120, (width, input_box, section_box)
+        second_native_box = page.locator('.searchResults .verticalSection').nth(1).bounding_box()
+        assert native_box['y'] < section_box['y'] < second_native_box['y'], (width, section_box, native_box, second_native_box)
         assert page.locator('.searchResults .verticalSection').count() == 5
         assert page.locator('.threepic-fin-search__card button').count() == 2
         assert page.locator('.threepic-fin-search nav').is_hidden()

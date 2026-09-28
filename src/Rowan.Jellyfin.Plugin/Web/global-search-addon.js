@@ -126,7 +126,7 @@
                         }
                         const action = document.createElement('button'); action.type = 'button';
                         const hasDetails = typeof state.detailsAction === 'function';
-                        action.textContent = 'Details';
+                        action.textContent = 'ⓘ';
                         action.setAttribute('aria-label', `Details for ${name} (${metadata})`);
                         const handler = () => {
                             if (valid() && generation === state.generation)

@@ -63,6 +63,14 @@ with sync_playwright() as p:
         assert metrics['nativeFooter'] == metrics['seerrFooter']
         assert metrics['nativeBorder'] == metrics['seerrBorder']
         assert not metrics['overflow']
+        first_native = page.locator('.searchResults .verticalSection').first.bounding_box()
+        second_native = page.locator('.searchResults .verticalSection').nth(1).bounding_box()
+        rail_box = page.locator('.threepic-fin-search').bounding_box()
+        assert first_native and second_native and rail_box
+        assert first_native['y'] < rail_box['y'] < second_native['y'], (width, first_native, rail_box, second_native)
+        assert page.evaluate('''() => { const n=document.querySelector('.searchResults .cardFooter'), s=document.querySelector('.threepic-fin-search .cardFooter');
+          const b=document.querySelector('.threepic-fin-search__poster button').getBoundingClientRect(), p=document.querySelector('.threepic-fin-search__poster').getBoundingClientRect();
+          return getComputedStyle(s).backgroundColor === getComputedStyle(n).backgroundColor && b.width < p.width * .55 && b.height < p.height * .27; }'''), width
         page.screenshot(path=str(out / f'search-{width}.png'))
         native_card = page.locator('.searchResults .card').first
         native_card.hover(); page.wait_for_timeout(250)
