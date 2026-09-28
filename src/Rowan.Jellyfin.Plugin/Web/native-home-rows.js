@@ -28,24 +28,56 @@
             const makeCard = (item, landscape = false) => {
                 const id = field(item, 'Id'), type = field(item, 'Type');
                 if (!guid(id) || !['Movie', 'Series', 'Episode', 'BoxSet', 'Folder', 'CollectionFolder'].includes(type)) return null;
-                const card = document.createElement(typeof openItem === 'function' &&
-                    ['Movie', 'Series', 'Episode', 'BoxSet'].includes(type) ? 'button' : 'article');
+                const playable = ['Movie', 'Series', 'Episode'].includes(type);
+                const card = document.createElement('div');
                 card.className = 'rowan-native-row__card card card-hoverable show-animation ' +
                     (landscape ? 'rowan-native-row__card--landscape overflowBackdropCard' :
                         'rowan-native-row__card--portrait overflowPortraitCard');
-                if (card.tagName.toLowerCase() === 'button') {
-                    card.type = 'button';
-                    card.addEventListener('click', () => { if (active()) openItem({ Id: id, Type: type }); });
+                card.setAttribute('data-id', id);
+                card.setAttribute('data-type', type);
+                const serverId = apiClient.serverId?.();
+                if (typeof serverId === 'string' && serverId) card.setAttribute('data-serverid', serverId);
+                card.setAttribute('data-isfolder', String(['BoxSet', 'Folder', 'CollectionFolder'].includes(type)));
+                if (playable) card.setAttribute('data-mediatype', 'Video');
+                if (typeof openItem === 'function' && ['Movie', 'Series', 'Episode', 'BoxSet'].includes(type)) {
+                    card.tabIndex = 0;
+                    card.setAttribute('role', 'button');
+                    const open = event => {
+                        if (!active() || event?.target?.closest?.('.cardOverlayContainer, .cardOverlayButton')) return;
+                        openItem({ Id: id, Type: type });
+                    };
+                    card.addEventListener('click', open);
+                    card.addEventListener('keydown', event => {
+                        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(event); }
+                    });
                 }
                 // Mirror the native card hierarchy; the scoped CSS only supplies image sizing.
-                const box = document.createElement('div'); box.className = 'cardBox visualCardBox';
+                const box = document.createElement('div'); box.className = 'cardBox';
                 const scalable = document.createElement('div'); scalable.className = 'cardScalable';
                 const padder = document.createElement('div');
                 padder.className = 'cardPadder ' + (landscape ? 'cardPadder-overflowBackdrop' : 'cardPadder-overflowPortrait');
                 const content = document.createElement('div'); content.className = 'cardContent cardImageContainer';
                 scalable.append(padder, content);
-                const footer = document.createElement('div'); footer.className = 'cardFooter';
-                box.append(scalable, footer); card.appendChild(box);
+                box.appendChild(scalable); card.appendChild(box);
+                if (serverId) {
+                    const overlay = document.createElement('div');
+                    overlay.className = 'cardOverlayContainer itemAction';
+                    overlay.setAttribute('data-action', 'link');
+                    if (playable) {
+                        const play = document.createElement('button'); play.type = 'button';
+                        play.className = 'cardOverlayButton cardOverlayButton-hover itemAction paper-icon-button-light cardOverlayFab-primary';
+                        play.setAttribute('data-action', 'resume'); play.setAttribute('title', 'Play');
+                        const icon = document.createElement('span'); icon.className = 'material-icons cardOverlayButtonIcon cardOverlayButtonIcon-hover play_arrow';
+                        icon.setAttribute('aria-hidden', 'true'); play.appendChild(icon); overlay.appendChild(play);
+                    }
+                    const corner = document.createElement('div'); corner.className = 'cardOverlayButton-br flex';
+                    const menu = document.createElement('button'); menu.type = 'button';
+                    menu.className = 'cardOverlayButton cardOverlayButton-hover itemAction paper-icon-button-light';
+                    menu.setAttribute('data-action', 'menu'); menu.setAttribute('title', 'More');
+                    const icon = document.createElement('span'); icon.className = 'material-icons cardOverlayButtonIcon cardOverlayButtonIcon-hover more_vert';
+                    icon.setAttribute('aria-hidden', 'true'); menu.appendChild(icon); corner.appendChild(menu);
+                    overlay.appendChild(corner); scalable.appendChild(overlay);
+                }
                 const tags = field(item, 'ImageTags');
                 const backdrop = field(item, 'BackdropImageTags');
                 const validTag = tag => typeof tag === 'string' && /^[0-9a-f]{1,64}$/i.test(tag);
@@ -75,9 +107,9 @@
                     content.appendChild(image);
                     next();
                 } else card.classList.add('rowan-native-row__card--no-art');
-                const label = document.createElement('div'); label.className = 'cardText';
+                const label = document.createElement('div'); label.className = 'cardText cardTextCentered';
                 label.textContent = String(field(item, 'Name') || 'Untitled').slice(0, 180);
-                footer.appendChild(label); return card;
+                box.appendChild(label); return card;
             };
             const carousels = [];
             const addControls = (section, track, label) => {
@@ -111,7 +143,12 @@
             const bodies = [];
             const sections = kinds.map(kind => {
                 const section = document.createElement('section'); section.className = 'rowan-native-row';
-                const body = document.createElement('div'); body.className = kind === 'BecauseYouWatched' ? 'rowan-native-row__seeds' : 'rowan-native-row__items';
+                const body = document.createElement('div', 'emby-itemscontainer');
+                body.className = kind === 'BecauseYouWatched' ? 'rowan-native-row__seeds' : 'rowan-native-row__items itemsContainer';
+                if (kind !== 'BecauseYouWatched') {
+                    body.setAttribute('is', 'emby-itemscontainer');
+                    body.setAttribute('data-multiselect', 'false');
+                }
                 if (kind !== 'BecauseYouWatched') {
                     const heading = document.createElement('h2'); heading.textContent = title(kind);
                     section.appendChild(heading);
@@ -145,7 +182,10 @@
                                         !headingText.startsWith('Because You Watched ')) throw Error('Invalid seed');
                                     const group = document.createElement('section'); group.className = 'rowan-native-row__seed';
                                     const heading = document.createElement('h3'); heading.textContent = headingText.slice(0, 180);
-                                    const cards = document.createElement('div'); cards.className = 'rowan-native-row__items';
+                                    const cards = document.createElement('div', 'emby-itemscontainer');
+                                    cards.className = 'rowan-native-row__items itemsContainer';
+                                    cards.setAttribute('is', 'emby-itemscontainer');
+                                    cards.setAttribute('data-multiselect', 'false');
                                     for (const item of items) { const card = makeCard(item, true); if (card) cards.appendChild(card); }
                                     group.append(heading, cards); addControls(group, cards, heading.textContent); return group;
                                 });
