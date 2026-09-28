@@ -68,7 +68,7 @@ jobs:
             --manifest catalog-input.json --output dist --version "$VERSION" \
             --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip" \
             --epoch "$(git show -s --format=%ct HEAD)" \
-            --changelog "Match native Home card artwork and hover Play/More controls; remove filled Search card backing and place the single Seerr request rail after the first native results group"
+            --changelog "Place the unboxed Seerr Search rail after native Movies and Shows, open its details from the full card, align all 3pic Fin rails with Home cards, and refine the still-image hero in a Media Bar-inspired layout"
           python3 scripts/package_plugin.py validate --package "dist/3pic-fin_$VERSION.zip" \
             --manifest dist/manifest.json --version "$VERSION" \
             --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip"
