@@ -47,11 +47,7 @@
         if (title) text(info, 'p', label(type));
         if (request) text(info, 'p', `Request status: ${requestStatus(field(item, 'Status'))}`);
         else if (field(item, 'Date')) text(info, 'p', field(item, 'Date'));
-        if (!request && openRequest && (type === 'movie' || type === 'tv') && Number.isInteger(tmdbId) && tmdbId > 0) {
-            const button = text(info, 'button', `Request ${label(type)}`);
-            button.type = 'button';
-            button.addEventListener('click', () => openRequest(item, button));
-        }
+        // Inspect first: eligibility and request state belong in the verified details dialog.
         article.appendChild(info);
         return article;
     }
@@ -127,7 +123,7 @@
         const { deferInitialLoad = false } = host;
         instances.get(root)?.();
         const el = name => root.querySelector(`#threepic-fin-${name}`);
-        const controls = [];
+        const controls = [], railControls = [];
         let disposed = false, discoveryGeneration = 0, searchGeneration = 0, sharedGeneration = 0, downloadsGeneration = 0, downloadsAbort = null;
         let calendarGeneration = 0, calendarAbort = null, calendarOffset = 0, calendarLoading = false;
         const calendarEpoch = Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
@@ -207,6 +203,7 @@
                 el('details-overview').textContent = typeof overview === 'string' && overview.trim() ? overview : 'No overview available.';
                 if (validPoster(poster)) {
                     const image = document.createElement('img'); image.src = `https://image.tmdb.org/t/p/w500${poster}`; image.alt = '';
+                    image.addEventListener('error', () => image.remove());
                     el('details-body').appendChild(image);
                 }
                 const date = field(result, 'Date') || field(result, 'ReleaseDate') || field(result, 'FirstAirDate');
@@ -356,6 +353,36 @@
             } finally { submitting = false; }
         }
         const on = (element, event, handler) => { element.addEventListener(event, handler); controls.push(() => element.removeEventListener(event, handler)); };
+        // Keep a page of cards in one Home-style row. Rail arrows move within
+        // that page; the existing pager fetches the next bounded server page.
+        for (const name of ['requests', 'shared-requests', 'recommendations', 'search-results', 'movies', 'tv']) {
+            const rail = el(name), section = rail.closest('section'), heading = section.querySelector('h3');
+            const header = document.createElement('div');
+            header.className = 'threepic-fin-discovery__row-heading';
+            heading.before(header); header.appendChild(heading);
+            const navigation = document.createElement('div');
+            navigation.className = 'threepic-fin-discovery__rail-nav';
+            for (const [direction, caption] of [[-1, 'left'], [1, 'right']]) {
+                const button = document.createElement('button');
+                button.type = 'button'; button.textContent = direction < 0 ? '‹' : '›';
+                button.setAttribute('aria-label', `Scroll ${name === 'search-results' ? 'search results' : name === 'shared-requests' ? 'household requests' : name} ${caption}`);
+                navigation.appendChild(button);
+                on(button, 'click', () => rail.scrollBy({ left: direction * rail.clientWidth * .8, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }));
+            }
+            header.appendChild(navigation);
+            const update = () => {
+                const overflow = rail.scrollWidth > rail.clientWidth + 2;
+                navigation.hidden = !overflow;
+                navigation.children[0].disabled = !overflow || rail.scrollLeft <= 1;
+                navigation.children[1].disabled = !overflow || rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 2;
+            };
+            on(rail, 'scroll', update);
+            const observer = new MutationObserver(() => { rail.scrollLeft = 0; requestAnimationFrame(update); });
+            observer.observe(rail, { childList: true });
+            controls.push(() => observer.disconnect());
+            railControls.push({ header, heading, update });
+            requestAnimationFrame(update);
+        }
         function pager(prefix, page, max) {
             el(`${prefix}-prev`).disabled = page <= 1;
             el(`${prefix}-next`).disabled = page >= max;
@@ -433,11 +460,13 @@
             calendarWindow();
         }
         function selectView(view) {
+            if (el(`${view}-tab`).getAttribute('aria-selected') === 'true' && view !== 'discover') return;
             if (view !== 'downloads') stopDownloads();
             if (view !== 'calendar') stopCalendar();
             for (const name of ['discover', 'downloads', 'calendar']) {
                 el(`${name}-panel`).hidden = name !== view;
-                el(`${name}-tab`).setAttribute('aria-pressed', String(name === view));
+                el(`${name}-tab`).setAttribute('aria-selected', String(name === view));
+                el(`${name}-tab`).tabIndex = name === view ? 0 : -1;
             }
             if (view === 'downloads') loadDownloads();
             if (view === 'calendar') loadCalendar();
@@ -511,6 +540,15 @@
         on(el('discover-tab'), 'click', () => selectView('discover'));
         on(el('downloads-tab'), 'click', () => { if (!el('downloads-tab').hidden) selectView('downloads'); });
         on(el('calendar-tab'), 'click', () => { if (!el('calendar-tab').hidden) selectView('calendar'); });
+        on(root.querySelector('.threepic-fin-discovery__tabs'), 'keydown', event => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            const tabs = ['discover', 'downloads', 'calendar'].filter(name => !el(`${name}-tab`).hidden);
+            const index = tabs.findIndex(name => el(`${name}-tab`) === document.activeElement);
+            if (index < 0) return;
+            event.preventDefault();
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+            el(`${tabs[next]}-tab`).focus(); selectView(tabs[next]);
+        });
         on(el('calendar-prev'), 'click', () => { if (!calendarLoading && calendarOffset > -12 && !el('calendar-panel').hidden) { --calendarOffset; loadCalendar(); } });
         on(el('calendar-next'), 'click', () => { if (!calendarLoading && calendarOffset < 12 && !el('calendar-panel').hidden) { ++calendarOffset; loadCalendar(); } });
         on(el('request-form'), 'submit', submitRequest);
@@ -553,6 +591,7 @@
             el('calendar-panel').hidden = true;
             if (dialog.open) dialog.close();
             controls.forEach(remove => remove());
+            for (const { header, heading } of railControls) { header.before(heading); header.remove(); }
             instances.delete(root);
         };
         cleanup.activate = activate;
