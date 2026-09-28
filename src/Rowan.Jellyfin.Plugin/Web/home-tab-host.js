@@ -44,7 +44,7 @@
             root.className = 'threepic-fin-host__hero';
             // Reserve before the asynchronous slide and script fetches. Inline geometry
             // applies even while the stylesheet is still loading.
-            const height = global.matchMedia?.('(max-width: 600px)')?.matches ? '65dvh' : 'min(78dvh, 800px)';
+            const height = global.matchMedia?.('(max-width: 600px)')?.matches ? '86dvh' : 'min(78dvh, 800px)';
             root.style.minHeight = height;
             root.style.height = height;
             const style = document.createElement('link');
