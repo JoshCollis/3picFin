@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { createRows } = require('../../src/Rowan.Jellyfin.Plugin/Web/native-home-rows.js');
 const id = '0123456789abcdef0123456789abcdef';
 class Node {
-    constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.textContent = ''; this.parent = null; this.className = ''; this.handlers = {}; }
+    constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.textContent = ''; this.parent = null; this.className = ''; this.classList = { add: name => this.className += ` ${name}` }; this.handlers = {}; }
     appendChild(n) { this.children.push(n); n.parent = this; return n; }
     append(...nodes) { nodes.forEach(n => this.appendChild(n)); }
     remove() { if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; }
@@ -81,4 +81,71 @@ test('malformed rows fail without rendering item data', async () => {
     f.observers[0].fire(f.root.children[0]); await tick();
     f.reply({ Kind: 'LatestMovies', Items: Array.from({ length: 65 }, () => ({ Id: id, Name: 'Overflow' })) });
     await tick(); assert.equal(f.root.children[0].children[1].textContent, 'Row unavailable');
+});
+
+test('playback artwork prefers own thumb then series or parent art before primary', async () => {
+    const f = fixture(['ContinueWatching']); f.rows.mount(f.root, f.api, 'alice');
+    f.observers[0].fire(f.root.children[0]); await tick();
+    const series = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', parent = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    f.reply({ Kind: 'ContinueWatching', Items: [
+        { Id: id, Type: 'Episode', Name: 'Own', ImageTags: { Thumb: '01', Primary: '02' }, SeriesId: series, SeriesThumbImageTag: '03' },
+        { Id: id, Type: 'Episode', Name: 'Series thumb', SeriesId: series, SeriesThumbImageTag: '04', ImageTags: { Primary: '05' } },
+        { Id: id, Type: 'Episode', Name: 'Parent thumb', ParentThumbItemId: parent, ParentThumbImageTag: '06' },
+        { Id: id, Type: 'Episode', Name: 'Series backdrop', SeriesId: series, SeriesBackdropImageTag: '07' },
+        { Id: id, Type: 'Episode', Name: 'Own backdrop', BackdropImageTags: ['08'] },
+        { Id: id, Type: 'Episode', Name: 'Primary', ImageTags: { Primary: '09' } },
+        { Id: id, Type: 'Episode', Name: 'No art' }
+    ] }); await tick();
+    const cards = f.root.children[0].children[1].children;
+    assert.deepEqual(cards.map(card => card.children[0].src || null), [
+        `/jellyfin/Items/${id}/Images/Thumb`, `/jellyfin/Items/${series}/Images/Thumb`,
+        `/jellyfin/Items/${parent}/Images/Thumb`, `/jellyfin/Items/${series}/Images/Backdrop/0`,
+        `/jellyfin/Items/${id}/Images/Backdrop/0`, `/jellyfin/Items/${id}/Images/Primary`, null
+    ]);
+});
+
+test('untrusted inherited IDs never become image URLs; broken art tries safe fallback', async () => {
+    const f = fixture(['ContinueWatching']); f.rows.mount(f.root, f.api, 'alice');
+    f.observers[0].fire(f.root.children[0]); await tick();
+    f.reply({ Kind: 'ContinueWatching', Items: [{ Id: id, Type: 'Episode', Name: 'Safe',
+        SeriesId: '../private', SeriesThumbImageTag: 'ab', ParentThumbItemId: 'evil',
+        ParentThumbImageTag: 'cd', ImageTags: { Primary: 'ef' } }] }); await tick();
+    const card = f.root.children[0].children[1].children[0];
+    assert.equal(card.children[0].src, `/jellyfin/Items/${id}/Images/Primary`);
+    card.children[0].handlers.error();
+    assert.equal(card.children.some(child => child.tagName === 'IMG'), false);
+});
+
+test('a failed thumb advances to the next valid image without crossing users', async () => {
+    const f = fixture(['ContinueWatching']); f.rows.mount(f.root, f.api, 'alice');
+    f.observers[0].fire(f.root.children[0]); await tick();
+    f.reply({ Kind: 'ContinueWatching', Items: [{ Id: id, Type: 'Episode', Name: 'Two arts',
+        ImageTags: { Thumb: 'ab', Primary: 'cd' } }] }); await tick();
+    const card = f.root.children[0].children[1].children[0];
+    const image = card.children[0];
+    assert.equal(image.src, `/jellyfin/Items/${id}/Images/Thumb`);
+    image.handlers.error();
+    assert.equal(image.src, `/jellyfin/Items/${id}/Images/Primary`);
+    f.switchUser('bob'); image.handlers.error();
+    assert.equal(card.children.some(child => child.tagName === 'IMG'), false);
+});
+
+test('carousel buttons and keyboard scroll a bounded page and disable at edges', async () => {
+    const f = fixture(['ContinueWatching']); f.rows.mount(f.root, f.api, 'alice');
+    f.observers[0].fire(f.root.children[0]); await tick();
+    f.reply({ Kind: 'ContinueWatching', Items: [{ Id: id, Type: 'Episode', Name: 'One' }] }); await tick();
+    const section = f.root.children[0], track = section.children[1], controls = section.children[2];
+    assert.equal(track.tabIndex, 0);
+    assert.equal(controls.children.length, 2);
+    track.clientWidth = 300; track.scrollWidth = 900; track.scrollLeft = 0;
+    track.handlers.scroll();
+    assert.equal(controls.children[0].disabled, true);
+    assert.equal(controls.children[1].disabled, false);
+    track.scrollBy = ({ left }) => { track.scrollLeft += left; track.handlers.scroll(); };
+    controls.children[1].click(); assert.equal(track.scrollLeft, 300);
+    let prevented = false;
+    track.handlers.keydown({ key: 'ArrowLeft', preventDefault: () => prevented = true });
+    assert.equal(prevented, true); assert.equal(track.scrollLeft, 0);
+    track.scrollLeft = 600; track.handlers.scroll();
+    assert.equal(controls.children[1].disabled, true);
 });

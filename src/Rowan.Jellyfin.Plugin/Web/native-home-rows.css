@@ -1,16 +1,26 @@
-/* Load explicitly alongside native-home-rows.js in the caller-owned Home container. */
+/* Supplementary Home rows; caller owns the outer Home pane. */
 .rowan-native-rows { min-width: 0; padding: 0 3.3%; }
-.rowan-native-row { min-width: 0; margin: 1.5rem 0; color: var(--primary-text-color, #fff); }
+.rowan-native-row, .rowan-native-row__seed { position: relative; min-width: 0; color: var(--primary-text-color, #fff); }
+.rowan-native-row { margin: 1.5rem 0 2rem; }
 .rowan-native-row[hidden] { display: none; }
-.rowan-native-row h2 { margin: .5rem 0; font-size: 1.3rem; }
+.rowan-native-row h2, .rowan-native-row h3 { margin: .5rem 0; padding-right: 5.5rem; font-size: 1.3rem; line-height: 2rem; }
 .rowan-native-row__seed { margin: 1rem 0; }
-.rowan-native-row__items { display: flex; gap: .75rem; overflow-x: auto; padding: .5rem 0 1rem; scroll-snap-type: x proximity; }
-.rowan-native-row__card { flex: 0 0 auto; box-sizing: border-box; border: 0; border-radius: .5rem; background: var(--card-background, #333); color: inherit; text-align: left; overflow: hidden; scroll-snap-align: start; }
-.rowan-native-row__card--landscape { width: min(38vw, 19rem); min-width: 11rem; }
+.rowan-native-row__items { display: flex; gap: .75rem; overflow-x: auto; overscroll-behavior-inline: contain; padding: .5rem 0 1rem; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.rowan-native-row__items:focus-visible { outline: 2px solid var(--theme-primary-color, #9b9aff); outline-offset: -2px; }
+.rowan-native-row__card { flex: 0 0 auto; box-sizing: border-box; border: 0; border-radius: .5rem; background: var(--card-background, #333); color: inherit; text-align: left; overflow: hidden; scroll-snap-align: start; padding: 0; }
+.rowan-native-row__card--landscape { width: clamp(13.5rem, 26vw, 19rem); }
+.rowan-native-row__card--portrait { width: clamp(8rem, 12vw, 11rem); }
 button.rowan-native-row__card { cursor: pointer; }
-button.rowan-native-row__card:focus-visible { outline: 3px solid var(--theme-primary-color, #9b9aff); outline-offset: 2px; }
-.rowan-native-row__card--portrait { width: min(36vw, 11rem); min-width: 8rem; }
-.rowan-native-row__card--portrait img { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; }
-.rowan-native-row__card--landscape img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
-.rowan-native-row__card span { display: block; padding: .5rem; overflow-wrap: anywhere; }
-@media (max-width: 360px) { .rowan-native-row__card--landscape { width: 68vw; } .rowan-native-row__card--portrait { width: 40vw; } }
+button.rowan-native-row__card:focus-visible, .rowan-native-row__arrow:focus-visible { outline: 3px solid var(--theme-primary-color, #9b9aff); outline-offset: 2px; }
+.rowan-native-row__card img { display: block; width: 100%; object-fit: cover; }
+.rowan-native-row__card--portrait img { aspect-ratio: 2 / 3; }
+.rowan-native-row__card--landscape img { aspect-ratio: 16 / 9; }
+.rowan-native-row__card--no-art { background: var(--card-background, #333); }
+.rowan-native-row__card--no-art span { min-height: 3rem; }
+.rowan-native-row__card span { display: block; box-sizing: border-box; padding: .5rem; overflow-wrap: anywhere; }
+.rowan-native-row__controls { position: absolute; right: 0; top: 0; display: flex; gap: .25rem; }
+.rowan-native-row__controls[hidden] { display: none; }
+.rowan-native-row__arrow { width: 2.25rem; height: 2.25rem; border: 0; border-radius: 50%; background: var(--card-background, #333); color: inherit; font-size: 1.7rem; line-height: 1; cursor: pointer; }
+.rowan-native-row__arrow:disabled { opacity: .35; cursor: default; }
+@media (max-width: 600px) { .rowan-native-row__card--landscape { width: 68vw; } .rowan-native-row__card--portrait { width: 38vw; } }
+@media (prefers-reduced-motion: reduce) { .rowan-native-row__items { scroll-behavior: auto; } }

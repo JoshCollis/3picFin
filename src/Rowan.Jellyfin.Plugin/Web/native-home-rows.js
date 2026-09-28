@@ -14,6 +14,7 @@
             ++generation;
             if (!current) return;
             current.observer.disconnect();
+            current.cleanup();
             current.root.replaceChildren();
             current = null;
         }
@@ -35,23 +36,76 @@
                     card.addEventListener('click', () => { if (active()) openItem({ Id: id, Type: type }); });
                 }
                 const tags = field(item, 'ImageTags');
-                const primary = field(tags, 'Primary');
                 const backdrop = field(item, 'BackdropImageTags');
-                const tag = landscape && Array.isArray(backdrop) ? backdrop[0] : primary;
-                if (typeof tag === 'string' && /^[0-9a-f]{1,64}$/i.test(tag)) {
+                const validTag = tag => typeof tag === 'string' && /^[0-9a-f]{1,64}$/i.test(tag);
+                const art = landscape ? [
+                    [id, 'Thumb', field(tags, 'Thumb')],
+                    [field(item, 'SeriesId'), 'Thumb', field(item, 'SeriesThumbImageTag')],
+                    [field(item, 'ParentThumbItemId'), 'Thumb', field(item, 'ParentThumbImageTag')],
+                    [field(item, 'SeriesId'), 'Backdrop/0', field(item, 'SeriesBackdropImageTag')],
+                    [id, 'Backdrop/0', Array.isArray(backdrop) ? backdrop[0] : null],
+                    [field(item, 'ParentBackdropItemId'), 'Backdrop/0', field(item, 'ParentBackdropImageTag')],
+                    [id, 'Primary', field(tags, 'Primary')]
+                ] : [[id, 'Primary', field(tags, 'Primary')]];
+                // Only use IDs and tags supplied by the scoped DTO; never construct URLs from names.
+                const candidates = art.filter(([imageId, , tag]) => guid(imageId) && validTag(tag));
+                if (candidates.length) {
                     const image = document.createElement('img');
-                    image.src = apiClient.getUrl(`Items/${id}/Images/${landscape ? 'Backdrop/0' : 'Primary'}`, { tag, maxWidth: landscape ? 480 : 240 });
-                    image.alt = ''; image.loading = 'lazy'; card.appendChild(image);
-                }
+                    let index = 0;
+                    const next = () => {
+                        if (!active() || index >= candidates.length) {
+                            image.remove(); card.classList.add('rowan-native-row__card--no-art'); return;
+                        }
+                        const [imageId, imageType, tag] = candidates[index++];
+                        image.src = apiClient.getUrl(`Items/${imageId}/Images/${imageType}`, { tag, maxWidth: landscape ? 480 : 240 });
+                    };
+                    image.alt = ''; image.loading = 'lazy';
+                    image.addEventListener('error', next);
+                    card.appendChild(image);
+                    next();
+                } else card.classList.add('rowan-native-row__card--no-art');
                 const label = document.createElement('span'); label.textContent = String(field(item, 'Name') || 'Untitled').slice(0, 180);
                 card.appendChild(label); return card;
+            };
+            const carousels = [];
+            const addControls = (section, track, label) => {
+                track.tabIndex = 0;
+                track.setAttribute?.('role', 'region');
+                track.setAttribute?.('aria-label', label);
+                const controls = document.createElement('div'); controls.className = 'rowan-native-row__controls';
+                const buttons = [-1, 1].map(direction => {
+                    const button = document.createElement('button'); button.type = 'button';
+                    button.className = 'rowan-native-row__arrow';
+                    button.textContent = direction < 0 ? '‹' : '›';
+                    button.setAttribute?.('aria-label', `${direction < 0 ? 'Previous' : 'Next'} ${label}`);
+                    button.addEventListener('click', () => { if (active()) move(direction); });
+                    controls.appendChild(button); return button;
+                });
+                const update = () => {
+                    controls.hidden = track.scrollWidth <= track.clientWidth + 1;
+                    buttons[0].disabled = track.scrollLeft <= 1;
+                    buttons[1].disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 1;
+                };
+                const move = direction => track.scrollBy({ left: direction * track.clientWidth, behavior: 'smooth' });
+                track.addEventListener('scroll', update);
+                track.addEventListener('keydown', event => {
+                    if (!active() || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+                    event.preventDefault(); move(event.key === 'ArrowRight' ? 1 : -1);
+                });
+                section.appendChild(controls);
+                carousels.push(update);
+                update();
             };
             const sections = kinds.map(kind => {
                 const section = document.createElement('section'); section.className = 'rowan-native-row';
                 const heading = document.createElement('h2'); heading.textContent = title(kind);
                 const body = document.createElement('div'); body.className = kind === 'BecauseYouWatched' ? 'rowan-native-row__seeds' : 'rowan-native-row__items';
-                section.append(heading, body); root.appendChild(section); return section;
+                section.append(heading, body);
+                if (kind !== 'BecauseYouWatched') addControls(section, body, title(kind));
+                root.appendChild(section); return section;
             });
+            const resize = () => carousels.forEach(update => update());
+            document.defaultView?.addEventListener('resize', resize);
             const requested = new Set(), attempts = new Map();
             const observer = new IntersectionObserver(entries => {
                 for (const entry of entries) {
@@ -76,9 +130,10 @@
                                     const heading = document.createElement('h3'); heading.textContent = headingText.slice(0, 180);
                                     const cards = document.createElement('div'); cards.className = 'rowan-native-row__items';
                                     for (const item of items) { const card = makeCard(item, true); if (card) cards.appendChild(card); }
-                                    group.append(heading, cards); return group;
+                                    group.append(heading, cards); addControls(group, cards, heading.textContent); return group;
                                 });
                                 body.replaceChildren(...groups);
+                                resize();
                                 section.hidden = !groups.length;
                                 return;
                             }
@@ -87,6 +142,7 @@
                                 throw Error('Invalid row');
                             const cards = items.map(item => makeCard(item, ['ContinueWatching', 'NextUp', 'ContinueWatchingNextUp'].includes(kind))).filter(Boolean);
                             body.replaceChildren(...cards);
+                            resize();
                             if (!cards.length) {
                                 section.hidden = true;
                                 body.replaceChildren(); body.textContent = '';
@@ -98,7 +154,7 @@
                         });
                 }
             });
-            current = { observer, root, userId };
+            current = { observer, root, userId, cleanup: () => document.defaultView?.removeEventListener('resize', resize) };
             sections.forEach(section => observer.observe(section));
             return true;
         }
