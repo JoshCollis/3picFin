@@ -62,7 +62,7 @@
         });
     }
     async function openFlow(kind, item, button, api, id, ticket) {
-        if (disposed || ticket !== generation || api.getCurrentUserId?.() !== id || !page() || !route()) return;
+        if (disposed || ticket !== generation || api.getCurrentUserId?.() !== id || page() !== key?.root || route() !== key?.query) return;
         if (!flow && !loadingFlow) {
             loadingFlow = (async () => {
                 if (!global.ThreePicFinDiscovery) await script(api.getUrl('3picFin/Web/discovery.js'));
@@ -82,7 +82,7 @@
             })().finally(() => { loadingFlow = null; });
         }
         try { await loadingFlow; } catch (_) { return; }
-        if (disposed || ticket !== generation || api.getCurrentUserId?.() !== id || !page() || !route()) return;
+        if (disposed || ticket !== generation || api.getCurrentUserId?.() !== id || page() !== key?.root || route() !== key?.query) return;
         flow?.cleanup[kind === 'details' ? 'openDetails' : 'openRequest'](item, button);
     }
     async function refresh() {
@@ -94,6 +94,17 @@
         if (!next) { if (key) teardown(); return; }
         if (key && Object.keys(next).every(k => next[k] === key[k]) &&
             root.querySelectorAll(':scope > .threepic-fin-search').length === 1) return;
+        if (key && key.api === api && key.id === id && key.root === root &&
+            root.querySelectorAll(':scope > .threepic-fin-search').length === 1) {
+            // Keep the addon alive across typing so its bounded timer can coalesce
+            // queries; invalidate dialogs and detached actions synchronously.
+            ++generation;
+            try { flow?.cleanup(); } catch (_) { /* still remove the dialog */ }
+            finally { flow?.root.remove(); flow = null; loadingFlow = null; }
+            key = next;
+            addon.update({ query });
+            return;
+        }
         // React can replace Search's children without replacing #searchPage. In that
         // case dispose detached actions and mount a fresh user-bound section.
         teardown();
@@ -113,8 +124,8 @@
         hookLogout(api);
         addon.mount({ root, apiClient: api, userId: id, sessionUserId: () => api.getCurrentUserId?.(),
             query, parentId: null, collectionType: null, enabled: true,
-            requestAction: (item, button) => openFlow('request', item, button, api, id, ticket),
-            detailsAction: (item, button) => openFlow('details', item, button, api, id, ticket) });
+            requestAction: (item, button) => openFlow('request', item, button, api, id, generation),
+            detailsAction: (item, button) => openFlow('details', item, button, api, id, generation) });
     }
     function schedule() {
         if (scheduled || disposed) return;

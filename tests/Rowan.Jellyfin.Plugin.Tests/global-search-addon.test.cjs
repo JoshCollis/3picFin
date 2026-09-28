@@ -19,13 +19,14 @@ class Node {
     click() { for(const f of this.handlers.click||[]) f(); }
 }
 const tick = () => new Promise(resolve=>setImmediate(resolve));
+const delay = ms => new Promise(resolve=>setTimeout(resolve,ms));
 function fixture() {
-    const context={document:{createElement:tag=>new Node(tag)},module:{exports:{}}};
+    const context={document:{createElement:tag=>new Node(tag)},module:{exports:{}},setTimeout,clearTimeout,AbortController};
     vm.runInNewContext(source,context);
     const root=new Node('div'), native=new Node('native'); root.appendChild(native);
     const pending=[], actions=[];
     const api={getUrl:(p,q)=>`/jellyfin/${p}?query=${q.query}&page=${q.page}`,
-        getJSON:url=>new Promise((resolve,reject)=>pending.push({url,resolve,reject}))};
+        getJSON:(url,options)=>new Promise((resolve,reject)=>pending.push({url,options,resolve,reject}))};
     let user='alice'; const addon=context.module.exports.createSearchAddon();
     const mount=(extra={})=>addon.mount({root,apiClient:api,userId:'alice',sessionUserId:()=>user,
         query:'Alien',parentId:null,collectionType:null,enabled:true,
@@ -52,12 +53,28 @@ test('query, scope, user and teardown invalidate detached request actions and la
     const f=fixture(); f.mount(); f.pending[0].resolve(result([movie(2)])); await tick();
     const button=f.root.children[1].children[1].children[0].children[0].children[1];
     f.addon.update({query:'New'}); button.click(); assert.equal(f.actions.length,0);
-    f.pending[1].resolve(result([movie(3)])); await tick();
+    await delay(220); f.pending[1].resolve(result([movie(3)])); await tick();
     const next=f.root.children[1].children[1].children[0].children[0].children[1];
     f.addon.update({collectionType:'movies'}); next.click(); assert.equal(f.actions.length,0);
     assert.deepEqual(f.root.children,[f.native]);
     f.mount(); f.setUser('bob'); f.pending[2].resolve(result([movie(4)])); await tick();
     assert.deepEqual(f.root.children,[f.native]);
+});
+test('rapid query changes cancel stale reads and dispatch only the settled final query',async()=>{
+    const f=fixture(); f.mount();
+    assert.equal(f.pending.length,1);
+    for (let i=0;i<30;i++) f.addon.update({query:`Alien${i}`});
+    assert.equal(f.pending.length,1);
+    assert.equal(f.pending[0].options.signal.aborted,true);
+    f.pending[0].resolve(result([movie(1)])); await tick();
+    assert.equal(f.root.children[1].children[1].textContent,'Loading Seerr results…');
+    await delay(220);
+    assert.equal(f.pending.length,2);
+    assert.match(f.pending[1].url,/Alien29/);
+    f.pending[1].resolve(result([movie(29)])); await tick();
+    assert.match(f.root.children[1].children[1].textContent,/Alien/);
+    f.addon.dispose();
+    assert.equal(f.pending[1].options.signal.aborted,true);
 });
 test('malformed query fails closed rather than retaining old action',async()=>{
     const f=fixture(); f.mount(); f.pending[0].resolve(result([movie(2)])); await tick();

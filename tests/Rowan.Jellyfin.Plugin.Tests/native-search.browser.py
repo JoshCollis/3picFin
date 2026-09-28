@@ -38,11 +38,21 @@ with sync_playwright() as p:
         assert page.evaluate("calls.some(x=>x.includes('/jellyfin/3picFin/Search?'))")
         page.evaluate("""() => { window.staleButton=document.querySelector('.threepic-fin-search article button');
             document.querySelector('#searchTextInput').value='New';
+            history.replaceState({}, '', location.hash.startsWith('#') ? '#/search?query=New' : '/search?query=New');
+            staleButton.click(); }""")
+        assert page.locator('#threepic-fin-details-dialog[open]').count() == 0
+        assert page.evaluate('posts') == 0
+        page.wait_for_function("!document.querySelector('.threepic-fin-search article button')")
+        page.wait_for_function("calls.some(x=>x.includes('query=New'))")
+        page.wait_for_selector('.threepic-fin-search article button')
+        page.evaluate("""() => { window.staleButton=document.querySelector('.threepic-fin-search article button');
+            document.querySelector('#searchTextInput').value='Different';
             document.querySelector('#searchTextInput').dispatchEvent(new Event('input',{bubbles:true})); }""")
         page.wait_for_function("!document.querySelector('.threepic-fin-search')")
         page.evaluate("staleButton.click()")
         assert page.evaluate('posts') == 0
         page.evaluate("""() => { document.querySelector('#searchTextInput').value='Alien';
+            history.replaceState({}, '', location.hash.startsWith('#') ? '#/search?query=Alien' : '/search?query=Alien');
             document.querySelector('#searchTextInput').dispatchEvent(new Event('input',{bubbles:true})); }""")
         page.wait_for_selector('.threepic-fin-search h3')
         assert page.locator('.threepic-fin-search article button').count() == 1
