@@ -68,7 +68,7 @@ jobs:
             --manifest catalog-input.json --output dist --version "$VERSION" \
             --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip" \
             --epoch "$(git show -s --format=%ct HEAD)" \
-            --changelog "Home/Fin navigation and lower-shift hero; Discovery carousels and compact details; Home artwork fallbacks; compact-GUID settings fix; compact Seerr Search cards and debounced queries"
+            --changelog "Persistent 3pic Fin navigation; single-row native-scale Seerr Search rail; fresh availability checks and Request more for partial TV; ElegantFin Discovery, settings, hero and Home-card polish; remove repeated Because You Watched heading"
           python3 scripts/package_plugin.py validate --package "dist/3pic-fin_$VERSION.zip" \
             --manifest dist/manifest.json --version "$VERSION" \
             --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip"
