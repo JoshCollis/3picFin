@@ -17,7 +17,7 @@ with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     for width in (3680, 1280, 390):
         page = browser.new_page(viewport={'width': width, 'height': 800})
-        native_rows = ''.join(f'<div class="verticalSection"><h2>{name}</h2><div class="itemsContainer"><div class="card"><div class="cardBox"><div class="cardScalable"><div class="cardPadder cardPadder-portrait"></div><div class="cardContent"><div class="cardImageContainer"></div></div></div><div class="cardText">Native {i}</div></div></div></div></div>' for i,name in enumerate(('Movies','Shows','Episodes','People','Studios')))
+        native_rows = ''.join(f'<div class="verticalSection"><h2>{name}</h2><div class="itemsContainer"><div class="card" data-type="{kind}"><div class="cardBox"><div class="cardScalable"><div class="cardPadder cardPadder-portrait"></div><div class="cardContent"><div class="cardImageContainer"></div></div></div><div class="cardText">Native {i}</div></div></div></div></div>' for i,(name,kind) in enumerate((('Movies','Movie'),('Shows','Series'),('Episodes','Episode'),('People','Person'),('Studios','Studio'))))
         html = f'''<html><head></head><body><main id="searchPage">
           <div class="searchField"><input id="searchTextInput" type="search" value="Alien"></div>
           <div class="searchResults">{native_rows}</div></main></body></html>'''

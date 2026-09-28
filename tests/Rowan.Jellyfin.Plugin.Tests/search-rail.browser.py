@@ -15,7 +15,7 @@ with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     for width in (2560, 1280, 390):
         page = browser.new_page(viewport={'width': width, 'height': 800})
-        rows = ''.join(f'<div class="verticalSection"><h2>{name}</h2><div class="itemsContainer"><div class="card">Native {i}</div></div></div>' for i,name in enumerate(('Movies','Shows','Episodes','People','Studios')))
+        rows = ''.join(f'<div class="verticalSection"><h2>{name}</h2><div class="itemsContainer"><div class="card" data-type="{kind}">Native {i}</div></div></div>' for i,(name,kind) in enumerate((('Movies','Movie'),('Shows','Series'),('Episodes','Episode'),('People','Person'),('Studios','Studio'))))
         html = f'<html><head></head><body><main id="searchPage"><div class="searchField"><input id="searchTextInput" value="Alien"></div><div class="searchResults">{rows}</div></main></body></html>'
         page.route('http://localhost:8765/**', lambda r: r.fulfill(status=200, content_type='text/html', body=html))
         page.route('**/global-search-addon.css', lambda r: r.fulfill(status=200, content_type='text/css', body=(web / 'global-search-addon.css').read_text()))
@@ -63,7 +63,7 @@ with sync_playwright() as p:
         assert abs(native_card['x'] - seerr_card['x']) < 20, (width, native_card, seerr_card)
         assert page.evaluate('''() => {let b=document.querySelector('.threepic-fin-search__card button').getBoundingClientRect();
           let p=document.querySelector('.threepic-fin-search__poster').getBoundingClientRect();
-          return b.width < p.width * .55 && b.height < p.height * .27}''')
+          return b.width <= 44 && b.height <= 44 && b.width < p.width * .55 && b.top >= p.top && b.bottom <= p.bottom}''')
         # Rail navigation exposes all cards without creating a second row.
         page.locator('.threepic-fin-search nav button').last.click()
         page.wait_for_function("document.querySelector('.threepic-fin-search__cards').scrollLeft > 0")

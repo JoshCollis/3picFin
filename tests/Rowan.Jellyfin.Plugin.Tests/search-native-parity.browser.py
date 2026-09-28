@@ -18,10 +18,10 @@ with sync_playwright() as p:
         page = browser.new_page(viewport={'width': width, 'height': 900}, reduced_motion='reduce')
         page.route('https://image.tmdb.org/**', lambda r: r.fulfill(content_type='image/svg+xml', body='<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><rect width="200" height="300" fill="#438ab1"/><circle cx="100" cy="120" r="65" fill="#e4a452"/></svg>'))
         native = '<div class="verticalSection"><h2>Movies</h2><div class="itemsContainer">' + ''.join(
-            f'<div class="card overflowPortraitCard card-hoverable show-animation"><div class="cardBox visualCardBox"><div class="cardScalable"><div class="cardPadder cardPadder-overflowPortrait"></div><div class="cardContent cardImageContainer"></div></div><div class="cardFooter"><div class="cardText">Native movie {i}</div></div></div></div>'
+            f'<div class="card overflowPortraitCard card-hoverable show-animation" data-type="Movie"><div class="cardBox visualCardBox"><div class="cardScalable"><div class="cardPadder cardPadder-overflowPortrait"></div><div class="cardContent cardImageContainer"></div></div><div class="cardFooter"><div class="cardText">Native movie {i}</div></div></div></div>'
             for i in range(12)) + '</div></div>'
         layout = 'mobile' if width == 390 else 'desktop'
-        groups = native + native.replace('Movies', 'Shows') + native.replace('Movies', 'Episodes')
+        groups = native + native.replace('Movies', 'Shows').replace('data-type="Movie"', 'data-type="Series"') + native.replace('Movies', 'Episodes').replace('data-type="Movie"', 'data-type="Episode"')
         page.set_content(f'<html class="layout-{layout}"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#111827;color:white"><main id="searchPage"><div class="searchField"><input id="searchTextInput" value="Big Buck Bunny"></div><div class="searchResults">{groups}</div></main></body></html>')
         for i in (0, 1):
             page.add_style_tag(path=str(theme / f'elegant-source-{i}.css'))

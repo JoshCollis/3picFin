@@ -18,10 +18,16 @@
             const groups = root?.querySelectorAll?.(':scope > .searchResults > .verticalSection');
             if (!groups) return;
             let before = 0;
+            // Jellyfin 12.1 translates the heading, but cardBuilder keeps the
+            // native BaseItemKind in data-type. Wait for its effect-built cards;
+            // an unpopulated/ambiguous row must not be inferred from its title.
             for (const group of groups) {
-                const label = group.querySelector('h2, h3')?.textContent?.trim();
-                if (label === 'Movies' || label === 'Shows') before++;
-                else break;
+                const cards = group.querySelectorAll('.itemsContainer .card');
+                const expected = before === 0 ? ['Movie', 'Series'] : ['Series'];
+                if (!cards.length || ![...cards].every(card => expected.includes(card.getAttribute('data-type')))) break;
+                const kind = cards[0].getAttribute('data-type');
+                if (![...cards].every(card => card.getAttribute('data-type') === kind)) break;
+                before++;
             }
             state.section.dataset.nativeBefore = String(Math.min(before, 2));
             const reference = groups[0]?.querySelector('.card') || groups[0]?.querySelector('h2, h3');
