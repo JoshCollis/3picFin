@@ -8,7 +8,7 @@
     if (!addon) return;
     let disposed = false, generation = 0, key = null, flow = null, loadingFlow = null;
     let hookedApi = null, logoutWrapper = null, originalLogout = null, logoutPending = false;
-    let scheduled = false, version = null, versionPromise = null, css = null;
+    let scheduled = false, mutationTimer = null, version = null, versionPromise = null, css = null;
     const owned = [];
     function ensureStyle(api) {
         if (css || typeof api?.getUrl !== 'function') return;
@@ -122,7 +122,14 @@
     }
     // React re-renders, router navigation, user changes and logout need independent
     // observation. Polling is a fallback for pushState and ApiClient identity changes.
-    const observer = new MutationObserver(schedule);
+    // Native Search updates many result nodes in separate tasks. Limit expensive
+    // route/layout scans to one per burst; input and navigation still invalidate
+    // detached actions on the next microtask.
+    function scheduleMutation() {
+        if (mutationTimer !== null || disposed) return;
+        mutationTimer = global.setTimeout(() => { mutationTimer = null; schedule(); }, 80);
+    }
+    const observer = new MutationObserver(scheduleMutation);
     observer.observe(document.documentElement, { childList: true, subtree: true });
     global.addEventListener('popstate', schedule);
     global.addEventListener('hashchange', schedule);
@@ -130,6 +137,7 @@
     const interval = global.setInterval(schedule, 400);
     global.__threePicFinSearchAdapter = { dispose() {
         disposed = true; observer.disconnect(); global.clearInterval(interval);
+        if (mutationTimer !== null) global.clearTimeout(mutationTimer);
         global.removeEventListener('popstate', schedule); global.removeEventListener('hashchange', schedule);
         document.removeEventListener('input', schedule, true); teardown(); owned.forEach(node => node.remove());
     } };
