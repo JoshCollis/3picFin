@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.5.0",
+        "changelog": "Home/Fin navigation and lower-shift hero; Discovery carousels and compact details; Home artwork fallbacks; compact-GUID settings fix; compact Seerr Search cards and debounced queries",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v0.1.5.0/3pic-fin_0.1.5.0.zip",
+        "checksum": "6b1d232359c82eec52928563112ec34c",
+        "timestamp": "2026-09-28T08:02:12Z"
+      },
+      {
         "version": "0.1.4.1",
         "changelog": "Native Home navigation and personal rows; Seerr Search and request-card metadata; redesigned settings",
         "targetAbi": "12.1.0.0",
