@@ -7,6 +7,7 @@
         function dispose() {
             if (!current) return;
             const old = current; current = null; ++old.generation;
+            clearTimeout(old.timer); old.abort?.abort();
             old.listeners.forEach(([node, type, handler]) => node.removeEventListener(type, handler));
             old.resultListeners.forEach(([node, type, handler]) => node.removeEventListener(type, handler));
             old.resultListeners.length = 0;
@@ -29,7 +30,7 @@
             const pageLabel = document.createElement('span'); pager.appendChild(prev); pager.appendChild(next); pager.appendChild(pageLabel);
             section.appendChild(pager); root.appendChild(section);
             const state = { section, body, prev, next, pageLabel, apiClient, userId, sessionUserId, requestAction, detailsAction,
-                query: '', page: 1, max: 1, generation: 0, listeners: [], resultListeners: [] };
+                query: '', page: 1, max: 1, generation: 0, listeners: [], resultListeners: [], timer: null, abort: null };
             current = state;
             const listen = (node, type, handler) => { node.addEventListener(type, handler); state.listeners.push([node,type,handler]); };
             function clearResults() {
@@ -51,11 +52,13 @@
             }
             async function load(page) {
                 if (!valid()) return;
+                state.abort?.abort();
+                const abort = new AbortController(); state.abort = abort;
                 const generation = ++state.generation;
                 clearResults();
                 state.page = page; state.max = 1; controls(); message('Loading Seerr results…');
                 try {
-                    const data = await apiClient.getJSON(apiClient.getUrl('3picFin/Search', { query: state.query, page }));
+                    const data = await apiClient.getJSON(apiClient.getUrl('3picFin/Search', { query: state.query, page }), { signal: abort.signal });
                     if (!valid() || generation !== state.generation) return;
                     const items = field(data, 'Items');
                     if (field(data, 'Error') || !Array.isArray(items)) throw Error('Invalid Seerr response');
@@ -104,11 +107,18 @@
             }
             state.setQuery = value => {
                 if (!valid()) return;
+                clearTimeout(state.timer); state.timer = null;
+                state.abort?.abort(); state.abort = null;
                 clearResults();
                 state.query = typeof value === 'string' ? value.trim() : '';
                 ++state.generation; state.page = state.max = 1; controls();
                 if (!state.query || state.query.length > 200) message('Enter a search query to see Seerr results.');
-                else load(1);
+                else {
+                    message('Loading Seerr results…');
+                    // Mount's first query is already settled; only subsequent typing waits.
+                    if (state.generation === 1) load(1);
+                    else state.timer = setTimeout(() => { state.timer = null; load(1); }, 160);
+                }
             };
             state.setQuery(query);
             return true;
