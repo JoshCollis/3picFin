@@ -27,6 +27,8 @@
     <EmbeddedResource Include="Web/static-hero.js" />
     <EmbeddedResource Include="Web/static-hero.css" />
     <EmbeddedResource Include="Web/home-adapter.js" />
+    <EmbeddedResource Include="Web/global-fin-nav.js" />
+    <EmbeddedResource Include="Web/global-fin-nav.css" />
     <EmbeddedResource Include="Web/native-home-rows.js" />
     <EmbeddedResource Include="Web/native-home-rows.css" />
   </ItemGroup>
