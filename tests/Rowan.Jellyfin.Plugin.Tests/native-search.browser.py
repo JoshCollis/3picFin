@@ -59,7 +59,9 @@ with sync_playwright() as p:
         assert page.locator('.threepic-fin-search article button').inner_text() == 'Details'
         art_box = page.locator('.threepic-fin-search article').bounding_box()
         assert art_box and art_box['width'] <= 175 and art_box['height'] <= 320
-        page.locator('.threepic-fin-search article button').click()
+        page.locator('.threepic-fin-search article button').focus()
+        assert page.locator('.threepic-fin-search article button').evaluate('(el) => document.activeElement === el')
+        page.keyboard.press('Enter')
         page.wait_for_selector('#threepic-fin-details-dialog[open]')
         assert page.locator('#threepic-fin-details-title').inner_text() == 'Seerr title'
         assert page.locator('#threepic-fin-details-body img').get_attribute('src').endswith('/poster.jpg')

@@ -22,13 +22,26 @@
                 parentId !== null || collectionType !== null) return false;
             const section = document.createElement('section');
             section.className = 'threepic-fin-search'; section.setAttribute('aria-label', 'Seerr catalog');
-            const heading = document.createElement('h2'); heading.textContent = 'Seerr catalog'; section.appendChild(heading);
+            const heading = document.createElement('h2'); heading.textContent = 'Available to request'; section.appendChild(heading);
             const body = document.createElement('div'); body.setAttribute('aria-live', 'polite'); section.appendChild(body);
             const pager = document.createElement('nav'); pager.setAttribute('aria-label', 'Seerr search pages');
             const prev = document.createElement('button'), next = document.createElement('button');
-            prev.type = next.type = 'button'; prev.textContent = 'Previous'; next.textContent = 'Next';
+            prev.type = next.type = 'button'; prev.textContent = '‹'; next.textContent = '›';
+            prev.setAttribute('aria-label', 'Previous results'); next.setAttribute('aria-label', 'Next results');
             const pageLabel = document.createElement('span'); pager.appendChild(prev); pager.appendChild(next); pager.appendChild(pageLabel);
-            section.appendChild(pager); root.appendChild(section);
+            section.appendChild(pager);
+            // Search's native rows are React-owned. Insert a sibling ahead of
+            // them rather than appending after an arbitrarily long result list.
+            const nativeResults = root.querySelector?.('.searchResults');
+            const nativeColumn = nativeResults && [...root.children].find(child => child.contains(nativeResults));
+            if (nativeColumn && !nativeColumn.contains(root.querySelector('#searchTextInput')))
+                root.insertBefore(section, nativeColumn);
+            else {
+                const input = root.querySelector?.('#searchTextInput');
+                const inputColumn = input && [...root.children].find(child => child.contains(input));
+                if (inputColumn) inputColumn.after(section);
+                else root.appendChild(section);
+            }
             const state = { section, body, prev, next, pageLabel, apiClient, userId, sessionUserId, requestAction, detailsAction,
                 query: '', page: 1, max: 1, generation: 0, listeners: [], resultListeners: [], timer: null, abort: null };
             current = state;
@@ -37,8 +50,21 @@
                 state.resultListeners.forEach(([node, type, handler]) => node.removeEventListener(type, handler));
                 state.resultListeners.length = 0;
             }
-            listen(prev, 'click', () => { if (valid() && state.page > 1) load(state.page - 1); });
-            listen(next, 'click', () => { if (valid() && state.page < state.max) load(state.page + 1); });
+            function rail() { return body.querySelector?.('.threepic-fin-search__cards'); }
+            function canScroll(el) { return el && el.scrollWidth > el.clientWidth + 2; }
+            listen(prev, 'click', () => {
+                if (!valid()) return;
+                const el = rail();
+                if (el && el.scrollLeft > 2) el.scrollBy({ left: -el.clientWidth * .8, behavior: 'smooth' });
+                else if (state.page > 1) load(state.page - 1);
+            });
+            listen(next, 'click', () => {
+                if (!valid()) return;
+                const el = rail();
+                if (canScroll(el) && el.scrollLeft + el.clientWidth < el.scrollWidth - 2)
+                    el.scrollBy({ left: el.clientWidth * .8, behavior: 'smooth' });
+                else if (state.page < state.max) load(state.page + 1);
+            });
             function valid() {
                 if (current !== state) return false;
                 if (sessionUserId() !== userId) { dispose(); return false; }
@@ -46,8 +72,10 @@
             }
             function message(text) { body.replaceChildren(); body.textContent = text; }
             function controls() {
-                prev.disabled = state.page <= 1; next.disabled = state.page >= state.max;
-                pager.hidden = state.max <= 1;
+                const el = rail();
+                prev.disabled = state.page <= 1 && (!el || el.scrollLeft <= 2);
+                next.disabled = state.page >= state.max && (!canScroll(el) || el.scrollLeft + el.clientWidth >= el.scrollWidth - 2);
+                pager.hidden = state.max <= 1 && !canScroll(el);
                 pageLabel.textContent = `Page ${state.page} of ${state.max}`;
             }
             async function load(page) {
@@ -72,7 +100,11 @@
                         const card = document.createElement('article'), title = document.createElement('h3');
                         card.className = 'threepic-fin-search__card threepic-fin-search__card--no-art';
                         title.textContent = String(field(item, 'Title') || `${type === 'tv' ? 'TV' : 'Movie'} · TMDb #${id}`);
-                        card.appendChild(title);
+                        const media = document.createElement('div'); media.className = 'threepic-fin-search__poster';
+                        const fallback = document.createElement('span'); fallback.className = 'threepic-fin-search__poster-label';
+                        fallback.textContent = title.textContent; fallback.setAttribute('aria-hidden', 'true');
+                        media.appendChild(fallback);
+                        card.appendChild(media); card.appendChild(title);
                         const poster = field(item, 'PosterPath');
                         if (typeof poster === 'string' && /^\/[a-zA-Z0-9_/-]+\.(?:jpg|jpeg|png|webp)$/.test(poster) && !poster.includes('..')) {
                             const image = document.createElement('img');
@@ -80,23 +112,27 @@
                             card.classList.replace('threepic-fin-search__card--no-art', 'threepic-fin-search__card--has-art');
                             image.addEventListener('error', () => { image.remove(); card.classList.replace('threepic-fin-search__card--has-art', 'threepic-fin-search__card--no-art'); });
                             image.src = `https://image.tmdb.org/t/p/w342${poster}`;
-                            card.insertBefore(image, title);
+                            media.appendChild(image);
                         }
                         const action = document.createElement('button'); action.type = 'button';
                         const hasDetails = typeof state.detailsAction === 'function';
-                        action.textContent = hasDetails ? 'Details' : `Request ${type === 'tv' ? 'TV' : 'Movie'}`;
+                        action.textContent = 'Details';
+                        action.setAttribute('aria-label', `Details for ${title.textContent}`);
                         const handler = () => {
                             if (valid() && generation === state.generation)
                                 (hasDetails ? state.detailsAction : requestAction)(item, action);
                         };
                         action.addEventListener('click', handler);
                         state.resultListeners.push([action, 'click', handler]);
-                        card.appendChild(action);
+                        media.appendChild(action);
                         cards.appendChild(card);
                     }
                     body.replaceChildren();
-                    if (cards.children.length) body.appendChild(cards);
-                    else message('No Seerr catalog results found.');
+                    if (cards.children.length) {
+                        body.appendChild(cards);
+                        cards.addEventListener('scroll', controls);
+                        state.resultListeners.push([cards, 'scroll', controls]);
+                    } else message('No Seerr catalog results found.');
                     const total = field(data, 'TotalPages');
                     state.max = Number.isInteger(total) && total > 0 ? Math.min(total, 100) : 1;
                     controls();

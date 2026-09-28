@@ -23,18 +23,18 @@ with sync_playwright() as p:
     }; }''')
     page.wait_for_selector('.threepic-fin-search__cards article')
     assert page.locator('.searchResults').inner_text() == 'Native result'
-    page.wait_for_function("getComputedStyle(document.querySelector('.threepic-fin-search__cards')).display === 'grid'", timeout=3500)
+    page.wait_for_function("getComputedStyle(document.querySelector('.threepic-fin-search__cards')).display === 'flex'", timeout=3500)
     page.wait_for_function("document.querySelectorAll('.threepic-fin-search__card--no-art').length === 2", timeout=3500)
     assert page.locator('.threepic-fin-search article img').count() == 0
     assert page.locator('.threepic-fin-search nav').is_hidden()
     boxes = [card.bounding_box() for card in page.locator('.threepic-fin-search article').all()]
-    assert all(box and box['height'] < 100 and box['width'] <= 520 for box in boxes)
-    assert page.locator('.threepic-fin-search article').nth(1).inner_text().startswith('No poster series')
+    assert all(box and box['height'] < 380 and box['width'] <= 290 for box in boxes)
+    assert page.locator('.threepic-fin-search article').nth(1).locator('h3').inner_text() == 'No poster series'
     assert page.locator('.threepic-fin-search article button').count() == 2
     assert page.locator('link[href$="global-search-addon.css"]').count() == 1
     page.set_viewport_size({'width': 390, 'height': 800})
     mobile_boxes = [card.bounding_box() for card in page.locator('.threepic-fin-search article').all()]
-    assert all(box and box['height'] < 100 and box['width'] <= 390 for box in mobile_boxes)
+    assert all(box and box['height'] < 300 and box['width'] <= 390 for box in mobile_boxes)
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     page.evaluate('''() => { window.oldSection = document.querySelector('.threepic-fin-search');
         document.querySelector('#searchPage').innerHTML = '<input id="searchTextInput" value="Alien"><div class="searchResults">Native rerendered</div>'; }''')
