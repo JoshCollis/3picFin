@@ -124,6 +124,28 @@ test('Discovery rails scroll by a bounded page, reset after render, and restore 
 const source = (Items = [], extra = {}) => ({ Items, Error: null, Page: 1, TotalPages: 1, ...extra });
 const bundle = (Movies = source(), Tv = source(), Requests = source()) => ({ Movies, Tv, Requests });
 
+test('all catalog and request rails use native-shape unplayable cards with separate Details and status', async () => {
+    const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film', PosterPath: '/film.jpg' };
+    const tv = { TmdbId: 10, MediaType: 'tv', Title: 'Series' };
+    const app = setup([bundle(source([movie]), source([tv]), source([{ ...movie, Status: 2 }]))], [], {}, [], [source([{ ...tv, Type: 'tv', Status: 1 }])]);
+    await app.flush();
+    for (const name of ['movies', 'tv', 'requests', 'shared-requests', 'recommendations']) {
+        const card = app.el(name).children[0];
+        assert.match(card.className, /card-hoverable.*overflowPortraitCard/, name);
+        assert.ok(card.descendants().some(n => n.className === 'cardBox'));
+        assert.ok(card.descendants().some(n => n.className === 'cardScalable'));
+        assert.ok(card.descendants().some(n => n.className === 'cardPadder cardPadder-overflowPortrait'));
+        assert.ok(card.descendants().some(n => /cardText cardTextCentered/.test(n.className)), name);
+        assert.ok(card.descendants().some(n => n.className === 'threepic-fin-discovery__title-button') || name.includes('requests'));
+        assert.ok(![card, ...card.descendants()].some(n => n.getAttribute('data-action') === 'resume' || n.getAttribute('data-action') === 'menu'));
+        assert.ok(!card.getAttribute('data-id'), 'Seerr identity must never impersonate Jellyfin media');
+    }
+    assert.match(app.text('requests'), /Request status: Approved/);
+    assert.match(app.text('shared-requests'), /Request status: Pending/);
+    assert.ok(app.el('tv').children[0].descendants().some(n => n.className === 'threepic-fin-discovery__poster-fallback'));
+    app.cleanup();
+});
+
 test('hosted hidden Discovery waits for activation and coalesces rapid selections', async () => {
     const pending = deferred();
     const app = setup([pending], [], { deferInitialLoad: true });
