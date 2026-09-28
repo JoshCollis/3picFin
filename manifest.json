@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.7.2",
+        "changelog": "Match native Home card artwork and hover Play/More controls; remove filled Search card backing and place the single Seerr request rail after the first native results group",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v0.1.7.2/3pic-fin_0.1.7.2.zip",
+        "checksum": "ba625cd31bac1ac839b411818c3fcd7f",
+        "timestamp": "2026-09-28T16:20:20Z"
+      },
+      {
         "version": "0.1.7.1",
         "changelog": "Keep the 3pic Fin navigation pill on one line and distinguish its unselected hover state from the selected Fin state under ElegantFin",
         "targetAbi": "12.1.0.0",
