@@ -94,6 +94,10 @@ public sealed class HomeAdapterRegistrationTests
         const string html = "<!doctype html><html><head></head><body><script data-hss></script><script data-plugin-pages></script></body></html>";
         var output = HomeAdapterRegistration.TransformIndex(new JObject { ["contents"] = html });
         Assert.Equal(1, output.Split("data-threepic-fin-adapter").Length - 1);
+        Assert.Equal(1, output.Split("data-threepic-fin-global-nav src=").Length - 1);
+        Assert.Contains("global-fin-nav.css", output);
+        Assert.IsType<FileStreamResult>(new DiscoveryPageController(() => true, () => false, () => true).GetAsset("global-fin-nav.js"));
+        Assert.IsType<NotFoundResult>(new DiscoveryPageController(() => false).GetAsset("global-fin-nav.js"));
         Assert.Contains("data-hss", output);
         Assert.Contains("data-plugin-pages", output);
         Assert.Equal(output, HomeAdapterRegistration.TransformIndex(new JObject { ["contents"] = output }));

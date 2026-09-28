@@ -49,9 +49,11 @@ public sealed class DiscoveryPageController : ControllerBase
     {
         var searchAsset = asset is "global-search-addon.js" or "global-search-addon.css" or "search-adapter.js";
         var homeAsset = asset is "home-adapter.js" or "home-tab-host.js" or "home-tab-host.css";
+        var navAsset = asset is "global-fin-nav.js" or "global-fin-nav.css";
         var heroAsset = asset is "static-hero.js" or "static-hero.css";
         if (asset is "native-home-rows.js" or "native-home-rows.css" ? !_homeEnabled() :
             searchAsset ? !_searchEnabled() : heroAsset ? !(_homeEnabled() && _heroEnabled()) :
+            navAsset ? !(_enabled() && _homeEnabled()) :
             homeAsset ? !(_enabled() || (_homeEnabled() && (_heroEnabled() || _rowsEnabled()))) :
             asset is "discovery.html" or "discovery.js" or "discovery.css" ? !(_enabled() || _searchEnabled()) : !_enabled()) return NotFound();
         var contentType = asset switch
@@ -67,6 +69,8 @@ public sealed class DiscoveryPageController : ControllerBase
             "static-hero.js" => "text/javascript; charset=utf-8",
             "static-hero.css" => "text/css; charset=utf-8",
             "home-adapter.js" => "text/javascript; charset=utf-8",
+            "global-fin-nav.js" => "text/javascript; charset=utf-8",
+            "global-fin-nav.css" => "text/css; charset=utf-8",
             "native-home-rows.js" => "text/javascript; charset=utf-8",
             "native-home-rows.css" => "text/css; charset=utf-8",
             _ => null

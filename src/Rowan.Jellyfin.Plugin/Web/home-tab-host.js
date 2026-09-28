@@ -240,6 +240,8 @@
                 const route = global.location?.hash;
                 if (route === '#/home?fin=1' || route === '#/home' || route === '#/home?tab=0')
                     select(route === '#/home?fin=1' ? 'discovery' : 'home');
+                // Index-level navigation survives disposal of this Home-owned host.
+                if (global.__threePicFinGlobalNav) { current.removeNav?.(); return; }
                 const headers = document.querySelectorAll('.skinHeader .headerTabs');
                 const failClosed = () => {
                     current.removeNav?.(); select('home'); clearFinUrl();
@@ -344,7 +346,7 @@
                 current.cleanup = discovery.mount(panel, apiClient, { deferInitialLoad: true, openItem });
                 if (global.location?.hash === '#/home?fin=1') select('discovery');
                 syncNav();
-                if (!current.nav) { dispose(); return false; }
+                if (!current.nav && !global.__threePicFinGlobalNav) { dispose(); return false; }
                 startHero(current);
                 startRows(current);
             } catch (_) {
