@@ -3,7 +3,7 @@
     container-type: inline-size;
 }
 .threepic-fin-discovery * { box-sizing: border-box; }
-.threepic-fin-discovery__content { max-width: 100rem; margin-inline: auto; padding: clamp(.75rem, 2.5vw, 2rem); }
+.threepic-fin-discovery__content { padding: .75rem 3.3%; }
 /* Match the native Home rail gutters and keep empty rows from consuming a card slot. */
 .threepic-fin-discovery #threepic-fin-discover-panel > section { margin-block: 0 .75rem; }
 .threepic-fin-discovery #threepic-fin-discover-panel > section > h3 { margin-block: .9rem .5rem; }
@@ -32,23 +32,27 @@
 .threepic-fin-discovery__unavailable { opacity: .7; padding: .75rem; }
 .threepic-fin-discovery form label { display: block; margin-block: 1.5rem .5rem; }
 .threepic-fin-discovery__search-controls input { flex: 1 1 12rem; min-width: 0; }
-.threepic-fin-discovery__cards { display: flex; gap: clamp(.6rem, 1.5vw, 1rem); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scroll-padding-inline: .15rem; scrollbar-width: thin; padding: .15rem .15rem .65rem; min-width: 0; }
-.threepic-fin-discovery__card { flex: 0 0 clamp(8.5rem, 14vw, 11rem); scroll-snap-align: start; min-width: 0; overflow: hidden; background: var(--card-background, var(--background-secondary, #303030)); border-radius: .4rem; transition: transform .16s ease, box-shadow .16s ease; }
-.threepic-fin-discovery__card:focus-within, .threepic-fin-discovery__card:hover { transform: translateY(-2px); box-shadow: 0 .5rem 1.25rem rgba(0,0,0,.3); }
-.threepic-fin-discovery__poster-frame, .threepic-fin-discovery .threepic-fin-discovery__poster-button { position: relative; aspect-ratio: 2 / 3; overflow: hidden; }
+.threepic-fin-discovery__cards { --itemColumnGap: .5em; display: flex; gap: .75rem; overflow-x: auto; overflow-y: hidden; overscroll-behavior-inline: contain; scroll-snap-type: x proximity; scrollbar-width: thin; padding: .5rem 0 1rem; min-width: 0; }
+.threepic-fin-discovery .threepic-fin-discovery__card { flex: 0 0 auto; scroll-snap-align: start; min-width: 0; background: transparent; border: 0; box-shadow: none; overflow: visible; color: inherit; }
+.threepic-fin-discovery .threepic-fin-discovery__card .cardBox { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.threepic-fin-discovery .threepic-fin-discovery__card .cardText { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.threepic-fin-discovery__card .cardScalable { position: relative; aspect-ratio: 2 / 3; }
+.threepic-fin-discovery__card .cardPadder { display: none; }
+.threepic-fin-discovery__card .cardContent { position: absolute; inset: 0; width: 100%; height: 100%; }
+.threepic-fin-discovery__poster-frame, .threepic-fin-discovery .threepic-fin-discovery__poster-button { overflow: hidden; }
 .threepic-fin-discovery__card img, .threepic-fin-discovery__poster-fallback { display: block; width: 100%; height: 100%; object-fit: cover; }
 .threepic-fin-discovery__card img { position: absolute; inset: 0; }
-.threepic-fin-discovery__poster-fallback { display: grid; place-items: center; padding: .5rem; text-align: center; color: var(--secondary-text-color, #bbb); background: var(--background-secondary, #414141); }
-.threepic-fin-discovery__card-info { padding: .5rem .15rem .6rem; }
-.threepic-fin-discovery .threepic-fin-discovery__poster-button { display: block; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; overflow: hidden; }
+.threepic-fin-discovery__poster-fallback { display: grid; place-items: center; padding: .5rem; text-align: center; color: var(--secondary-text-color, #bbb); background: var(--headerColor, #333); }
+.threepic-fin-discovery__card-info { padding: 0; text-align: center; background: transparent; }
+.threepic-fin-discovery .threepic-fin-discovery__poster-button { display: block; width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
 .threepic-fin-discovery .threepic-fin-discovery__poster-button::after {
-    content: "Details"; position: absolute; bottom: .45rem; right: .45rem; z-index: 1;
+    content: "Details"; position: absolute; bottom: .45rem; right: .45rem; z-index: 1; opacity: 0;
     padding: .3rem .6rem; border-radius: .3rem; background: rgba(17, 25, 38, .82);
     color: #fff; font-size: .78rem; line-height: 1.3; pointer-events: none;
 }
 .threepic-fin-discovery .threepic-fin-discovery__poster-button:focus-visible::after,
-.threepic-fin-discovery .threepic-fin-discovery__poster-button:hover::after { background: var(--primary-accent-color, #435dad); }
-.threepic-fin-discovery .threepic-fin-discovery__title-button { min-height: 0; border: 0; padding: 0; background: none; text-align: left; font-weight: inherit; }
+.threepic-fin-discovery .threepic-fin-discovery__poster-button:hover::after { background: var(--primary-accent-color, #435dad); opacity: 1; }
+.threepic-fin-discovery .threepic-fin-discovery__title-button { min-height: 0; border: 0; padding: 0; background: none; text-align: center; font-weight: inherit; }
 .threepic-fin-discovery__card-info p { margin-block: .35rem 0; font-size: .85rem; color: var(--secondary-text-color, #bbb); }
 .threepic-fin-discovery__card-info h4 { line-height: 1.3; }
 .threepic-fin-discovery__card-info > button { margin-top: .5rem; font-size: .85rem; min-height: 36px; width: 100%; }
@@ -86,7 +90,7 @@
     font-size: .9rem; line-height: 1.35;
 }
 .threepic-fin-discovery .threepic-fin-discovery__title-button { min-height: 44px; width: 100%; display: block; line-height: 1.25; }
-.threepic-fin-discovery__card-info { padding: .15rem .2rem .5rem; }
+.threepic-fin-discovery__card-info { padding: 0 .2rem .5rem; }
 .threepic-fin-discovery__details .threepic-fin-discovery__actions button,
 .threepic-fin-discovery__dialog .threepic-fin-discovery__actions button { min-height: 44px; }
 .threepic-fin-discovery__details #threepic-fin-details-request:not([hidden]),
@@ -108,9 +112,8 @@
 .threepic-fin-discovery__dialog input[type="checkbox"] { min-height: 1.5rem; min-width: 1.5rem; }
 .threepic-fin-discovery__actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
 .threepic-fin-discovery [hidden] { display: none !important; }
-@container (max-width: 29rem) { .threepic-fin-discovery__card { flex-basis: clamp(8rem, 39cqw, 10rem); } }
 @media (max-width: 600px) {
-    .threepic-fin-discovery__content { padding-inline: .75rem; }
+    .threepic-fin-discovery__content { padding-inline: 3.3%; }
     .threepic-fin-discovery .threepic-fin-discovery__details[open] { grid-template-columns: 5.5rem minmax(0, 1fr); gap: .25rem .85rem; padding: 1rem; padding-right: 3rem; }
     .threepic-fin-discovery .threepic-fin-discovery__dialog { width: calc(100vw - 1.5rem); max-height: calc(100dvh - 1.5rem); }
     .threepic-fin-discovery .threepic-fin-discovery__details[open] { padding-bottom: 1rem; }

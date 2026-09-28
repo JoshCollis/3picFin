@@ -18,16 +18,21 @@
     function message(container, value) { container.replaceChildren(); text(container, 'p', value, 'threepic-fin-discovery__message'); }
     function card(item, request, openRequest, openDetails) {
         const article = document.createElement('article');
-        article.className = 'threepic-fin-discovery__card';
+        // Borrow native Home's artwork geometry, not its itemAction semantics:
+        // a Seerr catalog/request identity is never a playable Jellyfin item.
+        article.className = 'threepic-fin-discovery__card card card-hoverable show-animation overflowPortraitCard';
+        const box = document.createElement('div'); box.className = 'cardBox';
+        const scalable = document.createElement('div'); scalable.className = 'cardScalable';
+        const padder = document.createElement('div'); padder.className = 'cardPadder cardPadder-overflowPortrait';
         const type = field(item, request ? 'MediaType' : 'MediaType') || (request ? field(item, 'Type') : null);
         const title = field(item, 'Title');
         const tmdbId = field(item, 'TmdbId');
         const poster = field(item, 'PosterPath');
         const canInspect = !request && (type === 'movie' || type === 'tv') && Number.isInteger(tmdbId) && tmdbId > 0;
         const posterHost = canInspect ? document.createElement('button') : document.createElement('div');
-        posterHost.className = canInspect ? 'threepic-fin-discovery__poster-button' : 'threepic-fin-discovery__poster-frame';
+        posterHost.className = `cardContent cardImageContainer ${canInspect ? 'threepic-fin-discovery__poster-button' : 'threepic-fin-discovery__poster-frame'}`;
         if (canInspect) { posterHost.type = 'button'; posterHost.setAttribute('aria-label', `Details for ${typeof title === 'string' && title.trim() ? title : label(type)}`); posterHost.addEventListener('click', () => openDetails(item, posterHost)); }
-        article.appendChild(posterHost);
+        scalable.appendChild(padder); scalable.appendChild(posterHost); box.appendChild(scalable); article.appendChild(box);
         if (validPoster(poster)) {
             const image = document.createElement('img');
             image.src = `https://image.tmdb.org/t/p/w342${poster}`;
@@ -40,7 +45,7 @@
             posterHost.appendChild(image);
         } else text(posterHost, 'div', 'Artwork unavailable', 'threepic-fin-discovery__poster-fallback');
         const info = document.createElement('div');
-        info.className = 'threepic-fin-discovery__card-info';
+        info.className = 'threepic-fin-discovery__card-info cardText cardTextCentered';
         const displayTitle = typeof title === 'string' && title.trim() ? title : `${label(type)}${Number.isInteger(tmdbId) && tmdbId > 0 ? ` · TMDb #${tmdbId}` : ' · details unavailable'}`;
         if (canInspect) { const heading = document.createElement('h4'); const link = text(heading, 'button', displayTitle, 'threepic-fin-discovery__title-button'); link.type = 'button'; link.addEventListener('click', () => openDetails(item, link)); info.appendChild(heading); }
         else text(info, 'h4', displayTitle);
@@ -48,7 +53,7 @@
         if (request) text(info, 'p', `Request status: ${requestStatus(field(item, 'Status'))}`);
         else if (field(item, 'Date')) text(info, 'p', field(item, 'Date'));
         // Inspect first: eligibility and request state belong in the verified details dialog.
-        article.appendChild(info);
+        box.appendChild(info);
         return article;
     }
     function render(container, source, empty, request = false, openRequest = null, openDetails = null) {
