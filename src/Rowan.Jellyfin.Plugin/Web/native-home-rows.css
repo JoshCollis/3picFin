@@ -7,20 +7,20 @@
 .rowan-native-row__seed { margin: 1rem 0; }
 .rowan-native-row__items { display: flex; gap: .75rem; overflow-x: auto; overscroll-behavior-inline: contain; padding: .5rem 0 1rem; scroll-snap-type: x proximity; scrollbar-width: thin; }
 .rowan-native-row__items:focus-visible { outline: 2px solid var(--theme-primary-color, #9b9aff); outline-offset: -2px; }
-.rowan-native-row__card { flex: 0 0 auto; box-sizing: border-box; border: 0; border-radius: .5rem; background: var(--card-background, #333); color: inherit; text-align: left; overflow: hidden; scroll-snap-align: start; padding: 0; }
-.rowan-native-row__card--landscape { width: clamp(13.5rem, 26vw, 19rem); }
-.rowan-native-row__card--portrait { width: clamp(8rem, 12vw, 11rem); }
+.rowan-native-row__card { flex: 0 0 auto; box-sizing: border-box; border: 0; background: transparent; color: inherit; text-align: left; scroll-snap-align: start; padding: 0; }
+.rowan-native-row__card--landscape { --row-card-width: clamp(13.5rem, 26vw, 19rem); width: var(--row-card-width); }
+.rowan-native-row__card--portrait { --row-card-width: clamp(8rem, 12vw, 11rem); width: var(--row-card-width); }
 button.rowan-native-row__card { cursor: pointer; }
 button.rowan-native-row__card:focus-visible, .rowan-native-row__arrow:focus-visible { outline: 3px solid var(--theme-primary-color, #9b9aff); outline-offset: 2px; }
-.rowan-native-row__card img { display: block; width: 100%; object-fit: cover; }
-.rowan-native-row__card--portrait img { aspect-ratio: 2 / 3; }
-.rowan-native-row__card--landscape img { aspect-ratio: 16 / 9; }
-.rowan-native-row__card--no-art { background: var(--card-background, #333); }
+.rowan-native-row__card img { display: block; width: 100%; border-radius: var(--smallRadius, .5rem); object-fit: cover; }
+.rowan-native-row__card--portrait img { height: calc(var(--row-card-width) * 3 / 2); aspect-ratio: 2 / 3; }
+.rowan-native-row__card--landscape img { height: calc(var(--row-card-width) * 9 / 16); aspect-ratio: 16 / 9; }
+.rowan-native-row__card--no-art { background: var(--headerColor, var(--card-background, #333)); border-radius: var(--smallRadius, .5rem); }
 .rowan-native-row__card--no-art span { min-height: 3rem; }
-.rowan-native-row__card span { display: block; box-sizing: border-box; padding: .5rem; overflow-wrap: anywhere; }
+.rowan-native-row__card span { display: block; box-sizing: border-box; padding: .35rem .15rem; overflow-wrap: anywhere; }
 .rowan-native-row__controls { position: absolute; right: 0; top: 0; display: flex; gap: .25rem; }
 .rowan-native-row__controls[hidden] { display: none; }
 .rowan-native-row__arrow { width: 2.25rem; height: 2.25rem; border: 0; border-radius: 50%; background: var(--card-background, #333); color: inherit; font-size: 1.7rem; line-height: 1; cursor: pointer; }
 .rowan-native-row__arrow:disabled { opacity: .35; cursor: default; }
-@media (max-width: 600px) { .rowan-native-row__card--landscape { width: 68vw; } .rowan-native-row__card--portrait { width: 38vw; } }
+@media (max-width: 600px) { .rowan-native-row__card--landscape { --row-card-width: 68vw; } .rowan-native-row__card--portrait { --row-card-width: 38vw; } }
 @media (prefers-reduced-motion: reduce) { .rowan-native-row__items { scroll-behavior: auto; } }

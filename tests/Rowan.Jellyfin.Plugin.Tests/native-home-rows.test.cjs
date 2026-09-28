@@ -32,6 +32,19 @@ test('only explicitly selected rows mount; no default requests', () => {
     assert.equal(g.root.children.length, 1);
     assert.deepEqual(g.calls, []);
 });
+test('seed headings alone name the Because You Watched section without changing lazy section indexing', async () => {
+    const f = fixture(['BecauseYouWatched', 'LatestMovies']);
+    f.rows.mount(f.root, f.api, 'alice');
+    const seedSection = f.root.children[0], movieSection = f.root.children[1];
+    assert.equal(seedSection.children.length, 1);
+    f.observers[0].fire(seedSection); await tick();
+    assert.deepEqual(f.calls, ['/jellyfin/Rowan/Home/BecauseYouWatched']);
+    f.reply([{ Heading: 'Because You Watched One', Items: [{ Id: id, Type: 'Movie', Name: 'Film' }] }]);
+    await tick();
+    assert.equal(seedSection.children[0].children[0].children[0].textContent, 'Because You Watched One');
+    f.observers[0].fire(movieSection); await tick();
+    assert.equal(f.calls[1], '/jellyfin/Rowan/Home/Rows/LatestMovies');
+});
 test('bounded populated row renders tagged art and native Open identity lazily', async () => {
     const f = fixture(); f.rows.mount(f.root, f.api, 'alice');
     f.observers[0].fire(f.root.children[0]); await tick();
