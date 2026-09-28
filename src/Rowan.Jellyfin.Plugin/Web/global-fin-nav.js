@@ -11,21 +11,39 @@
         for (const link of links) link.remove();
         links = [];
     }
-    function action(drawer) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'threepic-fin-global-nav';
+    function action(favorite, drawer) {
+        // Adopt the sibling's native component shell, but not React's owned descendants
+        // or handlers. This lets the active theme supply geometry, hover and focus.
+        const button = favorite.cloneNode(false);
+        button.classList.add('threepic-fin-global-nav');
+        button.href = finRoute;
         button.setAttribute('aria-label', '3pic Fin');
-        button.setAttribute('aria-current', global.location.hash === finRoute ? 'page' : 'false');
+        const icon = favorite.querySelector(drawer ? '.MuiListItemIcon-root' : '.MuiButton-startIcon')?.cloneNode(false)
+            || document.createElement('span');
+        icon.classList.add(drawer ? 'MuiListItemIcon-root' : 'MuiButton-startIcon');
         // Own simple vector geometry; no distribution icon asset or font dependency.
-        button.innerHTML = '<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10m-3.5-3.5L12 13l3.5-3.5M5 17v2h14v-2"/><path d="m19 4 .4 1.6L21 6l-1.6.4L19 8l-.4-1.6L17 6l1.6-.4z"/></svg><span>3pic Fin</span>';
-        button.addEventListener('click', () => {
+        icon.innerHTML = '<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10m-3.5-3.5L12 13l3.5-3.5M5 17v2h14v-2"/><path d="m19 4 .4 1.6L21 6l-1.6.4L19 8l-.4-1.6L17 6l1.6-.4z"/></svg>';
+        const label = favorite.querySelector(drawer ? '.MuiListItemText-root' : '.MuiTypography-root')?.cloneNode(false)
+            || document.createElement('span');
+        label.textContent = '3pic Fin';
+        button.replaceChildren(icon, label);
+        button.addEventListener('click', event => {
+            event.preventDefault();
             if (stopped || !allowed || identity?.api !== global.ApiClient ||
                 identity?.user !== global.ApiClient?.getCurrentUserId?.()) return;
             global.location.hash = finRoute;
             if (drawer) document.querySelector('.MuiToolbar-root button[aria-label="Open Menu"]')?.click();
         });
         return button;
+    }
+    function select(button, drawer) {
+        const selected = global.location.hash === finRoute;
+        button.setAttribute('aria-current', selected ? 'page' : 'false');
+        if (drawer) button.classList.toggle('Mui-selected', selected);
+        else {
+            button.classList.toggle('MuiButton-textPrimary', selected);
+            button.classList.toggle('MuiButton-textInherit', !selected);
+        }
     }
     function sync() {
         if (stopped) return;
@@ -60,20 +78,20 @@
         if (toolbar.length > 1 || favorites.length > 1) { remove(); return; }
         const targets = [];
         if (toolbar.length === 1) targets.push({ anchor: toolbar[0].querySelector(':scope > a[href="#/home?tab=1"]'), drawer: false });
-        if (drawer) targets.push({ anchor: drawer, drawer: true });
+        if (drawer) targets.push({ anchor: drawer, drawer: true, favorite: favorites[0] });
         if (!targets.length) { remove(); return; }
         for (const old of links) if (!old.isConnected || !targets.some(t => old.previousElementSibling === t.anchor)) old.remove();
-        links = targets.map(({ anchor, drawer: isDrawer }) => {
+        links = targets.map(({ anchor, drawer: isDrawer, favorite }) => {
             let node = anchor.nextElementSibling;
             if (!links.includes(node) || !node?.classList.contains(isDrawer ? 'threepic-fin-global-nav-item' : 'threepic-fin-global-nav')) {
                 // A framework clone can retain the class but lose its event listener.
                 if (node?.classList.contains(isDrawer ? 'threepic-fin-global-nav-item' : 'threepic-fin-global-nav')) node.remove();
-                const button = action(isDrawer);
-                node = isDrawer ? document.createElement('li') : button;
-                if (isDrawer) { node.className = 'threepic-fin-global-nav-item MuiListItem-root'; node.appendChild(button); }
+                const button = action(favorite || anchor, isDrawer);
+                node = isDrawer ? anchor.cloneNode(false) : button;
+                if (isDrawer) { node.classList.add('threepic-fin-global-nav-item'); node.appendChild(button); }
                 anchor.insertAdjacentElement('afterend', node);
             }
-            (isDrawer ? node.querySelector('button') : node).setAttribute('aria-current', global.location.hash === finRoute ? 'page' : 'false');
+            select(isDrawer ? node.querySelector('.threepic-fin-global-nav') : node, isDrawer);
             return node;
         });
     }
