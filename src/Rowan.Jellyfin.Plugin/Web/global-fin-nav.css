@@ -1,4 +1,12 @@
-/* Native sibling classes provide the pill, selected, hover and focus treatment. */
+/* Native sibling classes provide the pill, selected and focus treatment. */
 .threepic-fin-global-nav, .threepic-fin-global-nav .MuiTypography-root,
 .threepic-fin-global-nav .MuiListItemText-root { text-transform: none !important; }
 .threepic-fin-global-nav svg { width: 19px; height: 19px; flex: none; }
+/* The inserted toolbar sibling can shrink enough to wrap its plain-text label. */
+.MuiStack-root > .threepic-fin-global-nav { flex-shrink: 0; white-space: nowrap; }
+/* ElegantFin's white hover is indistinguishable from selected after leaving Fin.
+   Keep a visible, legible hover without painting an unselected pill white. */
+.MuiStack-root > .threepic-fin-global-nav[aria-current="false"]:hover {
+    background: color-mix(in srgb, var(--ef12-navPillBackground), var(--textColor) 15%) !important;
+    color: var(--textColor) !important;
+}
