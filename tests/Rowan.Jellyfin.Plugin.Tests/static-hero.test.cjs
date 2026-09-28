@@ -103,9 +103,10 @@ test('cleanup aborts pending image request and never creates a late blob URL', a
     resolve({ ok: true, headers: { get: () => 'image/jpeg' }, blob: async () => 'late' });
     await tick(); assert.equal(created, 0);
 });
-test('stylesheet fills viewport instead of fixed short height', () => {
+test('stylesheet reserves a responsive hero before slide delivery', () => {
     const css = fs.readFileSync(path.join(__dirname, '../../src/Rowan.Jellyfin.Plugin/Web/static-hero.css'), 'utf8');
-    assert.match(css, /min-height:100(?:dvh|vh)/);
+    assert.match(css, /min-height:min\(78dvh,800px\)/);
+    assert.match(css, /@media\(max-width:600px\).*min-height:86dvh/);
     assert.doesNotMatch(css, /56vw|55vh/);
 });
 test('logout invalidates displayed slides without host remount', async () => {

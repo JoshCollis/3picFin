@@ -28,7 +28,7 @@ encoded = b64encode(buffer.getvalue()).decode()
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
-    for width in (3680, 1280, 390):
+    for width in (2560, 1280, 390):
         page = browser.new_page(viewport={'width': width, 'height': 900}, device_scale_factor=1)
         page.set_content('''<meta name="viewport" content="width=device-width, initial-scale=1"><body style="margin:0">
             <div class="skinHeader"></div><main id="indexPage"><div id="hero"></div>
@@ -68,14 +68,21 @@ with sync_playwright() as p:
         page.get_by_role('heading', name='Stuart Fails to Save the Universe').wait_for()
         page.wait_for_function("() => document.querySelector('.rowan-static-hero img').naturalWidth === 1600")
         result = metrics()
-        xs = [result[k]['x'] for k in ('title', 'description', 'counter', 'dots', 'progress', 'open')]
-        assert max(xs) - min(xs) <= 1, (width, xs)
+        page.screenshot(path=str(output / f'featured-elegant-{width}.png'))
         assert result['row']['y'] == reserved['row']['y'], (width, reserved['row'], result['row'])
         assert result['hero']['height'] == reserved['hero']['height'], (width, reserved['hero'], result['hero'])
         assert result['overflow'] <= 0, (width, result)
-        if width == 3680:
-            assert result['title']['height'] < 1.5 * result['titleLineHeight'], result
-            assert result['titleLineHeight'] >= 85, result
+        if width > 600:
+            assert abs(result['title']['x'] - result['open']['x']) <= 1, result
+            assert result['open']['y'] > result['description']['bottom'], result
+            assert result['open']['y'] < result['dots']['y'], result
+            assert result['dots']['x'] > width * .65, result
+            assert result['title']['y'] < result['hero']['height'] * .55, result
+        else:
+            assert result['hero']['height'] >= 700, result
+            assert abs(result['title']['x'] + result['title']['width']/2 - width/2) <= 1, result
+            assert result['open']['y'] > result['dots']['bottom'], result
+            assert result['title']['y'] < result['hero']['height'] * .55, result
         assert page.locator('.rowan-hero-dot').count() == 10
         assert page.evaluate('''() => [...document.querySelectorAll('.rowan-hero-dot')].every(b => b.getBoundingClientRect().width >= 44)''')
         screenshot = output / f'featured-elegant-{width}.png'
