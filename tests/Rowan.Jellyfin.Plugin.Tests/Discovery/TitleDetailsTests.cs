@@ -42,13 +42,13 @@ public sealed class TitleDetailsTests
             Assert.Equal("Show", dto.Title);
             Assert.Equal(new[] { 1 }, dto.Seasons);
             Assert.Equal(5, dto.MediaStatus);
-            Assert.True(dto.CanRequest); // A local series may still lack requestable seasons.
+            Assert.False(dto.CanRequest); // Seerr reports all standard seasons available; Open remains independent.
             Assert.True(dto.CanRequest4k);
             Assert.Equal("2024-03-04", dto.Date);
             Assert.Equal("private, no-store", controller.Response.Headers.CacheControl);
             var wire = JsonSerializer.Serialize(dto, new JsonSerializerOptions(JsonSerializerDefaults.Web));
             Assert.Contains("\"LibraryItemId\"", wire);
-            Assert.Contains("\"CanRequest\":true", wire);
+            Assert.Contains("\"CanRequest\":false", wire);
             Assert.Contains("\"Date\":\"2024-03-04\"", wire);
             Assert.DoesNotContain("do-not-leak", wire);
             Assert.DoesNotContain("jellyfinMediaId", wire);

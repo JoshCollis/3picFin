@@ -78,7 +78,7 @@ public sealed class TitleDetailsController : ControllerBase
         return Ok(result.Value with { LibraryItemId = itemId });
     }
 
-    private static Guid? ResolveLibrary(IUserManager users, ILibraryManager libraries, Guid userId, string type, int tmdb, Guid? hint)
+    internal static Guid? ResolveLibrary(IUserManager users, ILibraryManager libraries, Guid userId, string type, int tmdb, Guid? hint)
     {
         var user = users.GetUserById(userId);
         if (user is null) return null;
