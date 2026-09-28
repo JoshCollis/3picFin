@@ -17,7 +17,7 @@ with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     for width in (3680, 1280, 390):
         page = browser.new_page(viewport={'width': width, 'height': 800})
-        native_rows = ''.join(f'<div class="verticalSection"><h2>Native row {i}</h2><div class="itemsContainer"><div class="card"><div class="cardBox"><div class="cardScalable"><div class="cardPadder cardPadder-portrait"></div><div class="cardContent"><div class="cardImageContainer"></div></div></div><div class="cardText">Native {i}</div></div></div></div></div>' for i in range(5))
+        native_rows = ''.join(f'<div class="verticalSection"><h2>{name}</h2><div class="itemsContainer"><div class="card"><div class="cardBox"><div class="cardScalable"><div class="cardPadder cardPadder-portrait"></div><div class="cardContent"><div class="cardImageContainer"></div></div></div><div class="cardText">Native {i}</div></div></div></div></div>' for i,name in enumerate(('Movies','Shows','Episodes','People','Studios')))
         html = f'''<html><head></head><body><main id="searchPage">
           <div class="searchField"><input id="searchTextInput" type="search" value="Alien"></div>
           <div class="searchResults">{native_rows}</div></main></body></html>'''
@@ -56,13 +56,16 @@ with sync_playwright() as p:
         assert input_box and section_box and native_box
         assert section_box['y'] >= input_box['y'] + input_box['height'], (width, input_box, section_box)
         second_native_box = page.locator('.searchResults .verticalSection').nth(1).bounding_box()
-        assert native_box['y'] < section_box['y'] < second_native_box['y'], (width, section_box, native_box, second_native_box)
+        third_native_box = page.locator('.searchResults .verticalSection').nth(2).bounding_box()
+        assert second_native_box and third_native_box
+        assert native_box['y'] < second_native_box['y'] < section_box['y'] < third_native_box['y'], (width, section_box, native_box, second_native_box, third_native_box)
         assert page.locator('.searchResults .verticalSection').count() == 5
         assert page.locator('.threepic-fin-search__card button').count() == 2
         assert page.locator('.threepic-fin-search nav').is_hidden()
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
         no_art = page.locator('.threepic-fin-search__card--no-art').first.bounding_box()
         assert no_art and no_art['height'] < 500 and no_art['width'] <= 290
+        page.locator('.threepic-fin-search__card button').first.scroll_into_view_if_needed()
         assert page.evaluate('''() => { const e=document.querySelector('.threepic-fin-search__card button');
           const r=e.getBoundingClientRect(); return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===e; }''')
         page.evaluate('''() => { window.oldSection = document.querySelector('.threepic-fin-search');

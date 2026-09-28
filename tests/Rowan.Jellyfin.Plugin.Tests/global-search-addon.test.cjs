@@ -17,7 +17,7 @@ class Node {
     setAttribute(k,v) { this.attributes[k]=v; }
     addEventListener(k,f) { (this.handlers[k]??=[]).push(f); }
     removeEventListener(k,f) { this.handlers[k]=(this.handlers[k]||[]).filter(x=>x!==f); }
-    click() { for(const f of this.handlers.click||[]) f(); }
+    click() { const event={target:this}; for(let node=this;node;node=node.parent) for(const f of node.handlers.click||[]) f(event); }
 }
 const tick = () => new Promise(resolve=>setImmediate(resolve));
 const delay = ms => new Promise(resolve=>setTimeout(resolve,ms));
@@ -86,4 +86,16 @@ test('malformed query fails closed rather than retaining old action',async()=>{
     const old=cardButton(f.root.children[1].children[1].children[0].children[0]);
     f.addon.update({query:null}); old.click(); assert.equal(f.actions.length,0);
     assert.deepEqual(f.root.children,[f.native]);
+});
+test('card surface and overlay activate details exactly once without submitting',async()=>{
+    const f=fixture(), details=[];
+    f.mount({detailsAction:item=>details.push(item.TmdbId)});
+    f.pending[0].resolve(result([movie(2)])); await tick();
+    const card=one(f.root,'threepic-fin-search__card');
+    card.click();
+    assert.deepEqual(details,[2]); assert.deepEqual(f.actions,[]);
+    cardButton(card).click();
+    assert.deepEqual(details,[2,2]); assert.deepEqual(f.actions,[]);
+    f.addon.update({query:'new'}); card.click();
+    assert.deepEqual(details,[2,2]);
 });

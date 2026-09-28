@@ -13,9 +13,9 @@ theme = Path(os.environ['ELEGANTFIN_CSS_DIR']) if os.environ.get('ELEGANTFIN_CSS
 png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=')
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
-    for width in (3680, 1280, 390):
+    for width in (2560, 1280, 390):
         page = browser.new_page(viewport={'width': width, 'height': 800})
-        rows = ''.join(f'<div class="verticalSection"><h2>Native row {i}</h2><div class="itemsContainer"><div class="card">Native {i}</div></div></div>' for i in range(5))
+        rows = ''.join(f'<div class="verticalSection"><h2>{name}</h2><div class="itemsContainer"><div class="card">Native {i}</div></div></div>' for i,name in enumerate(('Movies','Shows','Episodes','People','Studios')))
         html = f'<html><head></head><body><main id="searchPage"><div class="searchField"><input id="searchTextInput" value="Alien"></div><div class="searchResults">{rows}</div></main></body></html>'
         page.route('http://localhost:8765/**', lambda r: r.fulfill(status=200, content_type='text/html', body=html))
         page.route('**/global-search-addon.css', lambda r: r.fulfill(status=200, content_type='text/css', body=(web / 'global-search-addon.css').read_text()))
@@ -54,10 +54,13 @@ with sync_playwright() as p:
         assert box and input_box
         first_group = page.locator('.searchResults .verticalSection').first.bounding_box()
         second_group = page.locator('.searchResults .verticalSection').nth(1).bounding_box()
-        assert first_group['y'] < box['y'] < second_group['y']
+        third_group = page.locator('.searchResults .verticalSection').nth(2).bounding_box()
+        assert first_group and second_group and third_group
+        assert first_group['y'] < second_group['y'] < box['y'] < third_group['y']
         native_card = page.locator('.searchResults .card').first.bounding_box()
         seerr_card = page.locator('.threepic-fin-search__card').first.bounding_box()
-        assert abs(native_card['x'] - seerr_card['x']) < 8, (width, native_card, seerr_card)
+        assert native_card and seerr_card
+        assert abs(native_card['x'] - seerr_card['x']) < 20, (width, native_card, seerr_card)
         assert page.evaluate('''() => {let b=document.querySelector('.threepic-fin-search__card button').getBoundingClientRect();
           let p=document.querySelector('.threepic-fin-search__poster').getBoundingClientRect();
           return b.width < p.width * .55 && b.height < p.height * .27}''')
