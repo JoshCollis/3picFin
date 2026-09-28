@@ -130,8 +130,10 @@ public sealed class SeerrClient
             if (info.ValueKind == JsonValueKind.Object && info.TryGetProperty("jellyfinMediaId", out var hinted) && hinted.ValueKind == JsonValueKind.String &&
                 (Guid.TryParseExact(hinted.GetString(), "D", out var parsed) || Guid.TryParseExact(hinted.GetString(), "N", out parsed)) && parsed != Guid.Empty)
                 hint = parsed;
-            var normal = status != 6 && (permissions & (2 | 32 | (type == "movie" ? 262144 : 524288))) != 0;
-            var fourK = status != 6 && (permissions & (2 | 1024 | (type == "movie" ? 2048 : 4096))) != 0;
+            int? status4k = info.ValueKind == JsonValueKind.Object && info.TryGetProperty("status4k", out var state4k) &&
+                state4k.ValueKind == JsonValueKind.Number && state4k.TryGetInt32(out var value4k) && value4k is >= 0 and <= 100 ? value4k : null;
+            var normal = status is not (5 or 6) && (permissions & (2 | 32 | (type == "movie" ? 262144 : 524288))) != 0;
+            var fourK = status != 6 && status4k != 5 && (permissions & (2 | 1024 | (type == "movie" ? 2048 : 4096))) != 0;
             return new(new(title, Text(root, "overview", 500), poster, type, mediaId, status, null, normal, fourK, seasons.ToArray(), date), hint, null);
         }
         catch (OperationCanceledException) when (!callerToken.IsCancellationRequested) { return new(null, null, SeerrFailure.UpstreamUnavailable); }
@@ -191,6 +193,11 @@ public sealed class SeerrClient
             }
             // Seerr v3.4.1 rejects both variants when the standard media status is BLOCKLISTED.
             if (status == 6) normal = fourK = false;
+            else
+            {
+                if (status == 5) normal = false;
+                if (status4k == 5) fourK = false;
+            }
             return new(new(normal, fourK, status, status4k, seasons.ToArray()), null);
         }
         catch (OperationCanceledException) when (!callerToken.IsCancellationRequested) { return new(null, SeerrFailure.UpstreamUnavailable); }
@@ -319,15 +326,25 @@ public sealed class SeerrClient
                 : selection.Is4k ? 1024 | 4096 : 32 | 524288;
             if ((permissions & (admin | needed)) == 0) return new(null, SeerrFailure.PermissionDenied);
 
+            // The detail read must be fresh and mapped to this user. A catalog card or
+            // earlier options read can be stale by the time the user submits.
+            var details = await GetAsync($"api/v1/{selection.MediaType}/{selection.MediaId.ToString(CultureInfo.InvariantCulture)}", mappedId, timeout.Token).ConfigureAwait(false);
+            if (details.CsrfEnabled) return new(null, SeerrFailure.CsrfUnsupported);
+            if (details.Status != HttpStatusCode.OK || details.Body is null) return new(null, SeerrFailure.UpstreamUnavailable);
+            using var detailDocument = JsonDocument.Parse(details.Body);
+            var detailRoot = detailDocument.RootElement;
+            if (detailRoot.ValueKind != JsonValueKind.Object || !detailRoot.TryGetProperty("id", out var detailId) ||
+                !detailId.TryGetInt32(out var actualId) || actualId != selection.MediaId)
+                return new(null, SeerrFailure.UpstreamUnavailable);
+            var info = detailRoot.TryGetProperty("mediaInfo", out var mediaInfo) && mediaInfo.ValueKind == JsonValueKind.Object ? mediaInfo : default;
+            int? MediaStatus(string key) => info.ValueKind == JsonValueKind.Object && info.TryGetProperty(key, out var field) &&
+                field.ValueKind == JsonValueKind.Number && field.TryGetInt32(out var value) && value is >= 0 and <= 100 ? value : null;
+            if (MediaStatus("status") == 6 || MediaStatus(selection.Is4k ? "status4k" : "status") == 5)
+                return new(null, SeerrFailure.AlreadyRequested);
+
             if (selection.MediaType == "tv")
             {
-                var details = await GetAsync($"api/v1/tv/{selection.MediaId.ToString(CultureInfo.InvariantCulture)}", mappedId, timeout.Token).ConfigureAwait(false);
-                if (details.CsrfEnabled) return new(null, SeerrFailure.CsrfUnsupported);
-                if (details.Status != HttpStatusCode.OK || details.Body is null) return new(null, SeerrFailure.UpstreamUnavailable);
-                using var document = JsonDocument.Parse(details.Body);
-                var root = document.RootElement;
-                if (!root.TryGetProperty("id", out var showId) || !showId.TryGetInt32(out var actualId) || actualId != selection.MediaId ||
-                    !root.TryGetProperty("seasons", out var seasons) || seasons.ValueKind != JsonValueKind.Array || seasons.GetArrayLength() > 1000)
+                if (!detailRoot.TryGetProperty("seasons", out var seasons) || seasons.ValueKind != JsonValueKind.Array || seasons.GetArrayLength() > 1000)
                     return new(null, SeerrFailure.UpstreamUnavailable);
                 var available = new System.Collections.Generic.HashSet<int>();
                 foreach (var season in seasons.EnumerateArray())

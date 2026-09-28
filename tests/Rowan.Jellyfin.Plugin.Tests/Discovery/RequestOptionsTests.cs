@@ -40,7 +40,7 @@ public sealed class RequestOptionsTests
     [Fact]
     public async Task OptionsExposeBothVariantStatusesAndSuppressBlocklistedPermission()
     {
-        foreach (var status in new[] { 1, 6 })
+        foreach (var status in new[] { 1, 5, 6 })
         {
             var calls = 0;
             using var http = new HttpClient(new Handler(_ => Json(++calls == 1
@@ -50,8 +50,8 @@ public sealed class RequestOptionsTests
             var value = Assert.IsType<RequestOptions>(result.Value);
             Assert.Equal(status, value.MediaStatus);
             Assert.Equal(5, value.MediaStatus4k);
-            Assert.Equal(status != 6, value.CanRequest);
-            Assert.Equal(status != 6, value.CanRequest4k);
+            Assert.Equal(status is not (5 or 6), value.CanRequest);
+            Assert.False(value.CanRequest4k);
         }
     }
 

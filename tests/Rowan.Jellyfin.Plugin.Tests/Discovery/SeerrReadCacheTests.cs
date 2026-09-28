@@ -127,6 +127,7 @@ public sealed class SeerrReadCacheTests
             var path = request.RequestUri!.PathAndQuery;
             if (path.Contains("/user/jellyfin/", StringComparison.Ordinal)) return Task.FromResult(Json("{\"id\":42,\"permissions\":32}"));
             if (request.Method == HttpMethod.Post) return Task.FromResult(Json("{\"id\":7,\"status\":2}", HttpStatusCode.Created));
+            if (path.Contains("/movie/1", StringComparison.Ordinal)) return Task.FromResult(Json("{\"id\":1}"));
             var count = Interlocked.Increment(ref reads);
             return Task.FromResult(Json("{\"results\":[]}", count == 1 ? HttpStatusCode.BadGateway : HttpStatusCode.OK));
         }));
@@ -396,6 +397,7 @@ public sealed class SeerrReadCacheTests
             var path = request.RequestUri!.PathAndQuery;
             if (path.Contains("/user/jellyfin/", StringComparison.Ordinal)) return Json("{\"id\":42,\"permissions\":32}");
             if (request.Method == HttpMethod.Post) return Json("{\"id\":7,\"status\":2}", HttpStatusCode.Created);
+            if (path.Contains("/movie/1", StringComparison.Ordinal)) return Json("{\"id\":1}");
             if (Interlocked.Increment(ref reads) == 1)
             {
                 started.TrySetResult();

@@ -152,6 +152,33 @@ test('hyphenated backend library GUID offers Open and TV season request independ
     assert.deepEqual(opened, []);
 });
 
+test('fully available movie has a disabled Available action and never opens a request', async () => {
+    const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
+    const app = setup([bundle(source([movie]))], [], {}, [{ MediaType: 'movie', TmdbId: 9, MediaStatus: 5, CanRequest: true, CanRequest4k: false, Seasons: [] }]);
+    await app.flush();
+    app.el('movies').children[0].descendants().find(n => n.textContent === 'Film').dispatch('click'); await app.flush();
+    assert.equal(app.el('details-request').hidden, false);
+    assert.equal(app.el('details-request').disabled, true);
+    assert.equal(app.el('details-request').textContent, 'Available');
+    app.el('details-request').dispatch('click'); await app.flush();
+    assert.notEqual(app.el('request-dialog').open, true);
+    assert.equal(app.calls.filter(c => c[0] === 'ajax').length, 0);
+});
+test('partially available TV offers Request more and still submits selected seasons', async () => {
+    const show = { TmdbId: 7, MediaType: 'tv', Title: 'Series' };
+    const app = setup([bundle(source(), source([show])),
+        { CanRequest: true, CanRequest4k: false, MediaStatus: 4, Seasons: [2] },
+        bundle(source(), source([show]), source([{ Id: 71, Status: 1, Type: 'tv', TmdbId: 7, Is4k: false, Seasons: [2] }]))],
+        [{ Id: 71, Status: 1 }]);
+    await app.flush();
+    app.el('tv').children[0].descendants().find(n => n.textContent === 'Series').dispatch('click'); await app.flush();
+    assert.equal(app.el('details-request').textContent, 'Request more');
+    app.el('details-request').dispatch('click'); await app.flush();
+    app.el('request-seasons').descendants().find(n => n.tagName === 'INPUT').checked = true;
+    app.el('request-form').dispatch('submit'); await app.flush();
+    assert.deepEqual(JSON.parse(app.calls.find(c => c[0] === 'ajax')[1].data).seasons, [2]);
+});
+
 test('details without host callback never fall back to unverified navigation', async () => {
     const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
     const app = setup([bundle(source([movie])), { MediaType: 'movie', TmdbId: 9,
@@ -399,7 +426,11 @@ test('variant availability message uses selected standard or 4K status with came
     await app.flush(); await requestFromCard(app, 'movies'); await app.flush();
     assert.doesNotMatch(app.text('request-status'), /available; check/i);
     app.el('request-4k').checked = true; app.el('request-4k').dispatch('change');
-    assert.match(app.text('request-status'), /available; check/i);
+    assert.match(app.text('request-status'), /reported available/i);
+    assert.equal(app.el('request-submit').disabled, true);
+    app.el('request-form').dispatch('submit');
+    assert.equal(app.calls.filter(c => c[0] === 'ajax').length, 0);
+    app.el('request-4k').checked = false; app.el('request-4k').dispatch('change');
     assert.equal(app.el('request-submit').disabled, false);
 });
 

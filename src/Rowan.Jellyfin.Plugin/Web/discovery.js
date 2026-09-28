@@ -191,7 +191,7 @@
             el('details-title').textContent = field(item, 'Title') || label(mediaType);
             el('details-meta').textContent = ''; el('details-overview').textContent = '';
             el('details-status').textContent = 'Loading details…';
-            el('details-open').hidden = true; el('details-request').hidden = true;
+            el('details-open').hidden = true; el('details-request').hidden = true; el('details-request').disabled = true;
             if (!detailsDialog.open) detailsDialog.showModal();
             try {
                 const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/TitleDetails', { mediaType, mediaId }), { signal: detailsAbort.signal });
@@ -233,9 +233,16 @@
                         if (ticket === detailsGeneration) { detailsBusy = false; el('details-open').disabled = false; }
                     }
                 } : null;
-                el('details-request').hidden = state === 6 || !(field(result, 'CanRequest') === true || field(result, 'CanRequest4k') === true) ||
-                    mediaType === 'tv' && (!Array.isArray(seasons) || !seasons.some(n => Number.isInteger(n) && n > 0 && n <= 1000));
-                if (!el('details-request').hidden && mediaType === 'tv') el('details-request').textContent = 'Request seasons';
+                const canNormal = field(result, 'CanRequest') === true && state !== 5 && !(mediaType === 'movie' && available);
+                const can4k = field(result, 'CanRequest4k') === true;
+                const hasSeasons = mediaType !== 'tv' || Array.isArray(seasons) && seasons.some(n => Number.isInteger(n) && n > 0 && n <= 1000);
+                const requestable = state !== 6 && hasSeasons && (canNormal || can4k);
+                const action = el('details-request');
+                action.hidden = state === 6 || !hasSeasons && state !== 5;
+                action.disabled = !requestable;
+                action.textContent = !requestable && state === 5 || !requestable && mediaType === 'movie' && available ? 'Available' :
+                    !requestable ? 'Request unavailable' : mediaType === 'tv' && state === 4 ? 'Request more' :
+                    mediaType === 'tv' ? 'Request seasons' : canNormal ? 'Request' : 'Request 4K';
             } catch (_) {
                 if (disposed || generation !== detailsGeneration || !detailsDialog.open || host.isCurrent && !host.isCurrent()) return;
                 el('details-status').textContent = 'Details unavailable right now.';
@@ -245,7 +252,11 @@
         const status = value => { el('request-status').textContent = value; };
         function updateRequestStatus() {
             const mediaStatus = field(options, el('request-4k').checked ? 'MediaStatus4k' : 'MediaStatus');
-            status(`Select ${selection.mediaType === 'tv' ? 'seasons and ' : 'and '}confirm request.${mediaStatus === 5 ? ' This version may be available; check your library first.' : ''}`);
+            const unavailable = field(options, 'MediaStatus') === 6 || mediaStatus === 5 ||
+                !(el('request-4k').checked ? field(options, 'CanRequest4k') : field(options, 'CanRequest'));
+            el('request-submit').disabled = unavailable;
+            status(unavailable ? mediaStatus === 5 ? 'This version is reported available. No request can be submitted.' : 'This request option is unavailable.' :
+                `Select ${selection.mediaType === 'tv' ? 'seasons and ' : 'and '}confirm request.`);
         }
         // Declined/completed requests do not reserve seasons in Seerr v3.4.1; movies may be resubmitted.
         const matching = (item, chosen) => ![3, 5].includes(field(item, 'Status')) && field(item, 'TmdbId') === chosen.mediaId &&
@@ -304,7 +315,6 @@
                     status('Request unavailable for this title or account.'); return;
                 }
                 updateRequestStatus();
-                el('request-submit').disabled = false;
             } catch (_) {
                 if (disposed || generation !== requestGeneration || !dialog.open || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
                 status('Request details unavailable. No request was sent.');
@@ -315,7 +325,9 @@
             event.preventDefault();
             if (disposed || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId || !dialog.open || !selection || !options || submitting || locked || el('request-submit').disabled) return;
             const is4k = !el('request-4k-wrap').hidden && el('request-4k').checked;
-            if (field(options, 'MediaStatus') === 6) { status('This title is blocklisted. No request can be submitted.'); el('request-submit').disabled = true; return; }
+            if (field(options, 'MediaStatus') === 6 || field(options, is4k ? 'MediaStatus4k' : 'MediaStatus') === 5) {
+                status('This version is unavailable for requests.'); el('request-submit').disabled = true; return;
+            }
             if (!(is4k ? field(options, 'CanRequest4k') : field(options, 'CanRequest'))) {
                 status('This request option is not permitted.'); return;
             }
@@ -555,8 +567,8 @@
         on(el('details-close'), 'click', () => closeDetails());
         on(detailsDialog, 'cancel', () => { invalidateDetails(); detailsTrigger?.focus(); detailsTrigger = null; });
         on(detailsDialog, 'close', () => { invalidateDetails(); detailsTrigger?.focus(); detailsTrigger = null; });
-        on(el('details-request'), 'click', () => { if (!detailsItem || detailsBusy || el('details-request').hidden) return; const item = detailsItem, button = detailsTrigger; closeDetails(false); openRequest(item, button); });
-        on(el('request-4k'), 'change', () => { if (options && selection && !submitting && !locked && !el('request-submit').disabled) updateRequestStatus(); });
+        on(el('details-request'), 'click', () => { if (!detailsItem || detailsBusy || el('details-request').hidden || el('details-request').disabled) return; const item = detailsItem, button = detailsTrigger; closeDetails(false); openRequest(item, button); });
+        on(el('request-4k'), 'change', () => { if (options && selection && !submitting && !locked) updateRequestStatus(); });
         on(el('request-cancel'), 'click', closeRequest);
         on(el('shared-requests-load'), 'click', () => sharedRequests(1));
         on(el('shared-requests-prev'), 'click', () => { if (sharedPage > 1) sharedRequests(sharedPage - 1); });

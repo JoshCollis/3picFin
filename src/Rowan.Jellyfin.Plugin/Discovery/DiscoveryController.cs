@@ -104,17 +104,20 @@ public sealed class DiscoveryController : ControllerBase
     private readonly SeerrClient _client;
     private readonly Func<Guid, bool> _userExists;
     private readonly Func<bool> _sharedEnabled;
+    private readonly Func<Guid, int, bool> _movieAvailable;
 
     [ActivatorUtilitiesConstructor]
-    public DiscoveryController(SeerrClient client, IUserManager users) : this(client, id => users.GetUserById(id) is not null,
-        () => Plugin.Current?.Configuration.SharedRequestsEnabled == true) { }
+    public DiscoveryController(SeerrClient client, IUserManager users, ILibraryManager libraries) : this(client, id => users.GetUserById(id) is not null,
+        () => Plugin.Current?.Configuration.SharedRequestsEnabled == true,
+        (id, tmdb) => TitleDetailsController.ResolveLibrary(users, libraries, id, "movie", tmdb, null).HasValue) { }
 
     /// <summary>Allows isolated controller tests without a live Jellyfin database.</summary>
-    public DiscoveryController(SeerrClient client, Func<Guid, bool> userExists, Func<bool>? sharedEnabled = null)
+    public DiscoveryController(SeerrClient client, Func<Guid, bool> userExists, Func<bool>? sharedEnabled = null, Func<Guid, int, bool>? movieAvailable = null)
     {
         _client = client;
         _userExists = userExists;
         _sharedEnabled = sharedEnabled ?? (() => false);
+        _movieAvailable = movieAvailable ?? ((_, _) => false);
     }
 
     [HttpGet("SharedRequests")]
@@ -156,6 +159,10 @@ public sealed class DiscoveryController : ControllerBase
     {
         if (!TryUser(out var id)) return Forbid();
         if (!TrySelection(body, out var selection)) return BadRequest("Invalid request selection.");
+        // A uniquely resolved movie in this user's visible library is already available
+        // even when Seerr has not synchronized its media status. Series ID proves no seasons.
+        if (selection!.MediaType == "movie" && !selection.Is4k && _movieAvailable(id, selection.MediaId))
+            return StatusCode(StatusCodes.Status409Conflict);
         var result = await _client.CreateRequestAsync(id, selection!, cancellationToken).ConfigureAwait(false);
         return result.Failure switch
         {
