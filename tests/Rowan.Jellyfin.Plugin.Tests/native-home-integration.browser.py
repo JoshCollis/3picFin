@@ -8,7 +8,8 @@ with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     for width in (320, 1280):
         page = browser.new_page(viewport={'width': width, 'height': 520})
-        page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div class="skinHeader"><div class="headerTabs"><div is="emby-tabs"><div class="emby-tabs-slider"><button class="emby-tab-button emby-tab-button-active" data-index="0">Home</button><button class="emby-tab-button" data-index="1">Favorites</button></div></div></div></div><div id="indexPage"><div id="homeTab" data-index="0"><div class="sections"><h2>Jellyfin core Home</h2><div class="card">Core card</div></div></div><div id="favoritesTab" data-index="1">Favorites native</div></div></body></html>')
+        page.route('**/jellyfin/Items/**/Images/**', lambda route: route.fulfill(content_type='image/svg+xml', body='<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270"><rect width="480" height="270" fill="#58729a"/></svg>'))
+        page.set_content('<html><head><base href="https://fixture.invalid/"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div class="skinHeader"><div class="headerTabs"><div is="emby-tabs"><div class="emby-tabs-slider"><button class="emby-tab-button emby-tab-button-active" data-index="0">Home</button><button class="emby-tab-button" data-index="1">Favorites</button></div></div></div></div><div id="indexPage"><div id="homeTab" data-index="0"><div class="sections"><h2>Jellyfin core Home</h2><div class="card">Core card</div></div></div><div id="favoritesTab" data-index="1">Favorites native</div></div></body></html>')
         page.add_style_tag(path=str(web / 'native-home-rows.css'))
         page.add_style_tag(path=str(web / 'home-tab-host.css'))
         page.add_script_tag(path=str(web / 'native-home-rows.js'))

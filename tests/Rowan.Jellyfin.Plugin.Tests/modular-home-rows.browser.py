@@ -9,7 +9,8 @@ with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True)
     for width in (320, 1280):
         page = browser.new_page(viewport={'width': width, 'height': 800})
-        page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0"><main id="home"></main></body></html>')
+        page.route('**/jellyfin/Items/**/Images/**', lambda route: route.fulfill(content_type='image/svg+xml', body='<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270"><rect width="480" height="270" fill="#58729a"/></svg>'))
+        page.set_content('<html><head><base href="https://fixture.invalid/"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#101622;color:white"><main id="home"></main></body></html>')
         page.add_style_tag(path=str(web / 'native-home-rows.css'))
         page.add_script_tag(path=str(web / 'native-home-rows.js'))
         page.evaluate('''ids => {
@@ -56,6 +57,25 @@ with sync_playwright() as playwright:
         image_box = portrait.locator('img').bounding_box()
         assert portrait_box and image_box and first_card['width'] > portrait_box['width']
         assert image_box['height'] > image_box['width']
+        controls = seeds.nth(0).locator('.rowan-native-row__arrow')
+        assert controls.count() == 2
+        assert controls.nth(0).get_attribute('aria-label').startswith('Previous')
+        heading_box = seeds.nth(0).locator('h3').bounding_box()
+        control_box = controls.nth(0).bounding_box()
+        assert heading_box
+        if width == 320:
+            assert control_box and abs(control_box['y'] - heading_box['y']) < 12, (heading_box, control_box)
+        assert page.locator('.rowan-native-row__seed').nth(1).locator('.rowan-native-row__controls').is_hidden()
+        assert page.locator('.rowan-native-row__items').first.evaluate('(el) => el.tabIndex') == 0
+        if width == 320:
+            assert first_card['width'] > 200 and first_card['width'] < 300, first_card
+            assert page.locator('.rowan-native-row__items').first.evaluate('(el) => el.scrollWidth > el.clientWidth')
+            controls.nth(1).click()
+            page.wait_for_function('document.querySelector(".rowan-native-row__items").scrollLeft > 0')
+            page.locator('.rowan-native-row__items').first.focus()
+            page.keyboard.press('ArrowLeft')
+            page.wait_for_function('document.querySelector(".rowan-native-row__items").scrollLeft === 0')
+        page.screenshot(path=f'/home/josh/.hermes/cache/scratch/native-home-rows-{width}.png', full_page=True)
         cards.nth(0).click()
         assert page.evaluate('opened') == [id_a]
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
