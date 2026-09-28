@@ -211,7 +211,7 @@
                 const libraryId = field(result, 'LibraryItemId');
                 const available = typeof libraryId === 'string' && /^(?:[a-fA-F0-9]{32}|[a-fA-F0-9]{8}(?:-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12})$/.test(libraryId);
                 const state = field(result, 'MediaStatus');
-                el('details-status').textContent = available ? typeof host.openItem === 'function' ? 'Available in your library' : 'Available in your library · opening unavailable here' : ({ 2: 'Pending', 3: 'Requested', 4: 'Partially available', 5: 'Reported available · not in your library', 6: 'Blocklisted' })[state] || 'Not requested';
+                el('details-status').textContent = available ? typeof host.openItem === 'function' ? 'Available in your library' : 'Available in your library · opening unavailable here' : ({ 2: 'Seerr title status: pending (personal ownership not established)', 3: 'Seerr title status: requested/tracked (personal ownership not established)', 4: 'Seerr title status: partially available', 5: 'Reported available · not in your library', 6: 'Blocklisted' })[state] || 'Seerr title status: not requested';
                 const seasons = field(result, 'Seasons');
                 if (mediaType === 'tv' && Array.isArray(seasons) && seasons.length <= 100) {
                     for (const n of seasons) if (Number.isInteger(n) && n > 0 && n <= 1000) text(el('details-seasons'), 'span', `Season ${n}`, 'threepic-fin-discovery__season');
@@ -350,18 +350,35 @@
                 const items = !field(personal, 'Error') && Array.isArray(field(personal, 'Items')) ? field(personal, 'Items') : [];
                 // Seerr may remove already-requested/available TV seasons; the created ID is authoritative.
                 const createdId = field(created, 'Id');
-                const verified = Number.isInteger(createdId) && createdId > 0 && items.find(item => field(item, 'Id') === createdId);
-                const found = existing(personal, chosen);
+                // ID alone is insufficient: require the same title and variant in this user's list.
+                const verified = Number.isInteger(createdId) && createdId > 0 && items.find(item =>
+                    field(item, 'Id') === createdId && field(item, 'TmdbId') === chosen.mediaId &&
+                    (field(item, 'MediaType') || field(item, 'Type')) === chosen.mediaType && field(item, 'Is4k') === chosen.is4k);
+                let found = existing(personal, chosen);
+                if (!found && failure?.status === 409 && !field(personal, 'Error')) {
+                    // Recent requests are page one, not the entire personal history. Never
+                    // turn absence on that page into an assertion about ownership.
+                    const total = field(personal, 'TotalPages');
+                    for (let page = 2; page <= Math.min(Number.isInteger(total) ? total : 1, 100) && !found; page++) {
+                        const older = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Discovery', { moviePage: 1, tvPage: 1, requestsPage: page }));
+                        if (disposed || generation !== requestGeneration || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
+                        const requests = field(older, 'Requests');
+                        if (field(requests, 'Error') || !Array.isArray(field(requests, 'Items'))) break;
+                        found = existing(requests, chosen);
+                    }
+                }
                 if (verified) {
                     status(`Request ${requestStatus(field(verified, 'Status'))}. Check My Requests for updates.`);
                     requestCards(el('requests'), personal, 'Requests');
                 } else if (found && !created) {
                     status('A matching request appears in My Requests, but this submission could not be verified. Do not retry without checking it.');
                     requestCards(el('requests'), personal, 'Requests');
-                } else if (failure?.status === 409) status('Already requested. Check My Requests; the matching request was not verified here.');
+                } else if (failure?.status === 409) status('Seerr reports this title or selection is already tracked or unavailable. No request by you was verified; check Seerr before retrying.');
                 else status('Outcome unknown: could not verify the request. Check My Requests before trying again.');
             } catch (_) {
-                if (!disposed && generation === requestGeneration) status('Outcome unknown: could not verify the request. Check My Requests before trying again.');
+                if (!disposed && generation === requestGeneration) status(failure?.status === 409 ?
+                    'Seerr reports this title or selection is already tracked or unavailable. Personal ownership could not be checked; no new request was verified.' :
+                    'Outcome unknown: could not verify the request. Check My Requests before trying again.');
             } finally { submitting = false; }
         }
         const on = (element, event, handler) => { element.addEventListener(event, handler); controls.push(() => element.removeEventListener(event, handler)); };
