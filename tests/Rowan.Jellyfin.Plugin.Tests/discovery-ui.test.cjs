@@ -240,7 +240,7 @@ test('source-shaped Seerr request resolves metadata through authenticated detail
     assert.doesNotMatch(app.text('requests'), /TMDb #20/);
     assert.equal(app.el('requests').descendants().find(n => n.tagName === 'IMG')?.src, 'https://image.tmdb.org/t/p/w342/actual.jpg');
     app.el('requests').descendants().find(n => n.tagName === 'IMG').dispatch('error');
-    assert.match(app.text('requests'), /Poster unavailable/);
+    assert.match(app.text('requests'), /Artwork unavailable/);
     assert.match(app.text('requests'), /Approved/);
     assert.equal(app.calls.filter(c => c[0] === 'url')[1][1], '3picFin/TitleDetails');
 });
