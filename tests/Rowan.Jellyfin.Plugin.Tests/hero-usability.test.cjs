@@ -16,6 +16,7 @@ class Element {
     contains(target) { return target === this || this.children.some(child => child.contains(target)); }
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
+const within = (node, className) => node.className === className ? node : node.children.map(child => within(child, className)).find(Boolean);
 function setup(names = ['One', 'Two', 'Three'], openItem) {
     let now = 0, hidden = false, token = 'token', pulse;
     const listeners = {};
@@ -31,12 +32,12 @@ function setup(names = ['One', 'Two', 'Three'], openItem) {
 }
 test('pagination retains focused button identity on click and keyboard navigation', async () => {
     const app = setup(); await tick();
-    const panel = app.root.children[0], dots = panel.children.find(child => child.className === 'rowan-hero-pagination').children;
+    const panel = app.root.children[0], dots = within(panel, 'rowan-hero-pagination').children;
     dots[1].dispatch('click');
-    assert.equal(dots[1], panel.children.find(child => child.className === 'rowan-hero-pagination').children[1]);
+    assert.equal(dots[1], within(panel, 'rowan-hero-pagination').children[1]);
     assert.equal(dots[1].attrs['aria-current'], 'true');
     panel.dispatch('keydown', { key: 'ArrowRight', target: dots[1] });
-    assert.equal(dots[1], panel.children.find(child => child.className === 'rowan-hero-pagination').children[1]);
+    assert.equal(dots[1], within(panel, 'rowan-hero-pagination').children[1]);
     assert.equal(dots[2].attrs['aria-current'], 'true');
     app.cleanup();
 });
@@ -50,14 +51,14 @@ test('selecting the active dot does not refetch its image', async () => {
         fetch: async () => { fetched++; return { ok: false }; }
     });
     await tick();
-    root.children[0].children.find(child => child.className === 'rowan-hero-pagination').children[0].dispatch('click');
+    within(root.children[0], 'rowan-hero-pagination').children[0].dispatch('click');
     assert.equal(fetched, 1);
     cleanup();
 });
 test('wall time accrues only while visible, unfocused and unhovered', async () => {
     const app = setup(); await tick(); const panel = app.root.children[0];
     app.advance(6000);
-    assert.equal(panel.children.find(child => child.className === 'rowan-hero-progress').style.values['--rowan-progress'], '50%');
+    assert.equal(within(panel, 'rowan-hero-progress').style.values['--rowan-progress'], '50%');
     panel.dispatch('mouseenter'); app.advance(14000);
     panel.dispatch('focusin'); panel.dispatch('mouseleave'); app.advance(6000);
     assert.equal(panel.children[1].textContent, 'One');

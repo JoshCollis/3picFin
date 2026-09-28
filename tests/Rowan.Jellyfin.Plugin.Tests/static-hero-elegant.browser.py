@@ -51,9 +51,10 @@ with sync_playwright() as p:
         page.wait_for_function('window.deliver !== null')
         def metrics():
             return page.evaluate('''() => {
-                const rect = selector => {const r = document.querySelector(selector).getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};};
+                const rect = selector => {const node = document.querySelector(selector); if (!node) return null; const r = node.getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
                 return {hero:rect('.rowan-static-hero'), row:rect('.sections'), title:rect('.rowan-static-hero h2'),
-                    description:rect('.rowan-static-hero p'), counter:rect('.rowan-static-hero > span:not(.rowan-hero-progress)'),
+                    description:rect('.rowan-static-hero p'), controls:rect('.rowan-hero-controls'),
+                    counter:rect('.rowan-hero-counter'), previous:rect('.rowan-hero-previous'), next:rect('.rowan-hero-next'),
                     dots:rect('.rowan-hero-pagination'), progress:rect('.rowan-hero-progress'), open:rect('.rowan-hero-open'),
                     overflow:document.documentElement.scrollWidth - innerWidth,
                     titleLineHeight:parseFloat(getComputedStyle(document.querySelector('.rowan-static-hero h2')).lineHeight)};
@@ -72,6 +73,26 @@ with sync_playwright() as p:
         assert result['row']['y'] == reserved['row']['y'], (width, reserved['row'], result['row'])
         assert result['hero']['height'] == reserved['hero']['height'], (width, reserved['hero'], result['hero'])
         assert result['overflow'] <= 0, (width, result)
+        if width >= 2000:
+            assert result['titleLineHeight'] <= 90, result
+        assert result['previous']['width'] >= 44 and result['next']['width'] >= 44, result
+        assert result['previous']['height'] >= 44 and result['next']['height'] >= 44, result
+        assert result['progress']['bottom'] < result['row']['y'], result
+        assert result['progress']['bottom'] <= result['previous']['y'] or result['progress']['y'] >= result['previous']['bottom'], result
+        assert result['progress']['bottom'] <= result['next']['y'] or result['progress']['y'] >= result['next']['bottom'], result
+        if width > 600:
+            assert result['counter']['y'] >= result['controls']['y'], result
+            assert result['counter']['bottom'] <= result['dots']['y'], result
+            assert abs(result['dots']['x'] - result['progress']['x']) <= 1, result
+            assert abs(result['dots']['right'] - result['progress']['right']) <= 1, result
+            assert result['previous']['bottom'] <= result['dots']['y'], result
+            assert result['next']['right'] <= result['controls']['right'], result
+        else:
+            assert result['controls']['x'] >= 0 and result['controls']['right'] <= width, result
+            assert result['counter']['bottom'] <= result['dots']['y'], result
+            assert result['dots']['bottom'] <= result['progress']['y'], result
+            assert result['progress']['bottom'] <= result['open']['y'], result
+            assert result['previous']['right'] < result['next']['x'], result
         if width > 600:
             assert abs(result['title']['x'] - result['open']['x']) <= 1, result
             assert result['open']['y'] > result['description']['bottom'], result
@@ -93,7 +114,15 @@ with sync_playwright() as p:
         assert page.get_by_role('button', name='Slide 2: Feature 2').evaluate('(el) => document.activeElement === el')
         page.get_by_role('button', name='Next').click()
         assert page.get_by_role('heading', name='Feature 3').count() == 1
-        print(f'{width}px: {result}; screenshot={screenshot}')
+        page.locator('.rowan-static-hero h2').evaluate("el => el.textContent = 'The Extraordinary Adventures of Blue Mountain State and the Endless Semester'")
+        long_title = metrics()
+        assert long_title['title']['bottom'] <= long_title['description']['y'], (width, long_title)
+        assert long_title['title']['y'] >= long_title['hero']['y'], (width, long_title)
+        assert long_title['title']['right'] <= long_title['hero']['right'], (width, long_title)
+        assert long_title['controls']['bottom'] < long_title['row']['y'], (width, long_title)
+        page.screenshot(path=str(output / f'featured-elegant-long-title-{width}.png'))
+        print(f'{width}px: title={result["title"]}; controls={result["controls"]}; hero={result["hero"]}; row={result["row"]}; screenshot={screenshot}')
+        print(f'{width}px long title: {long_title["title"]}')
         page.evaluate('disposeHero()')
         page.evaluate('''() => {
             window.disposeHero = RowanStaticHero.mount(document.querySelector('#hero'), {
@@ -103,7 +132,7 @@ with sync_playwright() as p:
             }, {slides:[{id:'11111111-1111-1111-1111-111111111111',name:'Only feature',imageType:'Backdrop',imageIndex:0,imageTag:'a1'}]});
         }''')
         page.get_by_role('heading', name='Only feature').wait_for()
-        assert page.evaluate('''() => ['.rowan-hero-previous','.rowan-hero-next','.rowan-hero-pagination','.rowan-hero-progress'].every(s => getComputedStyle(document.querySelector(s)).display === 'none')''')
+        assert page.evaluate('''() => ['.rowan-hero-controls','.rowan-hero-previous','.rowan-hero-next','.rowan-hero-pagination','.rowan-hero-progress'].every(s => document.querySelector(s).getClientRects().length === 0)''')
         page.evaluate('disposeHero()')
         page.close()
     browser.close()

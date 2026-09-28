@@ -15,6 +15,7 @@ class Element {
     dispatch(event, props = {}) { this.handlers[event]?.({ preventDefault() {}, ...props }); }
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
+const within = (node, className) => node.className === className ? node : node.children.map(child => within(child, className)).find(Boolean);
 test('host-prefetched slides do not cause a second hero query and use host navigation', async () => {
     const root = new Element('div'), calls = [];
     const context = { document: { createElement: tag => new Element(tag) }, setInterval: () => 1, clearInterval() {} };
@@ -26,7 +27,7 @@ test('host-prefetched slides do not cause a second hero query and use host navig
         openItem: value => calls.push(value) });
     await tick();
     assert.equal(root.children[0].children[1].textContent, 'Featured');
-    root.children[0].children[8].dispatch('click');
+    root.children[0].children[4].dispatch('click');
     assert.deepEqual(calls, [id]);
     cleanup();
 });
@@ -41,8 +42,8 @@ test('one featured title leaves no inactive carousel controls', async () => {
     const cleanup = context.RowanStaticHero.mount(root, api);
     await tick();
     const panel = root.children[0];
-    for (const index of [3, 4, 5, 6, 7]) assert.equal(panel.children[index].hidden, true);
-    assert.equal(panel.children[8].textContent, 'Open');
+    assert.equal(within(panel, 'rowan-hero-controls').hidden, true);
+    assert.equal(panel.children[4].textContent, 'Open');
     cleanup();
 });
 
@@ -79,7 +80,7 @@ test('late image responses do not replace a newer slide or leak blobs', async ()
         fetch: () => new Promise(resolve => pending.push(resolve)) };
     const cleanup = context.RowanStaticHero.mount(root, api);
     await tick();
-    root.children[0].children[4].dispatch('click');
+    within(root.children[0], 'rowan-hero-next').dispatch('click');
     const response = label => ({ ok: true, headers: { get: () => 'image/jpeg' }, blob: async () => label });
     pending[1](response('new')); await tick();
     assert.equal(root.children[0].children[0].src, 'blob:1');
@@ -212,7 +213,7 @@ test('pagination caps untrusted data at ten and autoplay pauses for hover and re
         getCurrentUserId: () => 'user', accessToken: () => 'token', fetch: async () => ({ok: false}) };
     const cleanup = context.RowanStaticHero.mount(root, api); await tick();
     const panel = root.children[0];
-    assert.equal(panel.children[6].children.length, 10);
+    assert.equal(within(panel, 'rowan-hero-pagination').children.length, 10);
     panel.dispatch('mouseenter'); now += 12000; timer();
     assert.equal(panel.children[1].textContent, '0');
     panel.dispatch('mouseleave'); now += 12000; timer();
@@ -233,7 +234,7 @@ test('only current slide image is fetched and reduced motion disables autoplay',
     for (let n = 0; n < 120; n++) timer();
     assert.equal(root.children[0].children[1].textContent, 'One');
     assert.equal(fetched, 1);
-    root.children[0].children[6].children[1].dispatch('click'); await tick();
+    within(root.children[0], 'rowan-hero-pagination').children[1].dispatch('click'); await tick();
     assert.equal(fetched, 2);
     cleanup();
 });

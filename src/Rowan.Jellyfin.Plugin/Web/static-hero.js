@@ -15,7 +15,12 @@ var RowanStaticHero = (() => {
         const description = document.createElement('p');
         const previous = document.createElement('button');
         const next = document.createElement('button');
+        const controls = document.createElement('div');
+        controls.className = 'rowan-hero-controls';
+        const controlsHead = document.createElement('div');
+        controlsHead.className = 'rowan-hero-controls-head';
         const counter = document.createElement('span');
+        counter.className = 'rowan-hero-counter';
         const pagination = document.createElement('nav');
         pagination.className = 'rowan-hero-pagination';
         pagination.setAttribute('aria-label', 'Featured slides');
@@ -28,7 +33,9 @@ var RowanStaticHero = (() => {
         previous.className = 'rowan-hero-previous'; next.className = 'rowan-hero-next';
         previous.textContent = 'Previous'; next.textContent = 'Next';
         counter.setAttribute('aria-live', 'polite');
-        panel.append(image, title, description, previous, next, counter, pagination, progress, open);
+        controlsHead.append(counter, previous, next);
+        controls.append(controlsHead, pagination, progress);
+        panel.append(image, title, description, controls, open);
         root.append(panel);
         function render() {
             if (!sameSession()) { cleanup(); return; }
@@ -60,7 +67,7 @@ var RowanStaticHero = (() => {
                     - (pagination.clientWidth - activeDot.clientWidth) / 2);
             }
             previous.disabled = next.disabled = slides.length < 2;
-            for (const control of [previous, next, counter, pagination, progress]) control.hidden = slides.length < 2;
+            controls.hidden = slides.length < 2;
         }
         function clearImage() {
             imageRequest?.abort();
