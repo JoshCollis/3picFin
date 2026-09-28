@@ -80,17 +80,15 @@
                             card.insertBefore(image, title);
                         }
                         const action = document.createElement('button'); action.type = 'button';
-                        action.textContent = `Request ${type === 'tv' ? 'TV' : 'Movie'}`;
-                        const handler = () => { if (valid() && generation === state.generation) requestAction(item, action); };
+                        const hasDetails = typeof state.detailsAction === 'function';
+                        action.textContent = hasDetails ? 'Details' : `Request ${type === 'tv' ? 'TV' : 'Movie'}`;
+                        const handler = () => {
+                            if (valid() && generation === state.generation)
+                                (hasDetails ? state.detailsAction : requestAction)(item, action);
+                        };
                         action.addEventListener('click', handler);
                         state.resultListeners.push([action, 'click', handler]);
                         card.appendChild(action);
-                        if (typeof state.detailsAction === 'function') {
-                            const details = document.createElement('button'); details.type = 'button'; details.textContent = 'Details';
-                            const inspect = () => { if (valid() && generation === state.generation) state.detailsAction(item, details); };
-                            details.addEventListener('click', inspect);
-                            state.resultListeners.push([details, 'click', inspect]); card.appendChild(details);
-                        }
                         cards.appendChild(card);
                     }
                     body.replaceChildren();

@@ -5,7 +5,7 @@ from playwright.sync_api import sync_playwright
 web = Path(__file__).resolve().parents[2] / 'src/Rowan.Jellyfin.Plugin/Web'
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
-    for width in (360, 1280):
+    for width in (390, 1280):
         page = browser.new_page(viewport={'width': width, 'height': 800})
         page.route('http://localhost:8765/**', lambda route: route.fulfill(status=200, content_type='text/html', body='''<html><head></head><body><main id="searchPage">
             <input id="searchTextInput" type="search" value="Alien"><div class="searchResults"><div class="verticalSection">
@@ -24,7 +24,7 @@ with sync_playwright() as p:
               if(url.includes('3picFin/Search')) return {Items:[{TmdbId:9,MediaType:'movie',Title:'Seerr title',PosterPath:'/poster.jpg'}],TotalPages:1};
               if(url.includes('RequestOptions')) return {CanRequest:true,CanRequest4k:false,MediaStatus:1,Seasons:[]};
               if(url.includes('3picFin/Discovery')) return {Requests:{Items:[{Id:17,TmdbId:9,MediaType:'movie',Status:1,Is4k:false,Seasons:[]}]}};
-              if(url.includes('TitleDetails')) return {TmdbId:9,MediaType:'movie',Title:'Seerr title',PosterPath:'/poster.jpg',CanRequest:false};
+              if(url.includes('TitleDetails')) return {TmdbId:9,MediaType:'movie',Title:'Seerr title',PosterPath:'/poster.jpg',CanRequest:true};
               throw Error(url);}, ajax:()=>{posts++; return Promise.resolve({Id:17});} };
         }""")
         page.add_style_tag(content=(web / 'global-search-addon.css').read_text())
@@ -45,13 +45,16 @@ with sync_playwright() as p:
         page.evaluate("""() => { document.querySelector('#searchTextInput').value='Alien';
             document.querySelector('#searchTextInput').dispatchEvent(new Event('input',{bubbles:true})); }""")
         page.wait_for_selector('.threepic-fin-search h3')
-        page.locator('.threepic-fin-search button', has_text='Details').click()
+        assert page.locator('.threepic-fin-search article button').count() == 1
+        assert page.locator('.threepic-fin-search article button').inner_text() == 'Details'
+        art_box = page.locator('.threepic-fin-search article').bounding_box()
+        assert art_box and art_box['width'] <= 175 and art_box['height'] <= 320
+        page.locator('.threepic-fin-search article button').click()
         page.wait_for_selector('#threepic-fin-details-dialog[open]')
         assert page.locator('#threepic-fin-details-title').inner_text() == 'Seerr title'
         assert page.locator('#threepic-fin-details-body img').get_attribute('src').endswith('/poster.jpg')
         assert page.evaluate('posts') == 0
-        page.locator('#threepic-fin-details-close').click()
-        page.locator('.threepic-fin-search button', has_text='Request Movie').click()
+        page.locator('#threepic-fin-details-request').click()
         page.wait_for_selector('#threepic-fin-request-dialog[open]')
         assert page.evaluate('posts') == 0
         page.evaluate("""() => { history.pushState({}, '', '/home');
