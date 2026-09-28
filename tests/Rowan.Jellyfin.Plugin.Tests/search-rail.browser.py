@@ -21,7 +21,7 @@ with sync_playwright() as p:
         page.route('**/global-search-addon.css', lambda r: r.fulfill(status=200, content_type='text/css', body=(web / 'global-search-addon.css').read_text()))
         page.route('https://image.tmdb.org/**', lambda r: r.fulfill(status=200, content_type='image/png', body=png))
         page.goto('http://localhost:8765/web/index.html#/search?query=Alien')
-        page.add_style_tag(content='#searchPage {padding: 1rem} .searchField {margin-bottom:1rem} .searchResults .card {width:11rem;height:16rem;background:#456} .cardPadder-overflowPortrait {padding-top:150%}')
+        page.add_style_tag(content='#searchPage {padding: 1rem} .searchField {margin-bottom:1rem} .searchResults .card {width:11rem;height:16rem;background:#456} .cardPadder-overflowPortrait {padding-top:150%} .threepic-fin-search__card {width:11rem}')
         if theme:
             for i in (0, 1):
                 page.add_style_tag(content=(theme / f'elegant-source-{i}.css').read_text())
@@ -51,10 +51,16 @@ with sync_playwright() as p:
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
         box = page.locator('.threepic-fin-search').bounding_box()
         input_box = page.locator('#searchTextInput').bounding_box()
-        native_box = page.locator('.searchResults').bounding_box()
-        assert box and input_box and native_box
-        assert input_box['y']+input_box['height'] <= box['y'] < native_box['y']
-        assert box['y']-(input_box['y']+input_box['height']) < 120
+        assert box and input_box
+        first_group = page.locator('.searchResults .verticalSection').first.bounding_box()
+        second_group = page.locator('.searchResults .verticalSection').nth(1).bounding_box()
+        assert first_group['y'] < box['y'] < second_group['y']
+        native_card = page.locator('.searchResults .card').first.bounding_box()
+        seerr_card = page.locator('.threepic-fin-search__card').first.bounding_box()
+        assert abs(native_card['x'] - seerr_card['x']) < 8, (width, native_card, seerr_card)
+        assert page.evaluate('''() => {let b=document.querySelector('.threepic-fin-search__card button').getBoundingClientRect();
+          let p=document.querySelector('.threepic-fin-search__poster').getBoundingClientRect();
+          return b.width < p.width * .55 && b.height < p.height * .27}''')
         # Rail navigation exposes all cards without creating a second row.
         page.locator('.threepic-fin-search nav button').last.click()
         page.wait_for_function("document.querySelector('.threepic-fin-search__cards').scrollLeft > 0")
@@ -64,11 +70,16 @@ with sync_playwright() as p:
         page.wait_for_function("document.querySelector('.threepic-fin-search nav span').textContent === 'Page 2 of 6'")
         assert page.locator('.threepic-fin-search__card button').count() == 20
         assert page.evaluate("document.querySelector('.threepic-fin-search__cards').scrollLeft === 0")
+        assert page.evaluate('''() => {const rows=[...document.querySelectorAll('.searchResults .verticalSection')];
+          return rows.length === new Set(rows).size && rows.every(row=>row.parentElement.classList.contains('searchResults'));}''')
         if os.environ.get('SEARCH_RAIL_SCREENSHOT_DIR'):
             Path(os.environ['SEARCH_RAIL_SCREENSHOT_DIR']).mkdir(parents=True, exist_ok=True)
             page.screenshot(path=str(Path(os.environ['SEARCH_RAIL_SCREENSHOT_DIR']) / f'{width}-rail.png'))
+        page.locator('.searchResults').evaluate('(results) => results.replaceChildren()')
+        assert page.evaluate('''() => {const i=document.querySelector('#searchTextInput').getBoundingClientRect();
+          const s=document.querySelector('.threepic-fin-search').getBoundingClientRect(); return s.y >= i.bottom && s.y-i.bottom < 120;}''')
         page.evaluate("window.__threePicFinSearchAdapter.dispose()")
         assert page.locator('.threepic-fin-search').count() == 0
-        assert page.locator('.searchResults .verticalSection').count() == 5
+        assert page.locator('.searchResults .verticalSection').count() == 0
         page.close()
     browser.close()

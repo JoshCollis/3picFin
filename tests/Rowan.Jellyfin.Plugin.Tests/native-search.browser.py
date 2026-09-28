@@ -56,7 +56,7 @@ with sync_playwright() as p:
             document.querySelector('#searchTextInput').dispatchEvent(new Event('input',{bubbles:true})); }""")
         page.wait_for_selector('.threepic-fin-search .cardText')
         assert page.locator('.threepic-fin-search article button').count() == 1
-        assert page.locator('.threepic-fin-search article button').inner_text() == 'Details'
+        assert page.locator('.threepic-fin-search article button').get_attribute('aria-label').startswith('Details for ')
         art_box = page.locator('.threepic-fin-search article').bounding_box()
         assert art_box and art_box['width'] <= 175 and art_box['height'] <= 320
         page.locator('.threepic-fin-search article button').focus()
