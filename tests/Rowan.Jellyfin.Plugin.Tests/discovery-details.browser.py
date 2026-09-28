@@ -9,7 +9,7 @@ script = (web / 'discovery.js').read_text()
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
-    for width in (320, 1280):
+    for width in (320, 390, 1280):
         page = browser.new_page(viewport={'width': width, 'height': 800})
         page.set_default_timeout(5000)
         page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0">' + fragment + '</body></html>')
@@ -38,7 +38,11 @@ with sync_playwright() as p:
         card = page.locator('#threepic-fin-movies .threepic-fin-discovery__card')
         expect(card).to_have_count(1)
         assert page.evaluate("calls.filter(c => c[0].includes('TitleDetails')).length") == 0
-        card.get_by_role('button', name='Film', exact=True).focus()
+        title = card.get_by_role('button', name='Film', exact=True)
+        title.focus()
+        expect(title).to_be_focused()
+        # Dispatch on the keyboard, not locator.press: showModal transfers focus
+        # during the click default action, which can time out locator.press.
         page.keyboard.press('Enter')
         modal = page.locator('#threepic-fin-details-dialog')
         expect(modal).to_be_visible()
@@ -115,4 +119,4 @@ with sync_playwright() as p:
         assert 'Private old user' not in page.locator('body').inner_text()
         page.close()
     browser.close()
-print('Details fragment browser smoke: 320px and 1280px pass')
+print('Details fragment browser smoke: 320px, 390px and 1280px pass')
