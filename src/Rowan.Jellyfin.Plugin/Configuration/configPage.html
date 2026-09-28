@@ -255,7 +255,8 @@
                 const saveButton = page.querySelector('#RowanSaveButton');
                 const error = page.querySelector('#RowanConfigError');
                 const status = page.querySelector('#RowanConfigStatus');
-                const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                const guidPattern = /^(?:[0-9a-f]{32}|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/i;
+                const guidKey = value => value.replaceAll('-', '').toLowerCase();
                 const nativeRowKinds = ['ContinueWatching', 'NextUp', 'LatestMovies', 'LatestShows', 'MyMedia',
                     'ContinueWatchingNextUp', 'Collections', 'BecauseYouWatched', 'MyRequests'];
                 let ready = false;
@@ -266,7 +267,7 @@
 
                 function validId(value) {
                     return typeof value === 'string' && guidPattern.test(value) &&
-                        value.toLowerCase() !== '00000000-0000-0000-0000-000000000000';
+                        guidKey(value) !== '00000000000000000000000000000000';
                 }
 
                 function showMessage(element, message) {
@@ -324,26 +325,26 @@
                     const seen = new Set();
                     folders.forEach(function (folder) {
                         const id = folder && folder.ItemId;
-                        if (!validId(id) || seen.has(id.toLowerCase())) {
+                        if (!validId(id) || seen.has(guidKey(id))) {
                             return;
                         }
-                        seen.add(id.toLowerCase());
+                        seen.add(guidKey(id));
                         libraries.push({ id: id, name: typeof folder.Name === 'string' && folder.Name.trim() ? folder.Name : id });
                     });
                     savedIds.forEach(function (id) {
-                        if (!seen.has(id.toLowerCase())) {
-                            seen.add(id.toLowerCase());
+                        if (!seen.has(guidKey(id))) {
+                            seen.add(guidKey(id));
                             libraries.push({ id: id, name: id + ' (unavailable — previously selected)' });
                         }
                     });
                     list.replaceChildren();
-                    const selectedIds = new Set(savedIds.map(function (id) { return id.toLowerCase(); }));
+                    const selectedIds = new Set(savedIds.map(function (id) { return guidKey(id); }));
                     libraries.forEach(function (library) {
                         const label = document.createElement('label');
                         const checkbox = document.createElement('input');
                         checkbox.type = 'checkbox';
                         checkbox.value = library.id;
-                        checkbox.checked = selectedIds.has(library.id.toLowerCase());
+                        checkbox.checked = selectedIds.has(guidKey(library.id));
                         label.appendChild(checkbox);
                         const name = document.createElement('span');
                         name.textContent = library.name;
@@ -364,21 +365,21 @@
                     heroLibraries = [];
                     folders.forEach(function (folder) {
                         const id = folder && folder.ItemId;
-                        if (!validId(id) || seen.has(id.toLowerCase())) return;
-                        seen.add(id.toLowerCase());
+                        if (!validId(id) || seen.has(guidKey(id))) return;
+                        seen.add(guidKey(id));
                         heroLibraries.push({ id, name: typeof folder.Name === 'string' && folder.Name.trim() ? folder.Name : id });
                     });
                     savedIds.forEach(function (id) {
-                        if (seen.has(id.toLowerCase())) return;
-                        seen.add(id.toLowerCase());
+                        if (seen.has(guidKey(id))) return;
+                        seen.add(guidKey(id));
                         heroLibraries.push({ id, name: id + ' (unavailable — previously selected)' });
                     });
-                    const chosen = new Set(savedIds.map(id => id.toLowerCase()));
+                    const chosen = new Set(savedIds.map(id => guidKey(id)));
                     heroList.replaceChildren();
                     heroLibraries.forEach(function (library) {
                         const label = document.createElement('label');
                         const box = document.createElement('input');
-                        box.type = 'checkbox'; box.value = library.id; box.checked = chosen.has(library.id.toLowerCase());
+                        box.type = 'checkbox'; box.value = library.id; box.checked = chosen.has(guidKey(library.id));
                         const name = document.createElement('span'); name.textContent = library.name;
                         label.append(box, name); heroList.append(label);
                     });
@@ -442,7 +443,7 @@
                         page.querySelector('#RecentlyAddedNone').checked = Array.isArray(ids) && ids.length === 0;
                         page.querySelector('#RecentlyAddedSelected').checked = Array.isArray(ids) && ids.length > 0;
                         const heroIds = config.HeroLibraryIds;
-                        if (heroIds != null && (!Array.isArray(heroIds) || !heroIds.every(validId) || new Set(heroIds.map(id => id.toLowerCase())).size !== heroIds.length || heroIds.length > 20)) {
+                        if (heroIds != null && (!Array.isArray(heroIds) || !heroIds.every(validId) || new Set(heroIds.map(id => guidKey(id))).size !== heroIds.length || heroIds.length > 20)) {
                             throw new Error('Invalid saved hero libraries');
                         }
                         renderLibraries(results[1], ids || []);
@@ -471,10 +472,10 @@
                         showMessage(error, 'Choose a library mode before saving.');
                         return;
                     }
-                    const allowed = new Set(libraries.map(function (library) { return library.id.toLowerCase(); }));
+                    const allowed = new Set(libraries.map(function (library) { return guidKey(library.id); }));
                     const ids = Array.from(list.querySelectorAll('input[type="checkbox"]:checked'))
                         .map(function (checkbox) { return checkbox.value; })
-                        .filter(function (id) { return validId(id) && allowed.has(id.toLowerCase()); });
+                        .filter(function (id) { return validId(id) && allowed.has(guidKey(id)); });
                     if (mode.value === 'selected' && !ids.length) {
                         showMessage(error, 'Select at least one library, or choose No libraries.');
                         return;
@@ -483,9 +484,9 @@
                         showMessage(error, 'Choose a valid library mode.');
                         return;
                     }
-                    const heroAllowed = new Set(heroLibraries.map(library => library.id.toLowerCase()));
+                    const heroAllowed = new Set(heroLibraries.map(library => guidKey(library.id)));
                     const heroIds = Array.from(heroList.querySelectorAll('input[type="checkbox"]:checked')).map(box => box.value);
-                    if (heroIds.length > 20 || heroIds.some(id => !validId(id) || !heroAllowed.has(id.toLowerCase())) || new Set(heroIds.map(id => id.toLowerCase())).size !== heroIds.length) {
+                    if (heroIds.length > 20 || heroIds.some(id => !validId(id) || !heroAllowed.has(guidKey(id))) || new Set(heroIds.map(id => guidKey(id))).size !== heroIds.length) {
                         showMessage(error, 'Select no more than 20 valid hero libraries.'); return;
                     }
                     showMessage(error, '');
@@ -573,7 +574,7 @@
                         const currentMode = page.querySelector('input[name="RecentlyAddedMode"]:checked');
                         const currentIds = Array.from(list.querySelectorAll('input[type="checkbox"]:checked'))
                             .map(function (checkbox) { return checkbox.value; })
-                            .filter(function (id) { return validId(id) && allowed.has(id.toLowerCase()); });
+                            .filter(function (id) { return validId(id) && allowed.has(guidKey(id)); });
                         if (page.querySelector('#HomeEnabled').checked !== homeEnabled ||
                             page.querySelector('#NativeHomeRowsEnabled').checked !== nativeHomeRowsEnabled ||
                             nativeRowKinds.some(function (kind) { return page.querySelector('#NativeRow' + kind).checked !== nativeHomeRowKinds.includes(kind); }) ||
