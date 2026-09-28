@@ -1,12 +1,12 @@
 <div class="threepic-fin-discovery" aria-labelledby="threepic-fin-discovery-title">
     <section class="threepic-fin-discovery__content">
         <h2 id="threepic-fin-discovery-title">3pic Fin</h2>
-        <div class="threepic-fin-discovery__tabs" aria-label="3pic Fin views">
-            <button id="threepic-fin-discover-tab" type="button" aria-controls="threepic-fin-discover-panel" aria-pressed="true">Discover</button>
-            <button id="threepic-fin-downloads-tab" type="button" aria-controls="threepic-fin-downloads-panel" aria-pressed="false">Downloads</button>
-            <button id="threepic-fin-calendar-tab" type="button" aria-controls="threepic-fin-calendar-panel" aria-pressed="false">Calendar</button>
+        <div class="threepic-fin-discovery__tabs" role="tablist" aria-label="3pic Fin views">
+            <button id="threepic-fin-discover-tab" role="tab" type="button" aria-controls="threepic-fin-discover-panel" aria-selected="true" tabindex="0">Discover</button>
+            <button id="threepic-fin-downloads-tab" role="tab" type="button" aria-controls="threepic-fin-downloads-panel" aria-selected="false" tabindex="-1">Downloads</button>
+            <button id="threepic-fin-calendar-tab" role="tab" type="button" aria-controls="threepic-fin-calendar-panel" aria-selected="false" tabindex="-1">Calendar</button>
         </div>
-        <div id="threepic-fin-discover-panel">
+        <div id="threepic-fin-discover-panel" role="tabpanel" aria-labelledby="threepic-fin-discover-tab">
             <section aria-label="My Requests"><h3>My Requests</h3><div id="threepic-fin-requests" class="threepic-fin-discovery__cards" aria-live="polite"></div>
                 <div class="threepic-fin-discovery__pager" aria-label="My Requests pages"><button id="threepic-fin-requests-prev" type="button" aria-label="Previous requests page" disabled>Previous</button><span id="threepic-fin-requests-page" aria-live="polite"></span><button id="threepic-fin-requests-next" type="button" aria-label="Next requests page" disabled>Next</button></div>
             </section>
@@ -33,12 +33,12 @@
                 <div class="threepic-fin-discovery__pager" aria-label="TV pages"><button id="threepic-fin-tv-prev" type="button" aria-label="Previous TV page" disabled>Previous</button><span id="threepic-fin-tv-page" aria-live="polite"></span><button id="threepic-fin-tv-next" type="button" aria-label="Next TV page" disabled>Next</button></div>
             </section>
         </div>
-        <div id="threepic-fin-downloads-panel" aria-labelledby="threepic-fin-downloads-tab" hidden>
+        <div id="threepic-fin-downloads-panel" role="tabpanel" aria-labelledby="threepic-fin-downloads-tab" hidden>
             <h3>Shared Downloads</h3>
             <section aria-label="Movie downloads"><h3>Movies</h3><div id="threepic-fin-downloads-radarr" class="threepic-fin-discovery__downloads" aria-live="polite"></div></section>
             <section aria-label="TV downloads"><h3>TV</h3><div id="threepic-fin-downloads-sonarr" class="threepic-fin-discovery__downloads" aria-live="polite"></div></section>
         </div>
-        <div id="threepic-fin-calendar-panel" aria-labelledby="threepic-fin-calendar-tab" hidden>
+        <div id="threepic-fin-calendar-panel" role="tabpanel" aria-labelledby="threepic-fin-calendar-tab" hidden>
             <h3>Shared Calendar</h3>
 
             <div class="threepic-fin-discovery__pager" aria-label="Calendar windows">
