@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.8.1",
+        "changelog": "Polish the still-image hero with a calmer responsive title and an aligned slide counter, pagination, progress and navigation cluster",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v0.1.8.1/3pic-fin_0.1.8.1.zip",
+        "checksum": "fbe04c6cfaf282dfd251e227c68f4607",
+        "timestamp": "2026-09-28T18:07:42Z"
+      },
+      {
         "version": "0.1.8.0",
         "changelog": "Place the unboxed Seerr Search rail after native Movies and Shows, open its details from the full card, align all 3pic Fin rails with Home cards, and refine the still-image hero in a Media Bar-inspired layout",
         "targetAbi": "12.1.0.0",
