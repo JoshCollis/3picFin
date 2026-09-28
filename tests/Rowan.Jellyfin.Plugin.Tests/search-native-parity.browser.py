@@ -25,7 +25,7 @@ with sync_playwright() as p:
         for i in (0, 1):
             page.add_style_tag(path=str(theme / f'elegant-source-{i}.css'))
         # Minimal stock Jellyfin padder rule absent from the private theme-only capture.
-        page.add_style_tag(content='.searchResults { padding-inline: 3.3%; } .searchResults .itemsContainer { display:flex; overflow:hidden; } .searchResults .itemsContainer>.card { flex-shrink:0; } .cardPadder-overflowPortrait { padding-top: 150%; }')
+        page.add_style_tag(content='.searchResults { padding-inline: 3.3%; } .searchResults .itemsContainer { display:flex; overflow:hidden; } .searchResults .itemsContainer>.card { flex-shrink:0; --itemColumnGap: .5em; } .cardPadder-overflowPortrait { padding-top: 150%; }')
         page.add_style_tag(path=str(web / 'global-search-addon.css'))
         page.add_script_tag(path=str(web / 'global-search-addon.js'))
         page.evaluate('''() => {
@@ -56,8 +56,8 @@ with sync_playwright() as p:
                 fallback:box(document.querySelectorAll('.threepic-fin-search__card')[1]).width,
                 overflow:document.documentElement.scrollWidth>innerWidth}; }''')
         print(width, metrics)
-        assert abs(metrics['native'] - metrics['seerr']) < 2, (width, metrics)
-        assert abs(metrics['nativeArt'] - metrics['seerrArt']) < 2, (width, metrics)
+        assert abs(metrics['native'] - metrics['seerr']) < .5, (width, metrics)
+        assert abs(metrics['nativeArt'] - metrics['seerrArt']) < .5, (width, metrics)
         assert abs(metrics['nativeX'] - metrics['seerrX']) < 8, (width, metrics)
         assert abs(metrics['fallback'] - metrics['seerr']) < 2
         assert metrics['nativeFooter'] == metrics['seerrFooter']
