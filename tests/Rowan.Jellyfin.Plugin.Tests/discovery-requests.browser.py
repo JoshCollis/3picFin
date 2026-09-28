@@ -44,9 +44,10 @@ with sync_playwright() as p:
             box = poster.bounding_box()
             assert box and abs(box['width'] / box['height'] - 2 / 3) < .02, (box, poster.evaluate("e => ({aspect: getComputedStyle(e).aspectRatio, width: getComputedStyle(e).width, height: getComputedStyle(e).height, parent: e.parentElement.outerHTML.slice(0,200)})"))
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
-        page.locator('#threepic-fin-shared-requests-load').click()
         shared = page.locator('#threepic-fin-shared-requests .threepic-fin-discovery__card')
         expect(shared).to_contain_text('Real Series')
+        assert page.get_by_role('region', name='All Requests').is_visible()
+        assert page.get_by_role('button', name='Show household requests').count() == 0
         assert page.evaluate("calls.filter(c => c.includes('TitleDetails')).length") == 2
         page.evaluate('dispose()')
         page.close()

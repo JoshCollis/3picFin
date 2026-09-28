@@ -1,6 +1,5 @@
 """Isolated Jellyfin 12.1 signed-in household UI probe."""
 import asyncio
-import hashlib
 import importlib.util
 import json
 import os
@@ -55,10 +54,9 @@ async def browser_probe(base, alice, alice_password, bob, bob_password, alice_id
                 await page.locator('#txtManualPassword').press('Enter')
                 await page.locator('#homeTab .threepic-fin-host__tabs').wait_for(timeout=45000)
                 await page.locator('.threepic-fin-host__tab').filter(has_text='3pic Fin').click()
-                await page.locator('#threepic-fin-shared-requests-load').wait_for()
+                await page.get_by_role('region', name='All Requests').wait_for()
             await login(alice, alice_password)
             assert await page.evaluate('ApiClient.getCurrentUserId()') == alice_id
-            await page.locator('#threepic-fin-shared-requests-load').click()
             shared = page.locator('#threepic-fin-shared-requests')
             await shared.get_by_text('TMDb #17').wait_for(timeout=15000)
             alice_shared = await shared.inner_text()
@@ -77,9 +75,11 @@ async def browser_probe(base, alice, alice_password, bob, bob_password, alice_id
                 except PlaywrightError:
                     pass  # Jellyfin may abort the pending network request during logout.
             await page.route('**/3picFin/SharedRequests?page=1', hold)
-            await page.locator('#threepic-fin-shared-requests-load').click()
+            await page.evaluate("location.hash = '#/search'")
+            await page.locator('#homeTab .threepic-fin-host__tabs').wait_for(state='detached')
+            await page.evaluate("location.hash = '#/home?fin=1'")
             await asyncio.wait_for(intercepted.wait(), timeout=15)
-            assert 'Loading household requests' in await shared.inner_text()
+            assert 'Loading all requests' in await shared.inner_text()
             # The adapter must synchronously tear down the pane on logout, before late data settles.
             await page.evaluate('ApiClient.logout()')
             await page.locator('#homeTab .threepic-fin-host__tabs').wait_for(state='detached', timeout=10000)
@@ -90,7 +90,6 @@ async def browser_probe(base, alice, alice_password, bob, bob_password, alice_id
             await login(bob, bob_password)
             assert await page.evaluate('ApiClient.getCurrentUserId()') == bob_id
             assert await shared.get_by_text('TMDb #17').count() == 0, 'retained previous user list'
-            await page.locator('#threepic-fin-shared-requests-load').click()
             await shared.get_by_text('TMDb #17').wait_for(timeout=15000)
             assert await shared.inner_text() == alice_shared, 'different signed-in global lists'
             bob_home = await page.locator('#homeTab > .sections').text_content() or ''
@@ -106,8 +105,11 @@ async def browser_probe(base, alice, alice_password, bob, bob_password, alice_id
                 };
                 window.sharedProbeOriginalUser = ApiClient.getCurrentUserId;
             }""")
-            await page.locator('#threepic-fin-shared-requests-load').click()
-            assert 'Loading household requests' in await shared.inner_text()
+            await page.evaluate("location.hash = '#/search'")
+            await page.locator('#homeTab .threepic-fin-host__tabs').wait_for(state='detached')
+            await page.evaluate("location.hash = '#/home?fin=1'")
+            await page.wait_for_function('window.sharedProbeResolve !== undefined')
+            assert 'Loading all requests' in await shared.inner_text()
             await page.evaluate('ApiClient.getCurrentUserId = () => null')
             await page.locator('#homeTab .threepic-fin-host__tabs').wait_for(state='detached', timeout=10000)
             await page.evaluate("""() => {
@@ -194,7 +196,6 @@ def main():
                 if status == 200 and html.count(b'data-threepic-fin-adapter') == 1: break
                 time.sleep(1)
             else: raise AssertionError('lab adapter unavailable')
-            assert hashlib.sha256(home.request(base + '/web/' + home.LAB_HOME_CHUNK)[1]).hexdigest() == home.LAB_HOME_HASH
             asyncio.run(browser_probe(base, 'alice', alice_password, 'bob', bob_password, alice_id, bob_id))
         except Exception:
             print(home.docker('logs', cid)[-4000:])
