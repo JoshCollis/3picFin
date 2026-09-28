@@ -96,12 +96,17 @@
                 carousels.push(update);
                 update();
             };
+            const bodies = [];
             const sections = kinds.map(kind => {
                 const section = document.createElement('section'); section.className = 'rowan-native-row';
-                const heading = document.createElement('h2'); heading.textContent = title(kind);
                 const body = document.createElement('div'); body.className = kind === 'BecauseYouWatched' ? 'rowan-native-row__seeds' : 'rowan-native-row__items';
-                section.append(heading, body);
+                if (kind !== 'BecauseYouWatched') {
+                    const heading = document.createElement('h2'); heading.textContent = title(kind);
+                    section.appendChild(heading);
+                }
+                section.appendChild(body);
                 if (kind !== 'BecauseYouWatched') addControls(section, body, title(kind));
+                bodies.push(body);
                 root.appendChild(section); return section;
             });
             const resize = () => carousels.forEach(update => update());
@@ -114,7 +119,7 @@
                         (attempts.get(index) || 0) >= 2) continue;
                     requested.add(index);
                     attempts.set(index, (attempts.get(index) || 0) + 1);
-                    const section = sections[index], body = section.children[1], kind = kinds[index];
+                    const section = sections[index], body = bodies[index], kind = kinds[index];
                     body.textContent = 'Loading…';
                     const path = kind === 'BecauseYouWatched' ? 'Rowan/Home/BecauseYouWatched' : `Rowan/Home/Rows/${kind}`;
                     Promise.resolve().then(() => active() ? apiClient.getJSON(apiClient.getUrl(path)) : null)

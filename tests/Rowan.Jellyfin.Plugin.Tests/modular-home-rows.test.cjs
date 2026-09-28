@@ -28,7 +28,7 @@ test('Because You Watched is one lazy bounded fetch with separate seed headings 
     assert.deepEqual(f.calls, []);
     f.observers[0].fire(f.root.children[0]); await tick();
     assert.deepEqual(f.calls, ['/base/Rowan/Home/BecauseYouWatched']);
-    const seed = f.root.children[0].children[1].children[0];
+    const seed = f.root.children[0].children[0].children[0];
     assert.equal(seed.children[0].tagName, 'H3');
     assert.equal(seed.children[0].textContent, 'Because You Watched <Movie>');
     const card = seed.children[1].children[0];
@@ -48,7 +48,7 @@ test('excessive recommendation groups fail closed without partial cards', async 
     const f = fixture(['BecauseYouWatched']);
     f.api.getJSON = () => Array.from({ length: 6 }, () => ({ Heading: 'Because You Watched A', Items: [{ Id: id, Type: 'Movie' }] }));
     f.rows.mount(f.root, f.api, 'alice'); f.observers[0].fire(f.root.children[0]); await tick();
-    assert.equal(f.root.children[0].children[1].textContent, 'Row unavailable');
+    assert.equal(f.root.children[0].children[0].textContent, 'Row unavailable');
 });
 test('disposal before queued work prevents even a request', async () => {
     const f = fixture(['BecauseYouWatched']);

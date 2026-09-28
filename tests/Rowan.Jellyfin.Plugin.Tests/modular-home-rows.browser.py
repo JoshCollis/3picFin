@@ -8,9 +8,9 @@ id_a = '0123456789abcdef0123456789abcdef'
 id_b = 'abcdef0123456789abcdef0123456789'
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True)
-    for width in (320, 1280):
+    for width in (390, 1280, 1920):
         page = browser.new_page(viewport={'width': width, 'height': 800})
-        page.route('**/jellyfin/Items/**/Images/**', lambda route: route.fulfill(content_type='image/svg+xml', body='<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270"><rect width="480" height="270" fill="#58729a"/></svg>'))
+        page.route('**/jellyfin/Items/**/Images/**', lambda route: route.fulfill(content_type='image/svg+xml', body='<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#58729a"/></svg>' if '/Primary' in route.request.url else '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><rect width="200" height="300" fill="#58729a"/></svg>'))
         page.set_content('<html><head><base href="https://fixture.invalid/"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#101622;color:white"><main id="home"></main></body></html>')
         page.add_style_tag(path=str(web / 'native-home-rows.css'))
         page.add_script_tag(path=str(web / 'native-home-rows.js'))
@@ -47,6 +47,7 @@ with sync_playwright() as playwright:
         seeds = page.locator('.rowan-native-row__seed')
         assert seeds.nth(0).locator('h3').inner_text() == 'Because You Watched One'
         assert seeds.nth(1).locator('h3').inner_text() == 'Because You Watched Two'
+        assert page.locator('#home > .rowan-native-row > h2').all_inner_texts() == ['Latest Movies']
         first, second = seeds.nth(0).bounding_box(), seeds.nth(1).bounding_box()
         assert first and second and second['y'] >= first['y'] + first['height'], (width, first, second)
         cards = seeds.nth(0).locator('.rowan-native-row__card--landscape')
@@ -57,18 +58,34 @@ with sync_playwright() as playwright:
         portrait_box = portrait.bounding_box()
         image_box = portrait.locator('img').bounding_box()
         assert portrait_box and image_box and first_card['width'] > portrait_box['width']
-        assert image_box['height'] > image_box['width']
+        cards.nth(0).locator('img').evaluate('(img) => img.decode()')
+        portrait.locator('img').evaluate('(img) => img.decode()')
+        for card, ratio in ((cards.nth(0), 16 / 9), (portrait, 2 / 3)):
+            image = card.locator('img')
+            box = image.bounding_box()
+            card_box = card.bounding_box()
+            assert box is not None and card_box is not None
+            assert abs(box['width'] / box['height'] - ratio) < .02, (width, box, ratio)
+            assert image.evaluate('(img) => getComputedStyle(img).objectFit') == 'cover'
+            assert card.evaluate('(el) => getComputedStyle(el).backgroundColor') == 'rgba(0, 0, 0, 0)'
+            assert abs(box['width'] - card_box['width']) < 2
+        assert portrait.locator('span').inner_text() == 'Poster film'
+        no_art = seeds.nth(1).locator('.rowan-native-row__card--no-art')
+        assert no_art.count() == 1
+        assert no_art.locator('span').inner_text() == 'Third film'
+        assert no_art.get_attribute('aria-label') is None
+        assert no_art.inner_text() == 'Third film'
         controls = seeds.nth(0).locator('.rowan-native-row__arrow')
         assert controls.count() == 2
         assert controls.nth(0).get_attribute('aria-label').startswith('Previous')
         heading_box = seeds.nth(0).locator('h3').bounding_box()
         control_box = controls.nth(0).bounding_box()
         assert heading_box
-        if width == 320:
+        if width == 390:
             assert control_box and abs(control_box['y'] - heading_box['y']) < 12, (heading_box, control_box)
         assert page.locator('.rowan-native-row__seed').nth(1).locator('.rowan-native-row__controls').is_hidden()
         assert page.locator('.rowan-native-row__items').first.evaluate('(el) => el.tabIndex') == 0
-        if width == 320:
+        if width == 390:
             assert first_card['width'] > 200 and first_card['width'] < 300, first_card
             assert page.locator('.rowan-native-row__items').first.evaluate('(el) => el.scrollWidth > el.clientWidth')
             controls.nth(1).click()
@@ -84,4 +101,4 @@ with sync_playwright() as playwright:
         assert page.locator('#home > .rowan-native-row').count() == 0
         page.close()
     browser.close()
-print('Generated modular rows at 320px and 1280px: pass')
+print('Generated modular rows at 390px, 1280px and 1920px: pass')
