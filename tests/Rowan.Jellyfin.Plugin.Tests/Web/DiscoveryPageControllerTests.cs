@@ -52,7 +52,7 @@ public sealed class DiscoveryPageControllerTests
         var style = Assert.IsType<FileStreamResult>(new DiscoveryPageController(() => false, () => false, () => true).GetAsset("native-home-rows.css"));
         Assert.Equal("text/css; charset=utf-8", style.ContentType);
         using var reader = new StreamReader(style.FileStream);
-        Assert.Contains("rowan-native-row__card--portrait", reader.ReadToEnd(), StringComparison.Ordinal);
+        Assert.Contains(".rowan-native-row__card .cardContent img", reader.ReadToEnd(), StringComparison.Ordinal);
     }
 
     [Fact]
