@@ -68,7 +68,7 @@ jobs:
             --manifest catalog-input.json --output dist --version "$VERSION" \
             --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip" \
             --epoch "$(git show -s --format=%ct HEAD)" \
-            --changelog "Keep the 3pic Fin navigation pill on one line and distinguish its unselected hover state from the selected Fin state under ElegantFin"
+            --changelog "Match native Home card artwork and hover Play/More controls; remove filled Search card backing and place the single Seerr request rail after the first native results group"
           python3 scripts/package_plugin.py validate --package "dist/3pic-fin_$VERSION.zip" \
             --manifest dist/manifest.json --version "$VERSION" \
             --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip"
