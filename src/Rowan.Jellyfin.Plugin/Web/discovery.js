@@ -140,7 +140,7 @@
             const original = field(source, 'Items');
             const rows = original.map(item => ({ ...item }));
             const paint = () => {
-                if (disposed || generation !== (shared ? sharedListGeneration : requestListGeneration)) return;
+                if (disposed || generation !== (shared ? sharedListGeneration : requestListGeneration) || shared && (host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId)) return;
                 render(container, { Items: rows }, empty, true);
             };
             for (const row of rows) {
@@ -149,7 +149,7 @@
             }
             paint();
             // Bound fan-out per mounted user. A title may appear in both personal
-            // and opt-in household lists; share only within this mount, never across users.
+            // and explicitly enabled all-request lists; share only within this mount, never across users.
             const pending = rows.filter(row => ['movie', 'tv'].includes(field(row, 'MediaType') || field(row, 'Type')) && Number.isInteger(field(row, 'TmdbId')) && field(row, 'TmdbId') > 0);
             let next = 0;
             async function worker() {
@@ -158,7 +158,7 @@
                     const key = `${type}:${id}`;
                     if (!metadata.has(key)) metadata.set(key, ApiClient.getJSON(ApiClient.getUrl('3picFin/TitleDetails', { mediaType: type, mediaId: id }), { signal: metadataAbort.signal }).catch(() => null));
                     const detail = await metadata.get(key);
-                    if (disposed || generation !== (shared ? sharedListGeneration : requestListGeneration)) return;
+                    if (disposed || generation !== (shared ? sharedListGeneration : requestListGeneration) || shared && (host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId)) return;
                     row.Title = field(detail, 'MediaType') === type && field(detail, 'TmdbId') === id && typeof field(detail, 'Title') === 'string' && field(detail, 'Title').trim() ? field(detail, 'Title') : 'Title unavailable';
                     row.PosterPath = row.Title !== 'Title unavailable' ? field(detail, 'PosterPath') : null;
                     paint();
@@ -377,7 +377,7 @@
             for (const [direction, caption] of [[-1, 'left'], [1, 'right']]) {
                 const button = document.createElement('button');
                 button.type = 'button'; button.textContent = direction < 0 ? '‹' : '›';
-                button.setAttribute('aria-label', `Scroll ${name === 'search-results' ? 'search results' : name === 'shared-requests' ? 'household requests' : name} ${caption}`);
+                button.setAttribute('aria-label', `Scroll ${name === 'search-results' ? 'search results' : name === 'shared-requests' ? 'all requests' : name} ${caption}`);
                 navigation.appendChild(button);
                 on(button, 'click', () => rail.scrollBy({ left: direction * rail.clientWidth * .8, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }));
             }
@@ -405,19 +405,26 @@
             return Number.isInteger(n) && n > 0 ? Math.min(n, 100) : 1;
         }
         async function sharedRequests(page) {
+            if (disposed || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
             const generation = ++sharedGeneration;
             sharedPage = page;
-            message(el('shared-requests'), 'Loading household requests…');
+            const section = el('shared-requests').closest('section');
+            message(el('shared-requests'), 'Loading all requests…');
             pager('shared-requests', page, 1);
             try {
                 const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/SharedRequests', { page }));
-                if (disposed || generation !== sharedGeneration) return;
-                requestCards(el('shared-requests'), result, 'Household requests', true);
+                if (disposed || generation !== sharedGeneration || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
+                section.hidden = false;
+                requestCards(el('shared-requests'), result, 'All requests', true);
                 sharedMax = field(result, 'Error') || !Array.isArray(field(result, 'Items')) ? 1 : maxPages(result);
                 pager('shared-requests', page, sharedMax);
-            } catch (_) {
-                if (disposed || generation !== sharedGeneration) return;
-                message(el('shared-requests'), 'Household requests unavailable or not enabled.');
+            } catch (error) {
+                if (disposed || generation !== sharedGeneration || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
+                if (error?.status === 404 || error?.statusCode === 404 || error?.status === 403 || error?.statusCode === 403) {
+                    section.hidden = true;
+                    el('shared-requests').replaceChildren();
+                }
+                else if (!section.hidden) message(el('shared-requests'), 'All requests unavailable right now.');
                 sharedMax = 1;
                 pager('shared-requests', page, 1);
             }
@@ -570,7 +577,6 @@
         on(el('details-request'), 'click', () => { if (!detailsItem || detailsBusy || el('details-request').hidden || el('details-request').disabled) return; const item = detailsItem, button = detailsTrigger; closeDetails(false); openRequest(item, button); });
         on(el('request-4k'), 'change', () => { if (options && selection && !submitting && !locked) updateRequestStatus(); });
         on(el('request-cancel'), 'click', closeRequest);
-        on(el('shared-requests-load'), 'click', () => sharedRequests(1));
         on(el('shared-requests-prev'), 'click', () => { if (sharedPage > 1) sharedRequests(sharedPage - 1); });
         on(el('shared-requests-next'), 'click', () => { if (sharedPage < sharedMax) sharedRequests(sharedPage + 1); });
         on(dialog, 'cancel', event => { if (submitting) event.preventDefault(); else { ++requestGeneration; trigger?.focus(); selection = null; options = null; } });
@@ -594,12 +600,14 @@
             if (disposed || activated) return;
             activated = true;
             discovery();
+            sharedRequests(1);
         };
         if (!deferInitialLoad) activate();
         const cleanup = () => {
             if (disposed) return;
             disposed = true; metadataAbort.abort(); metadata.clear(); ++requestListGeneration; ++sharedListGeneration; closeDetails(false); stopDownloads(); stopCalendar(); ++searchGeneration; ++discoveryGeneration; ++requestGeneration; ++sharedGeneration;
             for (const name of ['movies', 'tv', 'requests', 'recommendations', 'shared-requests', 'search-results', 'downloads-radarr', 'downloads-sonarr', 'calendar-radarr', 'calendar-sonarr']) el(name).replaceChildren();
+            el('shared-requests').closest('section').hidden = true;
             el('calendar-panel').hidden = true;
             if (dialog.open) dialog.close();
             controls.forEach(remove => remove());

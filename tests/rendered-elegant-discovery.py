@@ -51,20 +51,27 @@ def run():
                   const missing={MediaType:'movie',TmdbId:101,Title:'Hacksaw Ridge',Date:'2016-01-01'};
                   const pictured={MediaType:'movie',TmdbId:102,Title:'Poster Title',PosterPath:'/valid.jpg',Date:'2020-01-01'};
                   const empty={Items:[],Page:1,TotalPages:1};
+                  const all={Items:[{Id:7,Status:2,Type:'movie',TmdbId:101}],Page:1,TotalPages:2};
                   const api={getCurrentUserId:()=> 'alice',getUrl:(path, params) => path+'?'+new URLSearchParams(params),getJSON:async url=>{
                     if(url.startsWith('3picFin/Discovery')) return {Movies:{Items:[missing,pictured],Page:1,TotalPages:1},Tv:empty,Requests:empty};
                     if(url.startsWith('3picFin/TitleDetails')) return {MediaType:'movie',TmdbId:101,Title:'Hacksaw Ridge',Overview:'A story about the ridge.',Date:'2016-01-01',MediaStatus:1,CanRequest:true,CanRequest4k:false};
                     if(url.startsWith('3picFin/RequestOptions')) return {CanRequest:true,CanRequest4k:false,Seasons:[],MediaStatus:1};
-                    if(url.startsWith('3picFin/SharedRequests')) return empty;
+                    if(url.startsWith('3picFin/SharedRequests')) return url.includes('page=2') ? {...empty,Page:2,TotalPages:2} : all;
                     throw Error('Unexpected '+url);
                   }};
                   window.testCleanup=ThreePicFinDiscovery.mount(document.querySelector('.threepic-fin-discovery'),api,{userId:'alice',isCurrent:()=>true});
                 }''')
                 page.locator('#threepic-fin-movies .threepic-fin-discovery__card').nth(1).wait_for()
+                page.locator('#threepic-fin-shared-requests .threepic-fin-discovery__card').first.wait_for()
                 page.wait_for_function("document.querySelector('#threepic-fin-movies img')?.naturalWidth > 0")
+                assert page.get_by_role('region', name='All Requests').is_visible()
+                assert page.locator('#threepic-fin-shared-requests-next').is_enabled()
+                assert page.evaluate("getComputedStyle(document.querySelector('.threepic-fin-discovery')).backgroundColor") == 'rgba(0, 0, 0, 0)', 'fragment must not paint its own page background over ElegantFin'
                 g = geometry(page)
                 if os.environ.get('ELEGANTFIN_SCREENSHOTS'):
                     page.screenshot(path=str(Path(os.environ['ELEGANTFIN_SCREENSHOTS']) / f'{width}-rows.png'), full_page=True)
+                page.locator('#threepic-fin-shared-requests-next').click()
+                page.wait_for_function("document.querySelector('#threepic-fin-shared-requests-page').textContent === 'Page 2 of 2'")
                 print(json.dumps({'width':width,'geometry':g}))
                 assert g['decoded'] == 80
                 assert page.locator('#threepic-fin-movies .threepic-fin-discovery__poster-fallback').first.inner_text() == 'Artwork unavailable'

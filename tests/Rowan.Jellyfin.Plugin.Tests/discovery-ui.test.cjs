@@ -29,9 +29,9 @@ class Element {
 }
 function deferred() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 async function flush() { for (let i = 0; i < 6; i++) await new Promise(resolve => setImmediate(resolve)); }
-function setup(responses = [], posts = [], host = {}, details = []) {
+function setup(responses = [], posts = [], host = {}, details = [], shared = []) {
     const ids = ['threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-seasons', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-discover-tab', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-recommendations', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
-    for (const id of ids) assert.match(fragment, new RegExp(`id="${id}"`));
+    for (const id of ids) if (id !== 'threepic-fin-shared-requests-load') assert.match(fragment, new RegExp(`id="${id}"`));
     const nodes = Object.fromEntries(ids.map(id => [id, new Element()]));
     const root = new Element();
     const tabs = new Element();
@@ -43,14 +43,20 @@ function setup(responses = [], posts = [], host = {}, details = []) {
         const id = `threepic-fin-${name}`;
         assert.match(fragment, new RegExp(`<section[^>]*><h3>[^<]+</h3>(?:(?!</section>)[\\s\\S])*?id="${id}"`));
         const section = new Element('section');
+        if (name === 'shared-requests') section.hidden = true;
         section.appendChild(new Element('h3'));
         section.appendChild(nodes[id]);
         root.appendChild(section);
     }
-    const calls = [];
+    const calls = [], sharedCalls = [];
     const api = {
-        getUrl: (route, params) => { calls.push(['url', route, params]); const u = new URL(route, 'https://example.test/jellyfin/'); for (const [k, v] of Object.entries(params || {})) u.searchParams.set(k, v); return u.href; },
+        getUrl: (route, params) => { if (route !== '3picFin/SharedRequests') calls.push(['url', route, params]); const u = new URL(route, 'https://example.test/jellyfin/'); for (const [k, v] of Object.entries(params || {})) u.searchParams.set(k, v); return u.href; },
         getJSON: (url, options) => {
+            if (url.includes('3picFin/SharedRequests')) {
+                sharedCalls.push(url);
+                const reply = shared.shift() ?? Object.assign(new Error('disabled'), { status: 404 });
+                return reply?.promise || (reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply));
+            }
             calls.push(['getJSON', url, options]);
             if (url.includes('TitleDetails') && !details.length && responses[0] &&
                 responses[0].MediaType === undefined && responses[0].mediaType === undefined &&
@@ -81,7 +87,7 @@ function setup(responses = [], posts = [], host = {}, details = []) {
     const cleanup = context.ThreePicFinDiscovery.mount(root, api, host);
     const el = id => nodes[`threepic-fin-${id}`];
     const text = id => [el(id), ...el(id).descendants()].map(n => n.textContent).join(' ');
-    return { nodes, root, calls, api, el, text, cleanup, flush };
+    return { nodes, root, calls, sharedCalls, api, el, text, cleanup, flush };
 }
 async function requestFromCard(app, name) {
     const title = app.el(name).children[0].descendants().find(n => n.className === 'threepic-fin-discovery__title-button');
@@ -188,21 +194,45 @@ test('details without host callback never fall back to unverified navigation', a
     assert.match(app.text('details-status'), /opening unavailable/);
 });
 
-test('household list is a deliberate separate read with source pagination, not request ownership', async () => {
+test('enabled All Requests loads on activation as a separate paginated rail without exposing ownership', async () => {
     const pending = deferred(), second = deferred();
-    const app = setup([bundle(), pending, second]); await app.flush();
+    const app = setup([bundle()], [], {}, [], [pending, second]); await app.flush();
     assert.equal(app.calls.filter(c => c[0] === 'getJSON').length, 1);
-    app.el('shared-requests-load').dispatch('click');
+    assert.deepEqual(app.sharedCalls.map(url => new URL(url).searchParams.get('page')), ['1']);
     assert.match(app.text('shared-requests'), /Loading/);
     pending.resolve(source([{ Id: 4, Status: 2, Type: 'movie', TmdbId: 42, requestedBy: { name: 'secret' } }], { TotalPages: 2 })); await app.flush();
     assert.match(app.text('shared-requests'), /Title unavailable/);
     assert.doesNotMatch(app.text('shared-requests'), /secret/);
     assert.equal(app.el('shared-requests-next').disabled, false);
     app.el('shared-requests-next').dispatch('click');
-    assert.match(app.calls.filter(c => c[0] === 'getJSON').at(-1)[1], /\/jellyfin\/3picFin\/SharedRequests\?page=2/);
+    assert.match(app.sharedCalls.at(-1), /\/jellyfin\/3picFin\/SharedRequests\?page=2/);
     second.resolve(source([{ Id: 5, Status: 1, Type: 'tv', TmdbId: 44 }], { TotalPages: 2 })); await app.flush();
     assert.match(app.text('shared-requests'), /Title unavailable/);
     assert.match(app.text('requests'), /No Requests/);
+    assert.match(fragment, /aria-label="All Requests"/);
+    assert.doesNotMatch(fragment, /Show household requests|Household Requests|shared-requests-load/);
+    assert.match(fragment, /<h3>Active Downloads<\/h3>/);
+    assert.doesNotMatch(css, /\.threepic-fin-discovery\s*\{[^}]*background\s*:/);
+});
+
+test('disabled or unauthorized All Requests stays hidden and cannot leak a stale response across users', async () => {
+    const late = deferred(), app = setup([bundle()], [], {}, [], [Object.assign(new Error('disabled'), { status: 404 })]);
+    await app.flush();
+    assert.equal(app.sharedCalls.length, 1);
+    assert.equal(app.el('shared-requests').closest('section').hidden, true);
+    const first = setup([bundle()], [], {}, [], [late]);
+    first.cleanup();
+    late.resolve(source([{ Id: 8, Status: 1, Type: 'movie', TmdbId: 9 }])); await first.flush();
+    assert.equal(first.el('shared-requests').children.length, 0);
+    const denied = setup([bundle()], [], {}, [], [Object.assign(new Error('forbidden'), { status: 403 })]);
+    await denied.flush();
+    assert.equal(denied.el('shared-requests').closest('section').hidden, true);
+    let current = true;
+    const changed = deferred(), switching = setup([bundle()], [], { isCurrent: () => current }, [], [changed]);
+    current = false;
+    changed.resolve(source([{ Id: 11, Status: 2, Type: 'movie', TmdbId: 9 }])); await switching.flush();
+    assert.equal(switching.el('shared-requests').closest('section').hidden, true);
+    assert.equal(switching.el('shared-requests').children.length, 1, 'only pre-response loading placeholder remains');
 });
 
 test('fragment remains host-owned and Calendar is a keyboard accessible nested view', () => {
@@ -485,7 +515,7 @@ test('Downloads is a separate lazy shared view with title-wide status and safe d
     assert.match(app.calls.find(c => c[0] === 'getJSON' && c[1].includes('Downloads'))[1], /\/jellyfin\/3picFin\/Downloads$/);
     assert.match(app.text('downloads-radarr'), /<img src=x>.*Downloading.*26%/);
     assert.match(app.text('downloads-sonarr'), /Series.*Queued.*Partial/i);
-    assert.match(fragment, /Shared Downloads/);
+    assert.match(fragment, /Active Downloads/);
     assert.doesNotMatch(fragment, /Radarr<|Sonarr<|default server and profile|not personalized/i);
     assert.doesNotMatch(app.text('requests'), /Series|<img/);
     assert.equal(app.el('downloads-radarr').descendants().some(n => Object.hasOwn(n, 'innerHTML')), false);
