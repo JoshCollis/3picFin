@@ -407,6 +407,52 @@ test('a duplicate response reconciles matching personal request without claiming
     assert.equal(app.calls.filter(c => c[0] === 'ajax').length, 1);
 });
 
+test('title-level requested status does not claim personal ownership', async () => {
+    const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
+    const app = setup([bundle(source([movie]))], [], {}, [{ ...movie, MediaStatus: 3, CanRequest: true, CanRequest4k: false, Seasons: [] }]);
+    await app.flush();
+    app.el('movies').children[0].descendants().find(n => n.textContent === 'Film').dispatch('click'); await app.flush();
+    assert.match(app.text('details-status'), /Seerr.*title.*requested/i);
+    assert.doesNotMatch(app.text('details-status'), /your request|you requested/i);
+});
+
+test('409 for another user does not direct this user to a nonexistent personal request', async () => {
+    const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
+    const duplicate = Object.assign(new Error('Conflict'), { status: 409 });
+    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
+        bundle(source([movie]), source(), source())], [duplicate]);
+    await app.flush(); await requestFromCard(app, 'movies');
+    app.el('request-form').dispatch('submit'); await app.flush();
+    assert.match(app.text('request-status'), /already tracked|duplicate/i);
+    assert.doesNotMatch(app.text('request-status'), /Check My Requests|your request/i);
+});
+
+test('old owned request beyond first page is found after 409', async () => {
+    const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
+    const duplicate = Object.assign(new Error('Conflict'), { status: 409 });
+    const first = source([], { TotalPages: 4 });
+    const fourth = source([{ Id: 4, Status: 1, TmdbId: 9, Type: 'movie', Is4k: false }], { Page: 4, TotalPages: 4 });
+    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
+        bundle(source([movie]), source(), first), bundle(source(), source(), source()),
+        bundle(source(), source(), source()), bundle(source(), source(), fourth)], [duplicate]);
+    await app.flush(); await requestFromCard(app, 'movies');
+    app.el('request-form').dispatch('submit'); await app.flush();
+    assert.match(app.calls.filter(c => c[0] === 'getJSON').at(-1)[1], /requestsPage=4/);
+    assert.match(app.text('request-status'), /matching.*My Requests/i);
+    assert.doesNotMatch(app.text('request-status'), /new request|Request Pending/i);
+});
+
+test('409 keeps conflict-specific message when read-back fails', async () => {
+    const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
+    const conflict = Object.assign(new Error('Conflict'), { status: 409 });
+    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
+        new Error('read failed')], [conflict]);
+    await app.flush(); await requestFromCard(app, 'movies');
+    app.el('request-form').dispatch('submit'); await app.flush();
+    assert.match(app.text('request-status'), /already tracked|duplicate/i);
+    assert.doesNotMatch(app.text('request-status'), /Check My Requests|your request/i);
+});
+
 test('4K-only permission selects its only permitted variant', async () => {
     const app = setup([bundle(source([{ TmdbId: 8, MediaType: 'movie', Title: '4K' }])), { CanRequest: false, CanRequest4k: true, Seasons: [] }]);
     await app.flush(); await requestFromCard(app, 'movies'); await app.flush();
@@ -472,6 +518,21 @@ test('successful POST with no returned ID on the first personal page stays unkno
     app.el('request-form').dispatch('submit'); await app.flush();
     assert.match(app.text('request-status'), /Outcome unknown/);
     assert.equal(app.el('request-submit').disabled, true);
+});
+
+test('201 read-back with matching ID but wrong title or variant never claims success', async () => {
+    const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
+    for (const record of [
+        { Id: 91, Status: 1, TmdbId: 10, Type: 'movie', Is4k: false },
+        { Id: 91, Status: 1, TmdbId: 9, Type: 'movie', Is4k: true }
+    ]) {
+        const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
+            bundle(source([movie]), source(), source([record]))], [{ Id: 91, Status: 1 }]);
+        await app.flush(); await requestFromCard(app, 'movies');
+        app.el('request-form').dispatch('submit'); await app.flush();
+        assert.match(app.text('request-status'), /Outcome unknown/);
+        assert.equal(app.calls.filter(c => c[0] === 'ajax').length, 1);
+    }
 });
 
 test('failed POST with only a declined personal request stays unknown', async () => {
