@@ -184,6 +184,28 @@ test('enabled hero reserves a slot before slide fetch settles and releases empty
     host.dispose();
 });
 
+test('host reserves the same responsive block size as the rendered hero before data arrives', async () => {
+    const css = fs.readFileSync(path.join(__dirname, '../../src/Rowan.Jellyfin.Plugin/Web/static-hero.css'), 'utf8');
+    const desktop = css.match(/\.rowan-static-hero\{[^}]*min-height:([^;]+)/)?.[1];
+    const mobile = css.match(/@media\(max-width:600px\)\{\.rowan-static-hero\{[^}]*min-height:([^;]+)/)?.[1];
+    assert.ok(desktop && mobile, 'hero CSS must define both responsive reservations');
+    for (const [width, expected] of [[320, mobile], [390, mobile], [1280, desktop]]) {
+        const f = fixture(); let release;
+        const browser = { location: { hash: '#/home' }, matchMedia: () => ({ matches: width <= 600 }) };
+        const host = testBuild(browser)({ document: f.document,
+            loadScript: async () => ({ mount: () => () => {} }) });
+        const api = { getUrl: x => x, getJSON: () => new Promise(resolve => release = resolve),
+            getCurrentUserId: () => 'alice', accessToken: () => 'token', fetch: async () => ({ ok: false }) };
+        await host.mount({ pane: f.pane, favorites: f.favorites, apiClient: api,
+            fingerprint: '12.1', userId: 'alice', enabled: true, mode: { HeroEnabled: true } });
+        const slot = f.pane.children[0];
+        assert.equal(slot.style.height.replaceAll(' ', ''), expected.replaceAll(' ', ''), `${width}px pending slot`);
+        assert.equal(slot.style.minHeight.replaceAll(' ', ''), expected.replaceAll(' ', ''), `${width}px pending minimum`);
+        release([]); await tick();
+        host.dispose();
+    }
+});
+
 test('dispose while fragment pending prevents late script or DOM injection', async () => {
     const f = fixture(); let release; const pending = new Promise(r => release = r);
     const calls = [];
