@@ -1,5 +1,6 @@
 """Shipped host/hero in Chromium: URL navigation and post-mount hero geometry."""
 from pathlib import Path
+from tempfile import gettempdir
 from playwright.sync_api import sync_playwright
 
 web = Path(__file__).resolve().parents[2] / 'src/Rowan.Jellyfin.Plugin/Web'
@@ -47,7 +48,7 @@ with sync_playwright() as p:
         assert abs(metrics['after'] - metrics['before']) < 1, metrics
         assert abs(metrics['heroHeight'] - expected) < 2, metrics
         assert metrics['width'] <= width, metrics
-        page.screenshot(path=str(Path('/home/josh/.hermes/cache/scratch') / f'fin-home-{width}.png'))
+        page.screenshot(path=str(Path(gettempdir()) / f'fin-home-{width}.png'))
         nav = page.locator('.MuiStack-root > .threepic-fin-host__nav')
         nav.click()
         assert page.evaluate('location.hash') == '#/home?fin=1'

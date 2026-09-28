@@ -1,5 +1,6 @@
 """Rendered Discovery navigation, carousel and lifecycle regression at phone/desktop widths."""
 from pathlib import Path
+from tempfile import gettempdir
 from playwright.sync_api import sync_playwright
 
 web = Path(__file__).resolve().parents[2] / 'src/Rowan.Jellyfin.Plugin/Web'
@@ -63,7 +64,7 @@ with sync_playwright() as p:
         assert dialog.evaluate('(el) => getComputedStyle(el).display === "grid"')
         assert dialog.evaluate('(el) => el.getBoundingClientRect().width <= Math.min(innerWidth - 24, 680)')
         page.wait_for_function('document.querySelector("#threepic-fin-details-body img").naturalWidth > 0')
-        page.screenshot(path=f'/home/josh/.hermes/cache/scratch/discovery-details-{width}.png')
+        page.screenshot(path=str(Path(gettempdir()) / f'discovery-details-{width}.png'))
         page.get_by_role('button', name='Request', exact=True).click()
         page.get_by_text('Select and confirm request.', exact=False).wait_for()
         page.locator('#threepic-fin-request-cancel').click()
