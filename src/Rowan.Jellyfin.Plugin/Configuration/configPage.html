@@ -8,22 +8,32 @@
 <body>
 <div id="RowanConfigPage" data-role="page" class="page type-interior pluginConfigurationPage">
 <style>
-#RowanConfigPage .fin-settings { max-width: 52rem; margin: 0 auto; padding: 1rem 1rem 5rem; color: inherit; font-family: system-ui, sans-serif; }
+#RowanConfigPage .fin-settings { max-width: 55rem; margin: 0 auto; padding: 1rem 1rem 5rem; color: inherit; font-family: system-ui, sans-serif; }
 #RowanConfigPage .fin-settings h1 { margin: 0 0 .25rem; font-size: 1.7rem; }
-#RowanConfigPage .fin-intro, #RowanConfigPage .fin-help { opacity: .82; line-height: 1.45; }
-#RowanConfigPage .fin-section { border: 1px solid currentColor; border-color: rgba(128,128,128,.45); border-radius: .7rem; margin: .8rem 0; background: rgba(128,128,128,.07); }
-#RowanConfigPage .fin-section > summary { cursor: pointer; padding: 1rem; font-weight: 650; font-size: 1.1rem; min-height: 2.8rem; box-sizing: border-box; }
-#RowanConfigPage .fin-section-body { padding: .2rem 1rem 1rem; display: grid; gap: .55rem; }
-#RowanConfigPage .fin-choice, #RowanConfigPage .fin-library-list label { display: flex; align-items: center; gap: .75rem; min-height: 2.75rem; cursor: pointer; line-height: 1.35; }
-#RowanConfigPage .fin-choice input, #RowanConfigPage .fin-library-list input { appearance: auto; -webkit-appearance: auto; position: static; opacity: 1; width: 1.2rem; height: 1.2rem; flex: none; margin: 0; pointer-events: auto; accent-color: var(--theme-primary-color, #729bdf); }
+#RowanConfigPage .fin-intro, #RowanConfigPage .fin-help { opacity: .78; line-height: 1.45; }
+#RowanConfigPage .fin-intro { margin: .2rem 0 1.4rem; }
+#RowanConfigPage .fin-section { border: 1px solid rgba(128,128,128,.42); border-radius: .7rem; margin: .7rem 0; background: rgba(128,128,128,.055); overflow: hidden; }
+#RowanConfigPage .fin-section > summary { cursor: pointer; padding: .9rem 1rem; font-weight: 650; font-size: 1.1rem; min-height: 3rem; box-sizing: border-box; }
+#RowanConfigPage .fin-section[open] > summary { border-bottom: 1px solid rgba(128,128,128,.28); }
+#RowanConfigPage .fin-section-body { padding: 1rem; display: grid; gap: .7rem; }
+#RowanConfigPage .fin-choice, #RowanConfigPage .fin-library-list label { display: flex; align-items: center; gap: .65rem; min-height: 2.5rem; cursor: pointer; line-height: 1.35; }
+#RowanConfigPage .fin-choice input, #RowanConfigPage .fin-library-list input { appearance: auto !important; -webkit-appearance: auto !important; position: static !important; opacity: 1 !important; width: 1.2rem !important; height: 1.2rem !important; flex: none; margin: 0 !important; pointer-events: auto !important; accent-color: var(--theme-primary-color, #729bdf); }
 #RowanConfigPage .fin-choice input:focus-visible, #RowanConfigPage .fin-library-list input:focus-visible, #RowanConfigPage summary:focus-visible, #RowanConfigPage button:focus-visible { outline: 2px solid var(--theme-primary-color, #729bdf); outline-offset: 3px; }
 #RowanConfigPage .fin-choice:has(input:disabled), #RowanConfigPage .fin-library-list label:has(input:disabled) { opacity: .55; cursor: not-allowed; }
 #RowanConfigPage .fin-settings fieldset { min-width: 0; padding: .7rem; margin: .5rem 0; border: 1px solid rgba(128,128,128,.4); border-radius: .5rem; }
 #RowanConfigPage .fin-settings legend { font-weight: 600; padding: 0 .35rem; }
+#RowanConfigPage .fin-home-primary { display: grid; gap: .15rem; padding-bottom: .7rem; border-bottom: 1px solid rgba(128,128,128,.3); }
+#RowanConfigPage .fin-home-primary .fin-choice:first-child { font-weight: 650; }
+#RowanConfigPage .fin-home-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 .8rem; }
+#RowanConfigPage .fin-subheading { margin: .35rem 0 0; font-size: .98rem; font-weight: 650; }
+#RowanConfigPage .fin-subheading + .fin-help { margin: 0; font-size: .88rem; }
+#RowanConfigPage .fin-option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 .8rem; }
+#RowanConfigPage .fin-options { display: grid; gap: .1rem; }
+#RowanConfigPage .fin-help { margin: .2rem 0 .45rem; font-size: .9rem; }
 #RowanConfigPage .fin-field { display: grid; gap: .3rem; min-width: 0; }
 #RowanConfigPage .fin-field input { box-sizing: border-box; width: 100%; min-width: 0; padding: .65rem; border: 1px solid rgba(128,128,128,.7); border-radius: .4rem; background: var(--input-background, rgba(128,128,128,.1)); color: inherit; }
 #RowanConfigPage .fin-grid { display: grid; gap: .8rem; }
-#RowanConfigPage .fin-note { border-inline-start: .2rem solid #d6a248; padding: .35rem .7rem; line-height: 1.45; }
+#RowanConfigPage .fin-note { border-inline-start: .2rem solid #d6a248; padding: .15rem .7rem; line-height: 1.45; }
 #RowanConfigPage .fin-note summary { cursor: pointer; min-height: 2.5rem; display: flex; align-items: center; }
 #RowanConfigPage .fin-note p { margin: .5rem 0; }
 #RowanConfigPage .fin-library-list { max-height: 14rem; overflow-y: auto; }
@@ -33,23 +43,26 @@
 #RowanConfigPage #RowanConfigStatus { border: 1px solid #69a884; }
 #RowanConfigPage #RowanSaveButton { min-height: 2.75rem; padding: .6rem 1.5rem; cursor: pointer; }
 @media (min-width: 40rem) { #RowanConfigPage .fin-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 40rem) { #RowanConfigPage .fin-home-rows, #RowanConfigPage .fin-option-grid { grid-template-columns: minmax(0,1fr); } #RowanConfigPage .fin-settings { padding-inline: .8rem; } }
 </style>
 <div data-role="content">
 <div class="content-primary fin-settings">
 <h1>3pic Fin</h1>
-<p class="fin-intro">Choose what appears for your household. Save, then reload the client; newly enabled web features may require a Jellyfin restart.</p>
+<p class="fin-intro">Choose Home and household features. Reload the client after saving; newly enabled web features may need a Jellyfin restart.</p>
 <form id="RowanConfigForm">
 <details class="fin-section" open>
 <summary>Home</summary>
 <div class="fin-section-body">
+<div class="fin-home-primary">
 <label class="fin-choice">
 <input id="HomeEnabled" type="checkbox" />
 <span>Enable Home integration</span>
 </label>
-<fieldset>
-<legend>Personal Home rows</legend>
 <label class="fin-choice"><input id="NativeHomeRowsEnabled" type="checkbox" /><span>Show additional Home rows</span></label>
-<details class="fin-note"><summary>Choose rows</summary>
+</div>
+<h2 class="fin-subheading">Personal Home rows</h2>
+<p class="fin-help">Choose at least one when additional rows are enabled. Rows follow this order.</p>
+<div class="fin-home-rows">
 <label class="fin-choice"><input id="NativeRowContinueWatching" type="checkbox" /><span>Continue Watching</span></label>
 <label class="fin-choice"><input id="NativeRowNextUp" type="checkbox" /><span>Next Up</span></label>
 <label class="fin-choice"><input id="NativeRowLatestMovies" type="checkbox" /><span>Latest Movies</span></label>
@@ -59,9 +72,9 @@
 <label class="fin-choice"><input id="NativeRowCollections" type="checkbox" /><span>Collections</span></label>
 <label class="fin-choice"><input id="NativeRowBecauseYouWatched" type="checkbox" /><span>Because You Watched</span></label>
 <label class="fin-choice"><input id="NativeRowMyRequests" type="checkbox" /><span>My Requests</span></label>
-</details>
-<p class="fin-help">Rows are scoped to the signed-in user. Choose at least one row when enabling; row order follows this list. Some rows require their corresponding feed to be enabled below.</p>
-</fieldset>
+</div>
+<h2 class="fin-subheading">Other Home feeds</h2>
+<div class="fin-option-grid">
 <label class="fin-choice">
 <input id="CombinedPlaybackRowEnabled" type="checkbox" />
 <span>Continue Watching / Next Up</span>
@@ -86,7 +99,8 @@
 <input id="BecauseYouWatchedHideWatched" type="checkbox" />
 <span>Hide watched similar cards</span>
 </label>
-<p class="fin-help">Rows require Home. Live TV respects each user’s channel permissions; recommendations and collections use visible library items.</p>
+</div>
+<details class="fin-note"><summary>Home row requirements and privacy</summary><p>Rows require Home. Some personal rows need their corresponding feed below. Live TV respects each user’s channel permissions; recommendations and collections use visible library items.</p></details>
 </div>
 </details>
 <details class="fin-section">
