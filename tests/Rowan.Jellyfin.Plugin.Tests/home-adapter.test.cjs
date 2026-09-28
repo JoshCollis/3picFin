@@ -101,6 +101,14 @@ test('duplicate native index pages fail closed even if the first has valid Home 
     const app = runtime({ duplicatePages: true });
     await app.settle(); assert.equal(app.appended, 0); app.dispose();
 });
+test('Fin query is Home-owned while Favorites and arbitrary queries fail closed', async () => {
+    const app = runtime({ route: '#/home?fin=1' }); await app.waitForMounts(1);
+    app.change('#/home?tab=1'); await app.waitForDisposals(1);
+    app.change('#/home?fin=1&tab=1'); await app.settle();
+    assert.equal(app.mounts, 1);
+    app.change('#/home?fin=1'); await app.waitForMounts(2);
+    app.dispose();
+});
 test('another same-origin Home chunk hash is portable', async () => {
     const app = runtime({ timing: ['https://example.test/jellyfin/web/hometab.deadbeef.chunk.js'] });
     await app.waitForMounts(1); assert.equal(app.appended, 1); app.dispose();
