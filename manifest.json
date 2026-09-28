@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.6.0",
+        "changelog": "Persistent 3pic Fin navigation; single-row native-scale Seerr Search rail; fresh availability checks and Request more for partial TV; ElegantFin Discovery, settings, hero and Home-card polish; remove repeated Because You Watched heading",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v0.1.6.0/3pic-fin_0.1.6.0.zip",
+        "checksum": "8e18be311eb1ff575c5054908268e94d",
+        "timestamp": "2026-09-28T12:03:53Z"
+      },
+      {
         "version": "0.1.5.0",
         "changelog": "Home/Fin navigation and lower-shift hero; Discovery carousels and compact details; Home artwork fallbacks; compact-GUID settings fix; compact Seerr Search cards and debounced queries",
         "targetAbi": "12.1.0.0",
