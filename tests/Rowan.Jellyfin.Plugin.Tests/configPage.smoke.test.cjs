@@ -634,6 +634,26 @@ test('calendar is independently opt-in and discloses all-signed-in visibility', 
     assert.equal(app.elements.DownloadsEnabled.checked, false);
 });
 
+test('Jellyfin compact library GUIDs load and match hyphenated saved selections', async () => {
+    const compact = A.replaceAll('-', '');
+    const app = setup({ HomeEnabled: true, DiscoveryPageEnabled: true,
+        NativeHomeRowsEnabled: true, NativeHomeRowKinds: ['LatestMovies'], RecentlyAddedLibraryIds: [A], HeroLibraryIds: [compact] },
+    [{ Name: 'Movies', ItemId: compact }]);
+    await app.load();
+    assert.equal(app.elements.RowanSaveButton.disabled, false);
+    assert.equal(app.elements.HomeEnabled.checked, true);
+    assert.equal(app.elements.DiscoveryPageEnabled.checked, true);
+    assert.equal(app.elements.NativeHomeRowsEnabled.checked, true);
+    assert.equal(app.elements.RecentlyAddedLibraries.children.length, 1);
+    assert.equal(app.elements.RecentlyAddedLibraries.children[0].children[0].checked, true);
+    assert.equal(app.elements.HeroLibraries.children.length, 1);
+    assert.equal(app.elements.HeroLibraries.children[0].children[0].checked, true);
+    await app.save();
+    assert.equal(app.writes.length, 1, app.elements.RowanConfigError.textContent);
+    assert.deepEqual(Array.from(app.writes[0].HeroLibraryIds), [compact]);
+    assert.deepEqual(Array.from(app.writes[0].RecentlyAddedLibraryIds), [compact]);
+});
+
  test('hero library IDs are explicit, preserved when unavailable, and snapshotted during save', async () => {
     const pending = {}; pending.promise = new Promise(resolve => { pending.resolve = resolve; });
     const app = setup({ RecentlyAddedLibraryIds: null, HeroLibraryIds: [B] }, [folders[0]], { update: () => pending.promise });
