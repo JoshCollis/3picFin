@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.7.1",
+        "changelog": "Keep the 3pic Fin navigation pill on one line and distinguish its unselected hover state from the selected Fin state under ElegantFin",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v0.1.7.1/3pic-fin_0.1.7.1.zip",
+        "checksum": "27ed3dc396d6b7a0243ff4c7504ab644",
+        "timestamp": "2026-09-28T14:26:16Z"
+      },
+      {
         "version": "0.1.7.0",
         "changelog": "Match 3pic Fin navigation, Home cards and Search rail to native ElegantFin styling; automatically show opt-in All Requests; label Active Downloads; inherit Discovery background; distinguish Seerr title tracking from verified personal requests",
         "targetAbi": "12.1.0.0",
