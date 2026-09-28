@@ -3,7 +3,8 @@ const assert = require('node:assert/strict');
 const { createRows } = require('../../src/Rowan.Jellyfin.Plugin/Web/native-home-rows.js');
 const id = '0123456789abcdef0123456789abcdef';
 class Node {
-    constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.textContent = ''; this.parent = null; this.className = ''; this.classList = { add: name => this.className += ` ${name}` }; this.handlers = {}; }
+    constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.textContent = ''; this.parent = null; this.className = ''; this.attributes = {}; this.classList = { add: name => this.className += ` ${name}` }; this.handlers = {}; }
+    setAttribute(name, value) { this.attributes[name] = String(value); }
     appendChild(n) { this.children.push(n); n.parent = this; return n; }
     append(...nodes) { nodes.forEach(n => this.appendChild(n)); }
     remove() { if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; }
@@ -19,7 +20,7 @@ function fixture(enabledRows = ['LatestMovies']) {
     const root = new Node(), calls = [], observers = [];
     let user = 'alice', resolve;
     const document = { createElement: tag => new Node(tag) };
-    const api = { getUrl: (p) => `/jellyfin/${p}`, getCurrentUserId: () => user,
+    const api = { getUrl: (p) => `/jellyfin/${p}`, getCurrentUserId: () => user, serverId: () => 'server-a',
         getJSON: url => { calls.push(url); return new Promise(r => resolve = r); } };
     class Observer { constructor(callback) { this.callback = callback; observers.push(this); } observe() {} disconnect() { this.closed = true; }
         fire(target) { this.callback([{ target, isIntersecting: true }]); } }
@@ -55,11 +56,36 @@ test('bounded populated row renders tagged art and native Open identity lazily',
     f.reply({ Kind: 'LatestMovies', Items: [{ Id: id, Type: 'Movie', Name: 'Own film', ImageTags: { Primary: 'ab' } }] });
     await tick();
     const card = f.root.children[0].children[1].children[0];
-    assert.equal(card.tagName, 'BUTTON');
+    assert.equal(card.tagName, 'DIV');
+    assert.equal(card.attributes.role, 'button');
     assert.equal(image(card).src, `/jellyfin/Items/${id}/Images/Primary`);
     assert.equal(label(card).textContent, 'Own film');
     card.click(); assert.deepEqual(f.opened, [{ Id: id, Type: 'Movie' }]);
     f.observers[0].fire(f.root.children[0]); await tick(); assert.equal(f.calls.length, 1);
+});
+test('playable cards expose native item action metadata, hover play and menu inside a native items container', async () => {
+    const f = fixture(); f.rows.mount(f.root, f.api, 'alice');
+    f.observers[0].fire(f.root.children[0]); await tick();
+    f.reply({ Kind: 'LatestMovies', Items: [{ Id: id, Type: 'Movie', Name: 'Film', ImageTags: { Primary: 'ab' } }] }); await tick();
+    const track = f.root.children[0].children[1], card = track.children[0];
+    assert.equal(track.attributes.is, 'emby-itemscontainer');
+    assert.match(track.className, /\bitemsContainer\b/);
+    assert.equal(card.tagName, 'DIV');
+    assert.deepEqual([card.attributes['data-id'], card.attributes['data-type'], card.attributes['data-serverid']], [id, 'Movie', 'server-a']);
+    const play = descendant(card, n => n.attributes['data-action'] === 'resume');
+    const menu = descendant(card, n => n.attributes['data-action'] === 'menu');
+    assert.match(play.className, /cardOverlayFab-primary/);
+    assert.match(menu.className, /cardOverlayButton-hover/);
+    assert.equal(play.parent.className.includes('cardOverlayContainer'), true);
+    assert.equal(menu.parent.className.includes('cardOverlayButton-br'), true);
+});
+test('folders do not advertise playback, while native menus keep Jellyfin authorization', async () => {
+    const f = fixture(['MyMedia']); f.rows.mount(f.root, f.api, 'alice');
+    f.observers[0].fire(f.root.children[0]); await tick();
+    f.reply({ Kind: 'MyMedia', Items: [{ Id: id, Type: 'CollectionFolder', Name: 'Library' }] }); await tick();
+    const card = f.root.children[0].children[1].children[0];
+    assert.equal(descendant(card, n => n.attributes['data-action'] === 'resume'), undefined);
+    assert.ok(descendant(card, n => n.attributes['data-action'] === 'menu'));
 });
 test('late previous-user response and detached Open cannot disclose old content', async () => {
     const f = fixture(); f.rows.mount(f.root, f.api, 'alice');

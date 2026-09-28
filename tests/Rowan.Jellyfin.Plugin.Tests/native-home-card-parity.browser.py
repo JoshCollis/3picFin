@@ -28,7 +28,7 @@ with sync_playwright() as p:
     for width, layout in ((390, 'mobile'), (1280, 'desktop'), (1920, 'desktop')):
         page = browser.new_page(viewport={'width': width, 'height': 800}, reduced_motion='reduce')
         page.route('**/jellyfin/Items/**/Images/**', lambda r: r.fulfill(content_type='image/svg+xml', body='<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#5889ab"/><rect x="20" width="25" height="100" fill="#ecb23a"/></svg>'))
-        page.set_content(f'<html class="layout-{layout}"><head><base href="https://fixture.invalid/"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#101622;color:white"><main id="home"><div class="sections"><div class="itemsContainer"><div class="card overflowPortraitCard card-hoverable show-animation" id="native" tabindex="0"><div class="cardBox visualCardBox"><div class="cardScalable"><div class="cardPadder cardPadder-overflowPortrait"></div><div class="cardContent cardImageContainer"><img src="/jellyfin/Items/{item}/Images/Primary" alt=""></div></div><div class="cardFooter"><div class="cardText">Native film</div></div></div></div></div><div id="plugin" class="rowan-native-rows"></div></main></body></html>')
+        page.set_content(f'<html class="layout-{layout}"><head><base href="https://fixture.invalid/"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#101622;color:white"><main id="home"><div class="sections"><div class="itemsContainer" style="--itemColumnGap:.5em"><div class="card overflowPortraitCard card-hoverable show-animation" id="native" tabindex="0"><div class="cardBox"><div class="cardScalable"><div class="cardPadder cardPadder-overflowPortrait"></div><div class="cardContent cardImageContainer"><img src="/jellyfin/Items/{item}/Images/Primary" alt=""></div></div><div class="cardText cardTextCentered">Native film</div></div></div></div><div id="plugin" class="rowan-native-rows"></div></main></body></html>')
         for name in ('2.css', '3.css', '0.css', '1.css'):
             page.add_style_tag(path=str(theme / name))
         page.add_style_tag(content='#native .cardContent img { display:block;width:100%;height:100%;object-fit:cover; }')
@@ -53,16 +53,16 @@ with sync_playwright() as p:
         poster = page.locator('.rowan-native-row__card--portrait')
         landscape = page.locator('.rowan-native-row__card--landscape')
         assert poster.get_attribute('class').split().count('card-hoverable') == 1
-        assert poster.locator('.cardBox.visualCardBox .cardScalable .cardPadder-overflowPortrait + .cardContent.cardImageContainer img').count() == 1
-        assert poster.locator('.cardFooter .cardText').inner_text() == 'Plugin film'
+        assert poster.locator('.cardBox .cardScalable .cardPadder-overflowPortrait + .cardContent.cardImageContainer img').count() == 1
+        assert poster.locator('.cardBox > .cardText').inner_text() == 'Plugin film'
         def metrics(card):
-            return card.evaluate('''el => { const box=el.querySelector('.cardBox'), scale=el.querySelector('.cardScalable'), art=el.querySelector('img'), footer=el.querySelector('.cardFooter'); const r=x=>x.getBoundingClientRect(); return {width:r(el).width, artWidth:r(art).width, boxWidth:r(box).width, margin:getComputedStyle(box).margin, padding:getComputedStyle(el).padding, artRatio:r(art).width/r(art).height, footerBg:getComputedStyle(footer).backgroundColor, backing:getComputedStyle(scale).backgroundColor, border:getComputedStyle(box).borderRadius, scale:getComputedStyle(scale).transform}; }''')
+            return card.evaluate('''el => { const box=el.querySelector('.cardBox'), scale=el.querySelector('.cardScalable'), art=el.querySelector('img'); const r=x=>x.getBoundingClientRect(); return {width:r(el).width, artWidth:r(art).width, boxWidth:r(box).width, margin:getComputedStyle(box).margin, padding:getComputedStyle(el).padding, artRatio:r(art).width/r(art).height, backing:getComputedStyle(box).backgroundColor, border:getComputedStyle(box).borderRadius, scale:getComputedStyle(scale).transform}; }''')
         before_native, before_poster = metrics(native), metrics(poster)
         assert abs(before_native['width'] - before_poster['width']) < 2, (width, before_native, before_poster)
         assert abs(before_native['artWidth'] - before_poster['artWidth']) < 2, (width, before_native, before_poster)
         assert abs(before_poster['artRatio'] - 2/3) < .02
         assert abs(landscape.locator('img').evaluate('(el) => el.getBoundingClientRect().width / el.getBoundingClientRect().height') - 16/9) < .02
-        assert before_native['footerBg'] == before_poster['footerBg']
+        assert poster.locator('.cardFooter, .visualCardBox').count() == 0
         assert before_native['border'] == before_poster['border']
         assert before_native['backing'] == before_poster['backing']
         assert abs(before_native['artRatio'] - before_poster['artRatio']) < .02

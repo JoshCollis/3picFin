@@ -3,7 +3,8 @@ const assert = require('node:assert/strict');
 const { createRows } = require('../../src/Rowan.Jellyfin.Plugin/Web/native-home-rows.js');
 const id = '0123456789abcdef0123456789abcdef';
 class Node {
-    constructor(tag) { this.tagName = tag?.toUpperCase(); this.children = []; this.textContent = ''; this.parent = null; this.className = ''; this.listeners = {}; }
+    constructor(tag) { this.tagName = tag?.toUpperCase(); this.children = []; this.textContent = ''; this.parent = null; this.className = ''; this.listeners = {}; this.attributes = {}; this.classList = { add: name => this.className += ` ${name}` }; }
+    setAttribute(name, value) { this.attributes[name] = String(value); }
     appendChild(node) { this.children.push(node); node.parent = this; return node; }
     append(...nodes) { nodes.forEach(node => this.appendChild(node)); }
     remove() { if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; }
@@ -32,10 +33,10 @@ test('Because You Watched is one lazy bounded fetch with separate seed headings 
     assert.equal(seed.children[0].tagName, 'H3');
     assert.equal(seed.children[0].textContent, 'Because You Watched <Movie>');
     const card = seed.children[1].children[0];
-    assert.equal(card.tagName, 'BUTTON');
+    assert.equal(card.tagName, 'DIV');
     assert.match(card.className, /landscape/);
     assert.equal(card.children[0].children[0].children[1].children[0].src, `/base/Items/${id}/Images/Backdrop/0`);
-    assert.equal(card.children[0].children[1].children[0].textContent, 'Next <Film>');
+    assert.equal(card.children[0].children[1].textContent, 'Next <Film>');
     card.click(); assert.equal(seen[0].Id, id);
     f.rows.dispose(); assert.equal(f.root.children.length, 0);
 });
