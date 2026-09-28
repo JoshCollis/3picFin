@@ -1,6 +1,4 @@
-.threepic-fin-global-nav { display:inline-flex; align-items:center; gap:8px; appearance:none; border:0; border-radius:4px; background:transparent; color:inherit; font:inherit; text-transform:none !important; cursor:pointer; min-height:44px; padding:6px 8px; white-space:nowrap; }
-.threepic-fin-global-nav span { text-transform:none !important; }
-.threepic-fin-global-nav svg { width:19px; height:19px; flex:none; }
-.threepic-fin-global-nav:hover, .threepic-fin-global-nav[aria-current="page"] { background:rgba(255,255,255,.12); }
-.threepic-fin-global-nav:focus-visible { outline:2px solid var(--theme-primary-color,#00a4dc); outline-offset:-2px; }
-.threepic-fin-global-nav-item > .threepic-fin-global-nav { width:100%; min-height:48px; text-align:left; padding:10px 16px 10px 52px; }
+/* Native sibling classes provide the pill, selected, hover and focus treatment. */
+.threepic-fin-global-nav, .threepic-fin-global-nav .MuiTypography-root,
+.threepic-fin-global-nav .MuiListItemText-root { text-transform: none !important; }
+.threepic-fin-global-nav svg { width: 19px; height: 19px; flex: none; }
