@@ -31,9 +31,9 @@ with sync_playwright() as p:
         page.add_script_tag(content=(web / 'global-search-addon.js').read_text())
         page.add_script_tag(content=(web / 'discovery.js').read_text())
         page.add_script_tag(content=(web / 'search-adapter.js').read_text())
-        page.wait_for_selector('.threepic-fin-search h3')
+        page.wait_for_selector('.threepic-fin-search .cardText')
         assert page.locator('.card[data-id=native]').inner_text() == 'Native Alien'
-        assert page.locator('.threepic-fin-search h3').inner_text() == 'Seerr title'
+        assert page.locator('.threepic-fin-search .cardText').inner_text() == 'Seerr title'
         assert page.locator('.threepic-fin-search img').get_attribute('src').endswith('/poster.jpg')
         assert page.evaluate("calls.some(x=>x.includes('/jellyfin/3picFin/Search?'))")
         page.evaluate("""() => { window.staleButton=document.querySelector('.threepic-fin-search article button');
@@ -54,7 +54,7 @@ with sync_playwright() as p:
         page.evaluate("""() => { document.querySelector('#searchTextInput').value='Alien';
             history.replaceState({}, '', location.hash.startsWith('#') ? '#/search?query=Alien' : '/search?query=Alien');
             document.querySelector('#searchTextInput').dispatchEvent(new Event('input',{bubbles:true})); }""")
-        page.wait_for_selector('.threepic-fin-search h3')
+        page.wait_for_selector('.threepic-fin-search .cardText')
         assert page.locator('.threepic-fin-search article button').count() == 1
         assert page.locator('.threepic-fin-search article button').inner_text() == 'Details'
         art_box = page.locator('.threepic-fin-search article').bounding_box()
@@ -84,9 +84,9 @@ with sync_playwright() as p:
         page.evaluate("history.pushState({}, '', '/search?query=Alien&collectionType='); dispatchEvent(new PopStateEvent('popstate'))")
         assert page.locator('.threepic-fin-search').count() == 0
         page.evaluate("history.pushState({}, '', '/search?query=Alien'); identity='bob'; dispatchEvent(new PopStateEvent('popstate'))")
-        page.wait_for_selector('.threepic-fin-search h3')
+        page.wait_for_selector('.threepic-fin-search .cardText')
         page.evaluate("window.oldSection=document.querySelector('.threepic-fin-search'); identity='alice'; dispatchEvent(new PopStateEvent('popstate'))")
-        page.wait_for_function("document.querySelector('.threepic-fin-search h3') && document.querySelector('.threepic-fin-search') !== oldSection")
+        page.wait_for_function("document.querySelector('.threepic-fin-search .cardText') && document.querySelector('.threepic-fin-search') !== oldSection")
         assert page.evaluate('posts') == 1
         assert page.evaluate("""() => { ApiClient.logout(); return !document.querySelector('.threepic-fin-search'); }""")
         page.wait_for_function("!document.querySelector('.threepic-fin-search')")

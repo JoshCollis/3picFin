@@ -91,20 +91,30 @@
                     const items = field(data, 'Items');
                     if (field(data, 'Error') || !Array.isArray(items)) throw Error('Invalid Seerr response');
                     const seen = new Set(), cards = document.createElement('div');
-                    cards.className = 'threepic-fin-search__cards';
+                    cards.className = 'threepic-fin-search__cards itemsContainer';
                     for (const item of items.slice(0, 20)) {
                         const id = field(item, 'TmdbId'), type = field(item, 'MediaType');
                         const key = `${type}:${id}`;
                         if (!['movie','tv'].includes(type) || !Number.isInteger(id) || id < 1 || seen.has(key)) continue;
                         seen.add(key);
-                        const card = document.createElement('article'), title = document.createElement('h3');
-                        card.className = 'threepic-fin-search__card threepic-fin-search__card--no-art';
-                        title.textContent = String(field(item, 'Title') || `${type === 'tv' ? 'TV' : 'Movie'} · TMDb #${id}`);
-                        const media = document.createElement('div'); media.className = 'threepic-fin-search__poster';
+                        const card = document.createElement('article');
+                        card.className = 'threepic-fin-search__card threepic-fin-search__card--no-art card overflowPortraitCard card-hoverable show-animation';
+                        const name = String(field(item, 'Title') || `${type === 'tv' ? 'TV' : 'Movie'} · TMDb #${id}`);
+                        const date = field(item, 'Date');
+                        const year = typeof date === 'string' && /^(?:18|19|20|21)\d{2}(?:-\d{2}-\d{2})?$/.test(date) ? date.slice(0, 4) : null;
+                        const metadata = year || `TMDb #${id}`;
+                        const box = document.createElement('div'); box.className = 'cardBox visualCardBox';
+                        const scalable = document.createElement('div'); scalable.className = 'cardScalable';
+                        const padder = document.createElement('div'); padder.className = 'cardPadder cardPadder-overflowPortrait';
+                        const media = document.createElement('div'); media.className = 'threepic-fin-search__poster cardContent cardImageContainer';
                         const fallback = document.createElement('span'); fallback.className = 'threepic-fin-search__poster-label';
-                        fallback.textContent = title.textContent; fallback.setAttribute('aria-hidden', 'true');
+                        fallback.textContent = name; fallback.setAttribute('aria-hidden', 'true');
                         media.appendChild(fallback);
-                        card.appendChild(media); card.appendChild(title);
+                        scalable.append(padder, media);
+                        const footer = document.createElement('div'); footer.className = 'cardFooter';
+                        const title = document.createElement('div'); title.className = 'cardText'; title.textContent = name;
+                        const subtitle = document.createElement('div'); subtitle.className = 'threepic-fin-search__metadata'; subtitle.textContent = metadata;
+                        footer.append(title, subtitle); box.append(scalable, footer); card.appendChild(box);
                         const poster = field(item, 'PosterPath');
                         if (typeof poster === 'string' && /^\/[a-zA-Z0-9_/-]+\.(?:jpg|jpeg|png|webp)$/.test(poster) && !poster.includes('..')) {
                             const image = document.createElement('img');
@@ -117,7 +127,7 @@
                         const action = document.createElement('button'); action.type = 'button';
                         const hasDetails = typeof state.detailsAction === 'function';
                         action.textContent = 'Details';
-                        action.setAttribute('aria-label', `Details for ${title.textContent}`);
+                        action.setAttribute('aria-label', `Details for ${name} (${metadata})`);
                         const handler = () => {
                             if (valid() && generation === state.generation)
                                 (hasDetails ? state.detailsAction : requestAction)(item, action);

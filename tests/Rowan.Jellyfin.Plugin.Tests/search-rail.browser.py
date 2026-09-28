@@ -21,7 +21,7 @@ with sync_playwright() as p:
         page.route('**/global-search-addon.css', lambda r: r.fulfill(status=200, content_type='text/css', body=(web / 'global-search-addon.css').read_text()))
         page.route('https://image.tmdb.org/**', lambda r: r.fulfill(status=200, content_type='image/png', body=png))
         page.goto('http://localhost:8765/web/index.html#/search?query=Alien')
-        page.add_style_tag(content='#searchPage {padding: 1rem} .searchField {margin-bottom:1rem} .searchResults .card {width:11rem;height:16rem;background:#456}')
+        page.add_style_tag(content='#searchPage {padding: 1rem} .searchField {margin-bottom:1rem} .searchResults .card {width:11rem;height:16rem;background:#456} .cardPadder-overflowPortrait {padding-top:150%}')
         if theme:
             for i in (0, 1):
                 page.add_style_tag(content=(theme / f'elegant-source-{i}.css').read_text())
@@ -47,7 +47,7 @@ with sync_playwright() as p:
           b=document.querySelector('.threepic-fin-search__card--no-art').getBoundingClientRect();
           return Math.abs(a.width-b.width)<2 && Math.abs(a.height-b.height)<15}''')
         assert page.evaluate('''() => {const c=document.querySelector('.threepic-fin-search__card--no-art');
-          return c.querySelector('.threepic-fin-search__poster-label')?.textContent === c.querySelector('h3')?.textContent}''')
+          return c.querySelector('.threepic-fin-search__poster-label')?.textContent === c.querySelector('.cardText')?.textContent}''')
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
         box = page.locator('.threepic-fin-search').bounding_box()
         input_box = page.locator('#searchTextInput').bounding_box()
