@@ -35,10 +35,10 @@
             image.loading = 'lazy';
             image.addEventListener('error', () => {
                 posterHost.replaceChildren();
-                text(posterHost, 'div', 'Poster unavailable', 'threepic-fin-discovery__poster-fallback');
+                text(posterHost, 'div', 'Artwork unavailable', 'threepic-fin-discovery__poster-fallback');
             });
             posterHost.appendChild(image);
-        } else text(posterHost, 'div', 'No poster', 'threepic-fin-discovery__poster-fallback');
+        } else text(posterHost, 'div', 'Artwork unavailable', 'threepic-fin-discovery__poster-fallback');
         const info = document.createElement('div');
         info.className = 'threepic-fin-discovery__card-info';
         const displayTitle = typeof title === 'string' && title.trim() ? title : `${label(type)}${Number.isInteger(tmdbId) && tmdbId > 0 ? ` · TMDb #${tmdbId}` : ' · details unavailable'}`;

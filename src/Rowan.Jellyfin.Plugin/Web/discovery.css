@@ -5,6 +5,12 @@
 }
 .threepic-fin-discovery * { box-sizing: border-box; }
 .threepic-fin-discovery__content { max-width: 100rem; margin-inline: auto; padding: clamp(.75rem, 2.5vw, 2rem); }
+/* Match the native Home rail gutters and keep empty rows from consuming a card slot. */
+.threepic-fin-discovery #threepic-fin-discover-panel > section { margin-block: 0 .75rem; }
+.threepic-fin-discovery #threepic-fin-discover-panel > section > h3 { margin-block: .9rem .5rem; }
+.threepic-fin-discovery #threepic-fin-discover-panel > section > .threepic-fin-discovery__cards:has(> .threepic-fin-discovery__message) { padding-block: 0; }
+.threepic-fin-discovery #threepic-fin-discover-panel > section > .threepic-fin-discovery__cards > .threepic-fin-discovery__message { margin: .25rem 0; }
+.threepic-fin-discovery #threepic-fin-search-form { margin-block: .75rem; }
 .threepic-fin-discovery h2 { margin-block: 0 1rem; font-size: clamp(1.5rem, 4vw, 2rem); }
 .threepic-fin-discovery h3 { margin-block: 1.5rem .75rem; font-size: 1.25rem; }
 .threepic-fin-discovery__row-heading { display: flex; justify-content: space-between; align-items: end; gap: 1rem; margin-top: 1.3rem; }
@@ -36,6 +42,13 @@
 .threepic-fin-discovery__poster-fallback { display: grid; place-items: center; padding: .5rem; text-align: center; color: var(--secondary-text-color, #bbb); background: var(--background-secondary, #414141); }
 .threepic-fin-discovery__card-info { padding: .5rem .15rem .6rem; }
 .threepic-fin-discovery .threepic-fin-discovery__poster-button { display: block; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; overflow: hidden; }
+.threepic-fin-discovery .threepic-fin-discovery__poster-button::after {
+    content: "Details"; position: absolute; bottom: .45rem; right: .45rem; z-index: 1;
+    padding: .3rem .6rem; border-radius: .3rem; background: rgba(17, 25, 38, .82);
+    color: #fff; font-size: .78rem; line-height: 1.3; pointer-events: none;
+}
+.threepic-fin-discovery .threepic-fin-discovery__poster-button:focus-visible::after,
+.threepic-fin-discovery .threepic-fin-discovery__poster-button:hover::after { background: var(--primary-accent-color, #435dad); }
 .threepic-fin-discovery .threepic-fin-discovery__title-button { min-height: 0; border: 0; padding: 0; background: none; text-align: left; font-weight: inherit; }
 .threepic-fin-discovery__card-info p { margin-block: .35rem 0; font-size: .85rem; color: var(--secondary-text-color, #bbb); }
 .threepic-fin-discovery__card-info h4 { line-height: 1.3; }
@@ -52,7 +65,12 @@
 .threepic-fin-discovery__pager button { min-height: 36px; padding: .3rem .65rem; }
 .threepic-fin-discovery #threepic-fin-discover-panel .threepic-fin-discovery__pager button:disabled { display: none; }
 .threepic-fin-discovery #threepic-fin-discover-panel .threepic-fin-discovery__pager:has(button:disabled + span + button:disabled) { display: none; }
-.threepic-fin-discovery__dialog { max-width: min(34rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); overflow: auto; padding: 1.5rem; border: 1px solid var(--border-color, #777); border-radius: .6rem; color: var(--primary-text-color, #f5f5f5); background: var(--background-color, #202020); }
+.threepic-fin-discovery__dialog {
+    max-width: min(34rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto;
+    padding: 1.5rem; border: 1px solid var(--border-color, #777); border-radius: .75rem;
+    color: var(--primary-text-color, #f5f5f5); background: var(--drawerColor, var(--background-color, #202020));
+    backdrop-filter: blur(18px); box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .5);
+}
 .threepic-fin-discovery .threepic-fin-discovery__details[open] { display: grid; grid-template-columns: minmax(0, 9rem) minmax(0, 1fr); column-gap: 1.2rem; align-content: start; width: min(40rem, calc(100vw - 1.5rem)); padding: 1.25rem; padding-right: 3.25rem; position: fixed; }
 .threepic-fin-discovery__details h3 { grid-column: 2; margin: .1rem 0 .25rem; font-size: clamp(1.2rem, 3vw, 1.5rem); line-height: 1.25; }
 .threepic-fin-discovery__details p { line-height: 1.4; overflow-wrap: anywhere; margin: .15rem 0 .7rem; }
@@ -60,8 +78,23 @@
 .threepic-fin-discovery__details #threepic-fin-details-body:empty { display: none; }
 .threepic-fin-discovery__details #threepic-fin-details-body img { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: .3rem; }
 .threepic-fin-discovery__details:has(#threepic-fin-details-body:empty) { grid-template-columns: minmax(0, 1fr); }
+/* Missing or failed art retains the same poster rhythm as decoded artwork. */
 .threepic-fin-discovery__card:has(.threepic-fin-discovery__poster-fallback) .threepic-fin-discovery__poster-frame,
-.threepic-fin-discovery__card:has(.threepic-fin-discovery__poster-fallback) .threepic-fin-discovery__poster-button { aspect-ratio: auto; height: 5rem; }
+.threepic-fin-discovery__card:has(.threepic-fin-discovery__poster-fallback) .threepic-fin-discovery__poster-button { aspect-ratio: 2 / 3; height: auto; }
+.threepic-fin-discovery .threepic-fin-discovery__poster-fallback {
+    background: linear-gradient(145deg, #26334a, #192332 58%, #303746);
+    color: var(--secondary-text-color, #c9d2e1);
+    font-size: .9rem; line-height: 1.35;
+}
+.threepic-fin-discovery .threepic-fin-discovery__title-button { min-height: 44px; width: 100%; display: block; line-height: 1.25; }
+.threepic-fin-discovery__card-info { padding: .15rem .2rem .5rem; }
+.threepic-fin-discovery__details .threepic-fin-discovery__actions button,
+.threepic-fin-discovery__dialog .threepic-fin-discovery__actions button { min-height: 44px; }
+.threepic-fin-discovery__details #threepic-fin-details-request:not([hidden]),
+.threepic-fin-discovery__details #threepic-fin-details-open:not([hidden]),
+.threepic-fin-discovery__dialog #threepic-fin-request-submit:not(:disabled) {
+    background: var(--primary-accent-color, #435dad); color: #fff; border-color: transparent;
+}
 .threepic-fin-discovery__details:has(#threepic-fin-details-body:empty) :is(h3, p, #threepic-fin-details-seasons, .threepic-fin-discovery__actions) { grid-column: 1; }
 .threepic-fin-discovery__details #threepic-fin-details-meta { grid-column: 2; color: var(--secondary-text-color, #bbb); font-size: .9rem; }
 .threepic-fin-discovery__details #threepic-fin-details-overview { grid-column: 2; max-height: 10rem; overflow-y: auto; }
@@ -78,7 +111,15 @@
 .threepic-fin-discovery [hidden] { display: none !important; }
 @container (max-width: 29rem) { .threepic-fin-discovery__card { flex-basis: clamp(8rem, 39cqw, 10rem); } }
 @media (max-width: 600px) {
+    .threepic-fin-discovery__content { padding-inline: .75rem; }
     .threepic-fin-discovery .threepic-fin-discovery__details[open] { grid-template-columns: 5.5rem minmax(0, 1fr); gap: .25rem .85rem; padding: 1rem; padding-right: 3rem; }
+    .threepic-fin-discovery .threepic-fin-discovery__dialog { width: calc(100vw - 1.5rem); max-height: calc(100dvh - 1.5rem); }
+    .threepic-fin-discovery .threepic-fin-discovery__details[open] { padding-bottom: 1rem; }
+    .threepic-fin-discovery__details .threepic-fin-discovery__actions,
+    .threepic-fin-discovery__dialog .threepic-fin-discovery__actions { display: flex; gap: .5rem; width: 100%; }
+    .threepic-fin-discovery__details .threepic-fin-discovery__actions button,
+    .threepic-fin-discovery__dialog .threepic-fin-discovery__actions button { flex: 1 1 9rem; }
+    .threepic-fin-discovery__dialog #threepic-fin-request-form { min-width: 0; }
     .threepic-fin-discovery__details #threepic-fin-details-body { grid-row: 1 / span 3; }
     .threepic-fin-discovery__details #threepic-fin-details-overview, .threepic-fin-discovery__details #threepic-fin-details-status { grid-column: 1 / -1; }
     .threepic-fin-discovery__details:has(#threepic-fin-details-body:empty) { grid-template-columns: minmax(0, 1fr); }
