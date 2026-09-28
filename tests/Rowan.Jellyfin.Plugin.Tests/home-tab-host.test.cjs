@@ -9,10 +9,10 @@ function testBuild(browser = { location: { hash: '#/home' } }) {
     vm.runInNewContext(source, browser);
     return browser.ThreePicFinHomeHost.createHost;
 }
-const createHost = testBuild();
+const createHost = options => testBuild()(options);
 
 class Node {
-    constructor(tag = 'div') { this.tagName = tag; this.children = []; this.handlers = {}; this.className = ''; this.hidden = false; this.parentNode = null; this.attributes = {}; this.textContent = ''; }
+    constructor(tag = 'div') { this.tagName = tag; this.children = []; this.handlers = {}; this.className = ''; this.hidden = false; this.parentNode = null; this.attributes = {}; this.textContent = ''; this.style = {}; }
     appendChild(node) { node.remove(); this.children.push(node); node.parentNode = this; return node; }
     insertBefore(node, before) { node.remove(); const at = this.children.indexOf(before); this.children.splice(at < 0 ? this.children.length : at, 0, node); node.parentNode = this; return node; }
     insertAdjacentElement(position, node) { assert.equal(position, 'afterend'); this.parentNode.insertBefore(node, this.parentNode.children[this.parentNode.children.indexOf(this) + 1]); }
@@ -110,6 +110,80 @@ test('native tabs retain indexes and Fin is a separate accessible action', async
     assert.equal(f.sections.getAttribute('aria-labelledby'), undefined);
     assert.equal(f.stack.children.length, 2);
 });
+test('Fin URL is canonical, remountable, and Back restores Home without a second panel', async () => {
+    const f = fixture(), browser = { location: { hash: '#/home' } };
+    const host = testBuild(browser)({ document: f.document, loadFragment: async () => '<div>Fin</div>',
+        loadScript: async () => ({ mount: () => () => {} }) });
+    const options = { pane: f.pane, favorites: f.favorites,
+        apiClient: { getUrl: x => x, getJSON: async () => ({}) },
+        fingerprint: '12.1', userId: 'alice', enabled: true,
+        mode: { DiscoveryEnabled: true, HeroEnabled: false } };
+    assert.equal(await host.mount(options), true);
+    f.nav().click();
+    assert.equal(browser.location.hash, '#/home?fin=1');
+    assert.equal(f.pane.getAttribute('data-threepic-fin-view'), 'discovery');
+    host.dispose();
+    assert.equal(await host.mount(options), true);
+    assert.equal(f.pane.getAttribute('data-threepic-fin-view'), 'discovery');
+    assert.equal(f.nav().getAttribute('aria-pressed'), 'true');
+    browser.location.hash = '#/home'; host.sync();
+    assert.equal(f.pane.getAttribute('data-threepic-fin-view'), 'home');
+    browser.location.hash = '#/home?fin=1'; host.sync();
+    assert.equal(f.pane.getAttribute('data-threepic-fin-view'), 'discovery');
+    f.nav().click(); assert.equal(browser.location.hash, '#/home');
+    host.dispose();
+});
+test('hidden legacy tab header never becomes the stock navigation seam', async () => {
+    const f = fixture();
+    f.document.querySelector('.skinHeader').getBoundingClientRect = () => ({ width: 0 });
+    f.toolbar.remove();
+    assert.equal(await f.mount({ enabled: true, mode: { DiscoveryEnabled: true } }), false);
+    assert.equal(f.document.querySelector('.threepic-fin-host__nav'), null);
+});
+test('failed nav seam removes an otherwise misleading Fin URL', async () => {
+    const f = fixture(), browser = { location: { hash: '#/home?fin=1' } };
+    f.toolbar.remove();
+    f.document.querySelector('.skinHeader').getBoundingClientRect = () => ({ width: 0 });
+    const host = testBuild(browser)({ document: f.document, loadFragment: async () => '<div>Fin</div>',
+        loadScript: async () => ({ mount: () => () => {} }) });
+    assert.equal(await host.mount({ pane: f.pane, favorites: f.favorites,
+        apiClient: { getUrl: x => x, getJSON: async () => ({}) }, fingerprint: '12.1',
+        userId: 'alice', enabled: true, mode: { DiscoveryEnabled: true } }), false);
+    assert.equal(browser.location.hash, '#/home');
+});
+test('hero-only mode rejects a stale Fin deep link instead of showing Home under it', async () => {
+    const f = fixture(), browser = { location: { hash: '#/home?fin=1' } };
+    const host = testBuild(browser)({ document: f.document });
+    const api = { getUrl: x => x, getJSON: async () => [], getCurrentUserId: () => 'alice',
+        accessToken: () => 'token', fetch: async () => ({ok:false}) };
+    assert.equal(await host.mount({pane:f.pane, favorites:f.favorites, apiClient:api,
+        fingerprint:'12.1', userId:'alice', enabled:true, mode:{HeroEnabled:true}}), true);
+    assert.equal(browser.location.hash, '#/home');
+    host.dispose();
+});
+test('failed Fin fragment does not leave a misleading deep link', async () => {
+    const f = fixture(), browser = { location: { hash: '#/home?fin=1' } };
+    const host = testBuild(browser)({ document:f.document, loadFragment:async()=>{throw Error('offline');} });
+    assert.equal(await host.mount({pane:f.pane, favorites:f.favorites,
+        apiClient:{getUrl:x=>x, getJSON:async()=>({})}, fingerprint:'12.1',
+        userId:'alice', enabled:true, mode:{DiscoveryEnabled:true}}), false);
+    assert.equal(browser.location.hash, '#/home');
+});
+test('enabled hero reserves a slot before slide fetch settles and releases empty results', async () => {
+    const f = fixture(); let release;
+    const browser = { location: { hash: '#/home' } };
+    const host = testBuild(browser)({ document: f.document, loadScript: async () => ({ mount: () => () => {} }) });
+    const api = { getUrl: x => x, getJSON: () => new Promise(resolve => release = resolve),
+        getCurrentUserId: () => 'alice', accessToken: () => 'token', fetch: async () => ({ ok: false }) };
+    assert.equal(await host.mount({ pane: f.pane, favorites: f.favorites, apiClient: api,
+        fingerprint: '12.1', userId: 'alice', enabled: true, mode: { HeroEnabled: true } }), true);
+    assert.equal(f.pane.children[0].className, 'threepic-fin-host__hero');
+    assert.equal(f.pane.children[1], f.sections);
+    release([]); await tick();
+    assert.deepEqual(f.pane.children, [f.sections]);
+    host.dispose();
+});
+
 test('dispose while fragment pending prevents late script or DOM injection', async () => {
     const f = fixture(); let release; const pending = new Promise(r => release = r);
     const calls = [];
@@ -262,7 +336,7 @@ test('host rechecks title before native item navigation and rejects stale user, 
     const guid = '01234567-89ab-cdef-0123-456789abcdef';
     let user = 'alice', hash = '#/home', callback, result = pending.promise;
     const shown = [];
-    const browser = { location: { get hash() { return hash; } }, Emby: { Page: { showItem: item => shown.push(item) } } };
+    const browser = { location: { get hash() { return hash; }, set hash(value) { hash = value; } }, Emby: { Page: { showItem: item => shown.push(item) } } };
     const host = testBuild(browser)({ document: { ...f.document, documentElement: { contains: node => f.pane.contains(node) } },
         loadFragment: async () => '<div>Discovery</div>', loadScript: async () => ({ mount: (_root, _api, bridge) => { callback = bridge.openItem; return () => {}; } }) });
     const api = { getUrl: (route, params) => `https://test.invalid/jellyfin/${route}?${new URLSearchParams(params)}`,
@@ -273,7 +347,7 @@ test('host rechecks title before native item navigation and rejects stale user, 
     const attempt = callback({ mediaType: 'movie', mediaId: 9, libraryItemId: guid });
     user = 'bob'; pending.resolve({ MediaType: 'movie', TmdbId: 9, LibraryItemId: guid });
     assert.equal(await attempt, false); assert.equal(shown.length, 0);
-    await host.mount({ ...options, userId: user }); f.nav().click();
+    hash = '#/home'; await host.mount({ ...options, userId: user }); f.nav().click();
     result = Promise.resolve({ MediaType: 'movie', TmdbId: 9, LibraryItemId: guid });
     assert.equal(await callback({ mediaType: 'movie', mediaId: 9, libraryItemId: guid }), true);
     assert.equal(shown[0].Id, guid); assert.equal(shown[0].Type, 'Movie'); assert.equal(shown[0].ServerId, 'server-a');

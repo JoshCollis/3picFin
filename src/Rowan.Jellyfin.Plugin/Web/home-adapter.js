@@ -3,7 +3,7 @@
     'use strict';
     const COMPATIBILITY = '12.1';
     function homeRoute(route) {
-        return /^#\/?home\/?(?:\?tab=0)?$/i.test(route || '');
+        return /^#\/home(?:\?(?:tab=0|fin=1))?$/.test(route || '');
     }
     function createAdapter({ bundleHash, getState, loadHost }) {
         let host = null, identity = null, generation = 0, disposed = false;

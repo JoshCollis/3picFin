@@ -20,6 +20,14 @@
     function createHost({ document,
         loadFragment = defaultFragment, loadScript = url => defaultScript(url, document) } = {}) {
         let current = null, generation = 0;
+        function clearFinUrl() {
+            if (global.location?.hash !== '#/home?fin=1') return;
+            try {
+                if (!global.history?.replaceState) throw new Error('No replaceState');
+                global.history.replaceState(global.history.state, '',
+                    `${global.location.pathname}${global.location.search}#/home`);
+            } catch (_) { global.location.hash = '#/home'; }
+        }
         const validSlide = slide => slide && guid(field(slide, 'Id')) &&
             field(slide, 'ImageType') === 'Backdrop' && field(slide, 'ImageIndex') === 0 &&
             typeof field(slide, 'ImageTag') === 'string' && /^[0-9a-f]{1,64}$/i.test(field(slide, 'ImageTag'));
@@ -30,9 +38,25 @@
             state.heroRoot?.remove(); state.heroRoot = null;
             state.heroStyles?.remove(); state.heroStyles = null;
         }
+        function reserveHero(state) {
+            if (!state.heroEnabled || state.heroRoot) return;
+            const root = document.createElement('div');
+            root.className = 'threepic-fin-host__hero';
+            // Reserve before the asynchronous slide and script fetches. Inline geometry
+            // applies even while the stylesheet is still loading.
+            const height = global.matchMedia?.('(max-width: 600px)')?.matches ? '65dvh' : 'min(78dvh, 800px)';
+            root.style.minHeight = height;
+            root.style.height = height;
+            const style = document.createElement('link');
+            style.rel = 'stylesheet'; style.href = state.apiClient.getUrl('3picFin/Web/static-hero.css');
+            state.pane.insertBefore(root, state.sections);
+            document.head.appendChild(style);
+            state.heroRoot = root; state.heroStyles = style;
+        }
         function startHero(state) {
-            if (!state.heroEnabled || state.heroStarted || state.heroRoot ||
+            if (!state.heroEnabled || state.heroStarted ||
                 state.pane.getAttribute('data-threepic-fin-view') !== 'home') return;
+            reserveHero(state);
             state.heroStarted = true;
             const ticket = ++state.heroTicket, identity = state.apiClient.getCurrentUserId?.();
             const token = state.apiClient.accessToken?.();
@@ -44,20 +68,16 @@
                 state.apiClient.getCurrentUserId?.() === identity;
             (async () => {
                 try {
-                    if (!active() || typeof state.apiClient.fetch !== 'function') return;
+                    if (!active() || typeof state.apiClient.fetch !== 'function') { clearHero(state); return; }
                     const slides = await state.apiClient.getJSON(state.apiClient.getUrl('Rowan/Home/Hero'));
-                    if (!active() || !Array.isArray(slides)) return;
+                    if (!active()) return;
+                    if (!Array.isArray(slides)) { clearHero(state); return; }
                     const safe = slides.filter(validSlide).slice(0, 10);
-                    if (!safe.length) return; // Trust gate off: endpoint returns []; never show an empty placeholder.
+                    if (!safe.length) { clearHero(state); return; }
                     const hero = await loadScript(state.apiClient.getUrl('3picFin/Web/static-hero.js'));
-                    if (!active() || typeof hero?.mount !== 'function') return;
-                    const root = document.createElement('div'); root.className = 'threepic-fin-host__hero';
-                    const style = document.createElement('link');
-                    style.rel = 'stylesheet'; style.href = state.apiClient.getUrl('3picFin/Web/static-hero.css');
-                    state.pane.insertBefore(root, state.sections);
-                    document.head.appendChild(style);
-                    state.heroRoot = root; state.heroStyles = style;
-                    state.heroCleanup = hero.mount(root, state.apiClient, { slides: safe, openItem: async id => {
+                    if (!active()) return;
+                    if (typeof hero?.mount !== 'function') { clearHero(state); return; }
+                    state.heroCleanup = hero.mount(state.heroRoot, state.apiClient, { slides: safe, openItem: async id => {
                         if (!active() || !guid(id) || !safe.some(slide =>
                             field(slide, 'Id').replaceAll('-', '').toLowerCase() === id.replaceAll('-', '').toLowerCase()) ||
                             typeof global.Emby?.Page?.showItem !== 'function') return false;
@@ -158,11 +178,15 @@
             const url = path => apiClient.getUrl(`3picFin/Web/${path}`);
             try {
                 mode ??= await apiClient.getJSON(apiClient.getUrl('Rowan/Home/Mode'));
-            } catch (_) { return false; }
+            } catch (_) { if (ticket === generation) clearFinUrl(); return false; }
             if (ticket !== generation || (apiClient.getCurrentUserId && apiClient.getCurrentUserId() !== userId) ||
                 !mode || (mode.DiscoveryEnabled !== true && mode.discoveryEnabled !== true &&
                     mode.HeroEnabled !== true && mode.heroEnabled !== true &&
-                    mode.RowsEnabled !== true && mode.rowsEnabled !== true)) return false;
+                    mode.RowsEnabled !== true && mode.rowsEnabled !== true)) {
+                if (ticket === generation && (!apiClient.getCurrentUserId || apiClient.getCurrentUserId() === userId))
+                    clearFinUrl();
+                return false;
+            }
             const discoveryEnabled = mode.DiscoveryEnabled === true || mode.discoveryEnabled === true;
             const heroEnabled = mode.HeroEnabled === true || mode.heroEnabled === true;
             const rowKinds = mode.Rows ?? mode.rows;
@@ -170,6 +194,7 @@
                 Array.isArray(rowKinds) && rowKinds.length > 0 && rowKinds.length <= 9;
             if (!discoveryEnabled) {
                 // Hero-only mode does not create inner tabs, panels, or Discovery requests.
+                clearFinUrl();
                 current = { pane, userId, apiClient, sections, heroEnabled, heroStarted: false, heroTicket: 0,
                     rowsEnabled, rowKinds, rowsTicket: 0 };
                 pane.setAttribute('data-threepic-fin-view', 'home');
@@ -183,8 +208,8 @@
                 if (ticket !== generation) return false;
                 discovery = await loadScript(url('discovery.js'));
                 if (ticket !== generation) return false;
-                if (typeof discovery?.mount !== 'function') return false;
-            } catch (_) { return false; }
+                if (typeof discovery?.mount !== 'function') { clearFinUrl(); return false; }
+            } catch (_) { if (ticket === generation) clearFinUrl(); return false; }
             const stylesheet = document.createElement('link');
             stylesheet.rel = 'stylesheet'; stylesheet.href = url('discovery.css');
             const hostStyles = document.createElement('link');
@@ -212,8 +237,13 @@
             // 12.1 toolbar (or its mobile drawer), never inside the tabs slider.
             function syncNav() {
                 if (current?.panel !== panel) return;
+                const route = global.location?.hash;
+                if (route === '#/home?fin=1' || route === '#/home' || route === '#/home?tab=0')
+                    select(route === '#/home?fin=1' ? 'discovery' : 'home');
                 const headers = document.querySelectorAll('.skinHeader .headerTabs');
-                const failClosed = () => { current.removeNav?.(); select('home'); };
+                const failClosed = () => {
+                    current.removeNav?.(); select('home'); clearFinUrl();
+                };
                 if (headers.length !== 1) { failClosed(); return; }
                 const header = headers[0];
                 const native = header.querySelector(':scope > [is="emby-tabs"]');
@@ -244,7 +274,8 @@
                 // Stock 12.1 need not have the distribution's MUI toolbar/drawer.
                 // Add a sibling to the validated native tabs, never a slider child
                 // (the tab manager owns its two indexes and click handlers).
-                if (!container && toolbars.length === 0 &&
+                if (!container && toolbars.length === 0 && header.getBoundingClientRect().width > 0 &&
+                    header.parentElement?.getBoundingClientRect().width > 0 &&
                     document.querySelectorAll('.MuiListItem-root > a[href="#/home?tab=1"]').length === 0) {
                     container = header; homeLink = buttons[0]; stock = true;
                 }
@@ -262,7 +293,9 @@
                 nav.textContent = '3pic Fin';
                 nav.setAttribute('aria-pressed', String(pane.getAttribute('data-threepic-fin-view') === 'discovery'));
                 nav.addEventListener('click', () => {
-                    select(pane.getAttribute('data-threepic-fin-view') === 'discovery' ? 'home' : 'discovery');
+                    const fin = pane.getAttribute('data-threepic-fin-view') !== 'discovery';
+                    global.location.hash = fin ? '#/home?fin=1' : '#/home';
+                    select(fin ? 'discovery' : 'home');
                     if (drawer) document.querySelector('.MuiToolbar-root button[aria-label="Open Menu"]')?.click();
                 });
                 const onHome = () => select('home');
@@ -309,6 +342,7 @@
                 current = { pane, userId, apiClient, panel, stylesheet, hostStyles, sections, syncNav,
                     heroEnabled, heroStarted: false, heroTicket: 0, rowsEnabled, rowKinds, rowsTicket: 0 };
                 current.cleanup = discovery.mount(panel, apiClient, { deferInitialLoad: true, openItem });
+                if (global.location?.hash === '#/home?fin=1') select('discovery');
                 syncNav();
                 if (!current.nav) { dispose(); return false; }
                 startHero(current);
