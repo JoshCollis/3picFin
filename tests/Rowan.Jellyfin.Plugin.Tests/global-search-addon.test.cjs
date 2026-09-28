@@ -10,6 +10,7 @@ class Node {
     get textContent() { return this._text || this.children.map(n=>n.textContent).join(''); }
     set textContent(v) { this._text=v; this.children=[]; }
     appendChild(n) { this.children.push(n); n.parent=this; return n; }
+    append(...nodes) { nodes.forEach(n=>this.appendChild(n)); }
     insertBefore(n, before) { this.children.splice(this.children.indexOf(before),0,n); n.parent=this; return n; }
     replaceChildren(...nodes) { this.children=nodes; this._text=''; nodes.forEach(n=>n.parent=this); }
     remove() { if(this.parent) this.parent.children.splice(this.parent.children.indexOf(this),1); this.parent=null; }
@@ -35,6 +36,9 @@ function fixture() {
 }
 const result=items=>({Items:items,TotalPages:1});
 const movie=(id,title='Alien')=>({TmdbId:id,MediaType:'movie',Title:title});
+function descendants(node) { return [node,...node.children.flatMap(descendants)]; }
+function one(node, className) { return descendants(node).find(n=>(n.className||'').split(' ').includes(className)); }
+function cardButton(card) { return descendants(card).find(n=>n.tagName==='button'); }
 test('requires explicit global scope and signed-in host without touching native results',()=>{
     const f=fixture();
     for(const opts of [{enabled:false},{parentId:undefined},{parentId:'library'},{collectionType:'movies'},
@@ -46,16 +50,16 @@ test('renders catalog title and safe art, dedupes catalog only, leaves native ca
     f.pending[0].resolve(result([movie(1),{...movie(2,'Second'),PosterPath:'/image.jpg'},movie(2,'Again')])); await tick();
     const cards=f.root.children[1].children[1].children[0];
     assert.equal(cards.children.length,2); assert.equal(f.root.children[0],f.native);
-    assert.equal(cards.children[1].children[0].children[1].src,'https://image.tmdb.org/t/p/w342/image.jpg');
-    assert.equal(cards.children[1].children[1].textContent,'Second');
-    assert.equal(cards.children[1].children[0].children[2].attributes['aria-label'],'Details for Second');
+    assert.equal(descendants(cards.children[1]).find(n=>n.tagName==='img').src,'https://image.tmdb.org/t/p/w342/image.jpg');
+    assert.equal(one(cards.children[1],'cardText').textContent,'Second');
+    assert.equal(cardButton(cards.children[1]).attributes['aria-label'],'Details for Second (TMDb #2)');
 });
 test('query, scope, user and teardown invalidate detached request actions and late responses',async()=>{
     const f=fixture(); f.mount(); f.pending[0].resolve(result([movie(2)])); await tick();
-    const button=f.root.children[1].children[1].children[0].children[0].children[0].children[1];
+    const button=cardButton(f.root.children[1].children[1].children[0].children[0]);
     f.addon.update({query:'New'}); button.click(); assert.equal(f.actions.length,0);
     await delay(220); f.pending[1].resolve(result([movie(3)])); await tick();
-    const next=f.root.children[1].children[1].children[0].children[0].children[0].children[1];
+    const next=cardButton(f.root.children[1].children[1].children[0].children[0]);
     f.addon.update({collectionType:'movies'}); next.click(); assert.equal(f.actions.length,0);
     assert.deepEqual(f.root.children,[f.native]);
     f.mount(); f.setUser('bob'); f.pending[2].resolve(result([movie(4)])); await tick();
@@ -79,7 +83,7 @@ test('rapid query changes cancel stale reads and dispatch only the settled final
 });
 test('malformed query fails closed rather than retaining old action',async()=>{
     const f=fixture(); f.mount(); f.pending[0].resolve(result([movie(2)])); await tick();
-    const old=f.root.children[1].children[1].children[0].children[0].children[0].children[1];
+    const old=cardButton(f.root.children[1].children[1].children[0].children[0]);
     f.addon.update({query:null}); old.click(); assert.equal(f.actions.length,0);
     assert.deepEqual(f.root.children,[f.native]);
 });

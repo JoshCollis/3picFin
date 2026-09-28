@@ -29,7 +29,7 @@ with sync_playwright() as p:
     assert page.locator('.threepic-fin-search nav').is_hidden()
     boxes = [card.bounding_box() for card in page.locator('.threepic-fin-search article').all()]
     assert all(box and box['height'] < 380 and box['width'] <= 290 for box in boxes)
-    assert page.locator('.threepic-fin-search article').nth(1).locator('h3').inner_text() == 'No poster series'
+    assert page.locator('.threepic-fin-search article').nth(1).locator('.cardText').inner_text() == 'No poster series'
     assert page.locator('.threepic-fin-search article button').count() == 2
     assert page.locator('link[href$="global-search-addon.css"]').count() == 1
     page.set_viewport_size({'width': 390, 'height': 800})

@@ -70,10 +70,10 @@ def run_case(browser, enabled, width):
         result['finalLatencyMs'] = page.evaluate('''async () => {
             const start=performance.now();
             pending.at(-1)({Items:[{TmdbId:116,MediaType:'movie',Title:'Final query result'}],TotalPages:1});
-            while (!document.querySelector('.threepic-fin-search h3')) await new Promise(r=>setTimeout(r,5));
+            while (!document.querySelector('.threepic-fin-search .cardText')) await new Promise(r=>setTimeout(r,5));
             return performance.now()-start;
         }''')
-        assert page.locator('.threepic-fin-search h3').inner_text() == 'Final query result'
+        assert page.locator('.threepic-fin-search .cardText').inner_text() == 'Final query result'
         page.evaluate('''() => {
             window.oldSection=document.querySelector('.threepic-fin-search');
             document.querySelector('#searchPage').replaceChildren(document.querySelector('#searchTextInput'), document.createElement('div'));

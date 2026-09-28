@@ -27,7 +27,7 @@ with sync_playwright() as p:
         page.goto('http://localhost:8765/web/index.html#/search?query=Alien')
         page.add_style_tag(content='''#searchPage { padding: 1rem; } .searchField { margin-bottom: 1rem; }
           .searchResults .card { width: 11rem; } .searchResults .cardPadder { aspect-ratio: 2 / 3; }
-          .searchResults .cardImageContainer { background: #39536b; }''')
+          .searchResults .cardImageContainer { background: #39536b; } .cardPadder-overflowPortrait { padding-top: 150%; }''')
         if theme:
             for i in (0, 1):
                 page.add_style_tag(content=(theme / f'elegant-source-{i}.css').read_text())
@@ -45,7 +45,7 @@ with sync_playwright() as p:
         poster_box = page.locator('.threepic-fin-search__card--has-art').bounding_box()
         native_card_box = page.locator('.searchResults .card').first.bounding_box()
         assert poster_box and native_card_box
-        assert poster_box['width'] >= 130 and poster_box['width'] <= 290
+        assert poster_box['width'] > 70 and poster_box['width'] <= 290
         image_box = page.locator('.threepic-fin-search__card img').bounding_box()
         assert image_box and 1.35 < image_box['height'] / image_box['width'] < 1.65
         page.evaluate("document.querySelector('.threepic-fin-search__card img').dispatchEvent(new Event('error'))")

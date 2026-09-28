@@ -1,21 +1,26 @@
-.threepic-fin-search { --rail-card: clamp(10rem, 8vw, 18rem); --rail-gutter: clamp(3rem, 1.5vw, 3.5rem); position: relative; min-width: 0; color: var(--primary-text-color, inherit); padding: .75rem var(--rail-gutter) 1.25rem; }
-.threepic-fin-search h2 { font-size: 1.15rem; font-weight: 600; margin: 0 5.5rem .75rem 0; }
-.threepic-fin-search__cards { display: flex; flex-wrap: nowrap; align-items: start; gap: 1rem; overflow-x: auto; overflow-y: hidden; overscroll-behavior-inline: contain; scrollbar-width: thin; scroll-snap-type: x proximity; }
-.threepic-fin-search__card { flex: 0 0 var(--rail-card); width: var(--rail-card); min-width: 0; scroll-snap-align: start; }
-.threepic-fin-search__poster { position: relative; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border-radius: .4rem; background: rgba(128,128,128,.16); }
-.threepic-fin-search__poster img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.threepic-fin-search__card--no-art .threepic-fin-search__poster { background: linear-gradient(135deg, rgba(128,128,128,.23), rgba(128,128,128,.09)); }
-.threepic-fin-search__poster-label { position: absolute; inset: 0; display: grid; place-items: center; padding: 1rem 1rem 3.5rem; text-align: center; overflow-wrap: anywhere; font-size: 1rem; }
+/* Native card hierarchy and theme sizing own the card; only the rail and action are ours. */
+.threepic-fin-search { position: relative; min-width: 0; padding: .75rem 3.3% 1.25rem; color: var(--primary-text-color, inherit); }
+.threepic-fin-search h2 { font-size: 1.3rem; font-weight: 600; margin: 0 5.5rem .75rem 0; }
+.threepic-fin-search__cards.itemsContainer { display: flex; flex-wrap: nowrap; align-items: start; overflow-x: auto; overflow-y: hidden; overscroll-behavior-inline: contain; scrollbar-width: thin; scroll-snap-type: x proximity; padding-bottom: .5rem; }
+.threepic-fin-search__card.card { flex-shrink: 0; min-width: 0; scroll-snap-align: start; }
+.threepic-fin-search__card .cardScalable { position: relative; }
+.threepic-fin-search__card .cardContent { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; overflow: hidden; }
+.threepic-fin-search__card .cardContent img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.threepic-fin-search__card--no-art .cardContent { background: var(--headerColor, var(--card-background, #333)); }
+.threepic-fin-search__poster-label { position: absolute; inset: 0; display: grid; place-items: center; padding: .5rem .35rem 3.5rem; box-sizing: border-box; text-align: center; overflow-wrap: anywhere; font-size: .75rem; line-height: 1.15; }
 .threepic-fin-search__card--has-art .threepic-fin-search__poster-label { display: none; }
-.threepic-fin-search__card h3 { margin: .4rem 0 0; font-size: .9rem; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.threepic-fin-search__poster button { position: absolute; bottom: .55rem; left: 50%; transform: translateX(-50%); z-index: 1; min-width: 5.5rem; min-height: 2.75rem; padding: .4rem .75rem; border-radius: 99px; border: 1px solid rgba(255,255,255,.6); background: rgba(15,20,32,.8); color: #fff; font: inherit; cursor: pointer; }
-.threepic-fin-search__poster button:hover { background: rgba(20,30,50,.95); }
+.threepic-fin-search__metadata { font-size: .8em; opacity: .72; line-height: 1.35; }
+.threepic-fin-search__card .cardText { overflow-wrap: anywhere; }
+.threepic-fin-search__poster button { position: absolute; inset: auto .45rem .45rem; z-index: 1; min-height: 2.5rem; padding: .25rem .5rem; border-radius: .4rem; border: 1px solid rgba(255,255,255,.55); background: rgba(15,20,32,.85); color: #fff; font: inherit; cursor: pointer; opacity: 0; transition: opacity .15s ease, background .15s ease; }
+.threepic-fin-search__card:hover .threepic-fin-search__poster button, .threepic-fin-search__card:focus-within .threepic-fin-search__poster button, .threepic-fin-search__card--no-art .threepic-fin-search__poster button { opacity: 1; }
+.threepic-fin-search__poster button:hover { background: rgba(20,30,50,.98); }
 .threepic-fin-search button:focus-visible { outline: 3px solid var(--theme-primary-color, #7daeff); outline-offset: 2px; }
-.threepic-fin-search nav { position: absolute; top: .5rem; right: var(--rail-gutter); display: flex; align-items: center; gap: .3rem; }
+.threepic-fin-search nav { position: absolute; top: .5rem; right: 3.3%; display: flex; align-items: center; gap: .3rem; }
 .threepic-fin-search nav[hidden] { display: none; }
 .threepic-fin-search nav button { background: transparent; border: 0; border-radius: 50%; color: inherit; font: inherit; font-size: 1.5rem; width: 2.5rem; height: 2.5rem; cursor: pointer; }
 .threepic-fin-search nav button:disabled { opacity: .35; cursor: default; }
 .threepic-fin-search nav span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .threepic-fin-search__flow > .threepic-fin-discovery > .threepic-fin-discovery__content > :not(dialog) { display: none; }
 .threepic-fin-search__flow .threepic-fin-discovery__dialog { color: var(--primary-text-color, inherit); }
-@media (max-width: 600px) { .threepic-fin-search { --rail-card: 8.5rem; padding-inline: .75rem; } .threepic-fin-search nav { right: .75rem; } .threepic-fin-search__cards { gap: .65rem; } }
+@media (hover: none) { .threepic-fin-search__poster button { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .threepic-fin-search__poster button { transition: none; } }
