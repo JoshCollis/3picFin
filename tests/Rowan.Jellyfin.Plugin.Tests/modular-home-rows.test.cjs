@@ -34,8 +34,8 @@ test('Because You Watched is one lazy bounded fetch with separate seed headings 
     const card = seed.children[1].children[0];
     assert.equal(card.tagName, 'BUTTON');
     assert.match(card.className, /landscape/);
-    assert.equal(card.children[0].src, `/base/Items/${id}/Images/Backdrop/0`);
-    assert.equal(card.children[1].textContent, 'Next <Film>');
+    assert.equal(card.children[0].children[0].children[1].children[0].src, `/base/Items/${id}/Images/Backdrop/0`);
+    assert.equal(card.children[0].children[1].children[0].textContent, 'Next <Film>');
     card.click(); assert.equal(seen[0].Id, id);
     f.rows.dispose(); assert.equal(f.root.children.length, 0);
 });

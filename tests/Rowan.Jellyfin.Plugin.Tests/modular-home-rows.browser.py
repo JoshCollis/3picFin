@@ -12,6 +12,13 @@ with sync_playwright() as playwright:
         page = browser.new_page(viewport={'width': width, 'height': 800})
         page.route('**/jellyfin/Items/**/Images/**', lambda route: route.fulfill(content_type='image/svg+xml', body='<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#58729a"/></svg>' if '/Primary' in route.request.url else '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><rect width="200" height="300" fill="#58729a"/></svg>'))
         page.set_content('<html><head><base href="https://fixture.invalid/"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#101622;color:white"><main id="home"></main></body></html>')
+        # Minimal stock card geometry for this offline renderer fixture; the
+        # separate captured-theme fixture checks native hover and exact width.
+        page.add_style_tag(content='''.overflowPortraitCard { width: 12vw; } .overflowBackdropCard { width: 26vw; }
+            .cardScalable { position: relative; } .cardPadder-overflowPortrait { padding-bottom: 150%; }
+            .cardPadder-overflowBackdrop { padding-bottom: 56.25%; }
+            .cardContent { position: absolute; inset: 0; } .cardFooter { padding: .3em; }
+            @media(max-width:600px) { .overflowPortraitCard { width: 38vw; } .overflowBackdropCard { width: 68vw; } }''')
         page.add_style_tag(path=str(web / 'native-home-rows.css'))
         page.add_script_tag(path=str(web / 'native-home-rows.js'))
         page.evaluate('''ids => {
@@ -68,11 +75,12 @@ with sync_playwright() as playwright:
             assert abs(box['width'] / box['height'] - ratio) < .02, (width, box, ratio)
             assert image.evaluate('(img) => getComputedStyle(img).objectFit') == 'cover'
             assert card.evaluate('(el) => getComputedStyle(el).backgroundColor') == 'rgba(0, 0, 0, 0)'
-            assert abs(box['width'] - card_box['width']) < 2
-        assert portrait.locator('span').inner_text() == 'Poster film'
+            scalable_box = card.locator('.cardScalable').bounding_box()
+            assert scalable_box and abs(box['width'] - scalable_box['width']) < 2
+        assert portrait.locator('.cardText').inner_text() == 'Poster film'
         no_art = seeds.nth(1).locator('.rowan-native-row__card--no-art')
         assert no_art.count() == 1
-        assert no_art.locator('span').inner_text() == 'Third film'
+        assert no_art.locator('.cardText').inner_text() == 'Third film'
         assert no_art.get_attribute('aria-label') is None
         assert no_art.inner_text() == 'Third film'
         controls = seeds.nth(0).locator('.rowan-native-row__arrow')

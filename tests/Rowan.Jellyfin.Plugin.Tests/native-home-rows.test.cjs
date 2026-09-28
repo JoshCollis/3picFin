@@ -12,6 +12,9 @@ class Node {
     click() { this.handlers.click?.(); }
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
+const descendant = (node, predicate) => predicate(node) ? node : node.children.map(child => descendant(child, predicate)).find(Boolean);
+const image = card => descendant(card, node => node.tagName === 'IMG');
+const label = card => descendant(card, node => node.className.split(' ').includes('cardText'));
 function fixture(enabledRows = ['LatestMovies']) {
     const root = new Node(), calls = [], observers = [];
     let user = 'alice', resolve;
@@ -53,8 +56,8 @@ test('bounded populated row renders tagged art and native Open identity lazily',
     await tick();
     const card = f.root.children[0].children[1].children[0];
     assert.equal(card.tagName, 'BUTTON');
-    assert.equal(card.children[0].src, `/jellyfin/Items/${id}/Images/Primary`);
-    assert.equal(card.children[1].textContent, 'Own film');
+    assert.equal(image(card).src, `/jellyfin/Items/${id}/Images/Primary`);
+    assert.equal(label(card).textContent, 'Own film');
     card.click(); assert.deepEqual(f.opened, [{ Id: id, Type: 'Movie' }]);
     f.observers[0].fire(f.root.children[0]); await tick(); assert.equal(f.calls.length, 1);
 });
@@ -77,7 +80,7 @@ test('failed visible row retries once on a later intersection without a remount'
     f.observers[0].fire(section); await tick();
     assert.equal(f.calls.length, 2);
     f.reply({ Kind: 'LatestMovies', Items: [{ Id: id, Type: 'Movie', Name: 'Recovered' }] }); await tick();
-    assert.equal(section.children[1].children[0].children[0].textContent, 'Recovered');
+    assert.equal(label(section.children[1].children[0]).textContent, 'Recovered');
     f.observers[0].fire(section); await tick(); assert.equal(f.calls.length, 2);
 });
 
@@ -110,7 +113,7 @@ test('playback artwork prefers own thumb then series or parent art before primar
         { Id: id, Type: 'Episode', Name: 'No art' }
     ] }); await tick();
     const cards = f.root.children[0].children[1].children;
-    assert.deepEqual(cards.map(card => card.children[0].src || null), [
+    assert.deepEqual(cards.map(card => image(card)?.src || null), [
         `/jellyfin/Items/${id}/Images/Thumb`, `/jellyfin/Items/${series}/Images/Thumb`,
         `/jellyfin/Items/${parent}/Images/Thumb`, `/jellyfin/Items/${series}/Images/Backdrop/0`,
         `/jellyfin/Items/${id}/Images/Backdrop/0`, `/jellyfin/Items/${id}/Images/Primary`, null
@@ -124,9 +127,9 @@ test('untrusted inherited IDs never become image URLs; broken art tries safe fal
         SeriesId: '../private', SeriesThumbImageTag: 'ab', ParentThumbItemId: 'evil',
         ParentThumbImageTag: 'cd', ImageTags: { Primary: 'ef' } }] }); await tick();
     const card = f.root.children[0].children[1].children[0];
-    assert.equal(card.children[0].src, `/jellyfin/Items/${id}/Images/Primary`);
-    card.children[0].handlers.error();
-    assert.equal(card.children.some(child => child.tagName === 'IMG'), false);
+    assert.equal(image(card).src, `/jellyfin/Items/${id}/Images/Primary`);
+    image(card).handlers.error();
+    assert.equal(image(card), undefined);
 });
 
 test('a failed thumb advances to the next valid image without crossing users', async () => {
@@ -135,12 +138,12 @@ test('a failed thumb advances to the next valid image without crossing users', a
     f.reply({ Kind: 'ContinueWatching', Items: [{ Id: id, Type: 'Episode', Name: 'Two arts',
         ImageTags: { Thumb: 'ab', Primary: 'cd' } }] }); await tick();
     const card = f.root.children[0].children[1].children[0];
-    const image = card.children[0];
-    assert.equal(image.src, `/jellyfin/Items/${id}/Images/Thumb`);
-    image.handlers.error();
-    assert.equal(image.src, `/jellyfin/Items/${id}/Images/Primary`);
-    f.switchUser('bob'); image.handlers.error();
-    assert.equal(card.children.some(child => child.tagName === 'IMG'), false);
+    const art = image(card);
+    assert.equal(art.src, `/jellyfin/Items/${id}/Images/Thumb`);
+    art.handlers.error();
+    assert.equal(art.src, `/jellyfin/Items/${id}/Images/Primary`);
+    f.switchUser('bob'); art.handlers.error();
+    assert.equal(image(card), undefined);
 });
 
 test('carousel buttons and keyboard scroll a bounded page and disable at edges', async () => {

@@ -30,11 +30,22 @@
                 if (!guid(id) || !['Movie', 'Series', 'Episode', 'BoxSet', 'Folder', 'CollectionFolder'].includes(type)) return null;
                 const card = document.createElement(typeof openItem === 'function' &&
                     ['Movie', 'Series', 'Episode', 'BoxSet'].includes(type) ? 'button' : 'article');
-                card.className = 'rowan-native-row__card ' + (landscape ? 'rowan-native-row__card--landscape' : 'rowan-native-row__card--portrait');
+                card.className = 'rowan-native-row__card card card-hoverable show-animation ' +
+                    (landscape ? 'rowan-native-row__card--landscape overflowBackdropCard' :
+                        'rowan-native-row__card--portrait overflowPortraitCard');
                 if (card.tagName.toLowerCase() === 'button') {
                     card.type = 'button';
                     card.addEventListener('click', () => { if (active()) openItem({ Id: id, Type: type }); });
                 }
+                // Mirror the native card hierarchy; the scoped CSS only supplies image sizing.
+                const box = document.createElement('div'); box.className = 'cardBox visualCardBox';
+                const scalable = document.createElement('div'); scalable.className = 'cardScalable';
+                const padder = document.createElement('div');
+                padder.className = 'cardPadder ' + (landscape ? 'cardPadder-overflowBackdrop' : 'cardPadder-overflowPortrait');
+                const content = document.createElement('div'); content.className = 'cardContent cardImageContainer';
+                scalable.append(padder, content);
+                const footer = document.createElement('div'); footer.className = 'cardFooter';
+                box.append(scalable, footer); card.appendChild(box);
                 const tags = field(item, 'ImageTags');
                 const backdrop = field(item, 'BackdropImageTags');
                 const validTag = tag => typeof tag === 'string' && /^[0-9a-f]{1,64}$/i.test(tag);
@@ -61,11 +72,12 @@
                     };
                     image.alt = ''; image.loading = 'lazy';
                     image.addEventListener('error', next);
-                    card.appendChild(image);
+                    content.appendChild(image);
                     next();
                 } else card.classList.add('rowan-native-row__card--no-art');
-                const label = document.createElement('span'); label.textContent = String(field(item, 'Name') || 'Untitled').slice(0, 180);
-                card.appendChild(label); return card;
+                const label = document.createElement('div'); label.className = 'cardText';
+                label.textContent = String(field(item, 'Name') || 'Untitled').slice(0, 180);
+                footer.appendChild(label); return card;
             };
             const carousels = [];
             const addControls = (section, track, label) => {
