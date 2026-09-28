@@ -1,5 +1,6 @@
 """Generated supplementary Home rows with real DOM at phone and desktop widths."""
 from pathlib import Path
+from tempfile import gettempdir
 from playwright.sync_api import sync_playwright
 
 web = Path(__file__).resolve().parents[2] / 'src/Rowan.Jellyfin.Plugin/Web'
@@ -75,7 +76,7 @@ with sync_playwright() as playwright:
             page.locator('.rowan-native-row__items').first.focus()
             page.keyboard.press('ArrowLeft')
             page.wait_for_function('document.querySelector(".rowan-native-row__items").scrollLeft === 0')
-        page.screenshot(path=f'/home/josh/.hermes/cache/scratch/native-home-rows-{width}.png', full_page=True)
+        page.screenshot(path=str(Path(gettempdir()) / f'native-home-rows-{width}.png'), full_page=True)
         cards.nth(0).click()
         assert page.evaluate('opened') == [id_a]
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
