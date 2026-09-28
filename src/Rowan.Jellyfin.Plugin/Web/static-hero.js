@@ -55,7 +55,8 @@ var RowanStaticHero = (() => {
                 dot.setAttribute('aria-current', position === index ? 'true' : 'false'));
             const activeDot = pagination.children[index];
             if (activeDot && Number.isFinite(activeDot.offsetLeft) && pagination.clientWidth > 0) {
-                pagination.scrollLeft = Math.max(0, activeDot.offsetLeft - pagination.offsetLeft
+                const relativeLeft = activeDot.offsetLeft - (activeDot.offsetParent === pagination ? 0 : pagination.offsetLeft);
+                pagination.scrollLeft = Math.max(0, relativeLeft
                     - (pagination.clientWidth - activeDot.clientWidth) / 2);
             }
             previous.disabled = next.disabled = slides.length < 2;
