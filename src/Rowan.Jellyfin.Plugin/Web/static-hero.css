@@ -2,8 +2,8 @@
 .rowan-static-hero{min-height:min(78dvh,800px)}
 .rowan-static-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(0,0,0,.78),rgba(0,0,0,.2) 80%),linear-gradient(0deg,rgba(0,0,0,.7),transparent 55%)}
 .rowan-static-hero img{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover}
-.rowan-static-hero h2,.rowan-static-hero p{max-width:42rem;margin:.35rem clamp(1rem,3vw,3rem);text-shadow:0 2px 8px #000}
-.rowan-static-hero h2{font-size:clamp(1.5rem,4vw,3.5rem);font-weight:700;letter-spacing:-.025em}
+.rowan-static-hero h2,.rowan-static-hero p{max-width:min(58rem,calc(100% - 2 * clamp(1rem,3vw,3rem)));margin:.35rem clamp(1rem,3vw,3rem);text-shadow:0 2px 8px #000}
+.rowan-static-hero h2{font-size:clamp(1.8rem,2.8vw,3.75rem);line-height:1.12;font-weight:700;letter-spacing:-.035em;text-wrap:balance}
 .rowan-static-hero p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5}
 .rowan-static-hero button{min-height:44px;color:inherit;background:#222b;border:1px solid #fff8;border-radius:.35rem;cursor:pointer}
 .rowan-static-hero:focus-visible,.rowan-static-hero button:focus-visible{outline:3px solid #fff;outline-offset:-3px}
@@ -19,8 +19,9 @@
 .rowan-static-hero .rowan-hero-dot{position:relative;flex:0 0 44px;width:44px;height:44px;min-height:44px;margin:0;padding:0;border:0;background:transparent}
 .rowan-static-hero .rowan-hero-dot::after{content:"";position:absolute;left:12px;right:12px;top:19px;height:5px;border-radius:4px;background:#fff8}
 .rowan-static-hero .rowan-hero-dot[aria-current="true"]::after{background:#fff}
-.rowan-static-hero .rowan-hero-progress{display:block;width:min(20rem,80%);height:2px;background:linear-gradient(90deg,#fff var(--rowan-progress,0%),#fff5 var(--rowan-progress,0%))}
+.rowan-static-hero .rowan-hero-progress{display:block;width:min(20rem,calc(100% - 2 * clamp(1rem,3vw,3rem)));height:2px;margin-left:clamp(1rem,3vw,3rem);background:linear-gradient(90deg,#fff var(--rowan-progress,0%),#fff5 var(--rowan-progress,0%))}
 .rowan-static-hero>.rowan-hero-open{align-self:flex-start;margin:.5rem clamp(1rem,3vw,3rem);padding:.5rem 1.5rem;background:#fff;color:#151820;font-weight:600;border-color:#fff}
 .rowan-static-hero>.rowan-hero-open[hidden]{display:none}
+@media(min-width:1800px){.rowan-static-hero h2{max-width:100rem;font-size:clamp(3.75rem,2.7vw,5.5rem)}}
 @media(max-width:600px){.rowan-static-hero{min-height:65dvh;padding:1rem;border-radius:0}.rowan-static-hero h2{font-size:1.8rem}.rowan-static-hero p{-webkit-line-clamp:2}.rowan-static-hero>.rowan-hero-previous,.rowan-static-hero>.rowan-hero-next{top:32%}.rowan-static-hero>.rowan-hero-previous{left:.25rem}.rowan-static-hero>.rowan-hero-next{right:.25rem}}
 @media(prefers-reduced-motion:reduce){.rowan-static-hero *{scroll-behavior:auto;animation:none;transition:none}}
