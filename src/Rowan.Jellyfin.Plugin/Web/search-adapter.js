@@ -93,7 +93,10 @@
         const next = api && id && query && root && api.getUrl && api.getJSON ? { api, id, query, root } : null;
         if (!next) { if (key) teardown(); return; }
         if (key && Object.keys(next).every(k => next[k] === key[k]) &&
-            root.querySelectorAll(':scope > .threepic-fin-search').length === 1) return;
+            root.querySelectorAll(':scope > .threepic-fin-search').length === 1) {
+            addon.update(); // Native groups can be replaced without changing the query.
+            return;
+        }
         if (key && key.api === api && key.id === id && key.root === root &&
             root.querySelectorAll(':scope > .threepic-fin-search').length === 1) {
             // Keep the addon alive across typing so its bounded timer can coalesce

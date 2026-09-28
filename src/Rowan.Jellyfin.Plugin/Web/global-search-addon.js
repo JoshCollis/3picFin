@@ -13,6 +13,23 @@
             old.resultListeners.length = 0;
             old.section.remove();
         }
+        function syncLayout(state) {
+            const root = state.section.parentElement;
+            const groups = root?.querySelectorAll?.(':scope > .searchResults > .verticalSection');
+            if (!groups) return;
+            let before = 0;
+            for (const group of groups) {
+                const label = group.querySelector('h2, h3')?.textContent?.trim();
+                if (label === 'Movies' || label === 'Shows') before++;
+                else break;
+            }
+            state.section.dataset.nativeBefore = String(Math.min(before, 2));
+            const reference = groups[0]?.querySelector('.card') || groups[0]?.querySelector('h2, h3');
+            if (reference?.getBoundingClientRect && root.getBoundingClientRect) {
+                const gutter = reference.getBoundingClientRect().left - root.getBoundingClientRect().left;
+                if (gutter >= 0) state.section.style.setProperty('--search-rail-gutter', `${gutter}px`);
+            }
+        }
         function mount({ root, apiClient, userId, sessionUserId, query, parentId, collectionType, enabled = false,
             requestAction, detailsAction }) {
             dispose();
@@ -45,6 +62,7 @@
             const state = { section, body, prev, next, pageLabel, apiClient, userId, sessionUserId, requestAction, detailsAction,
                 query: '', page: 1, max: 1, generation: 0, listeners: [], resultListeners: [], timer: null, abort: null };
             current = state;
+            syncLayout(state);
             const listen = (node, type, handler) => { node.addEventListener(type, handler); state.listeners.push([node,type,handler]); };
             function clearResults() {
                 state.resultListeners.forEach(([node, type, handler]) => node.removeEventListener(type, handler));
@@ -128,12 +146,19 @@
                         const hasDetails = typeof state.detailsAction === 'function';
                         action.textContent = 'ⓘ';
                         action.setAttribute('aria-label', `Details for ${name} (${metadata})`);
+                        card.setAttribute('role', 'button'); card.setAttribute('tabindex', '0');
+                        card.setAttribute('aria-label', `Details for ${name} (${metadata})`);
                         const handler = () => {
                             if (valid() && generation === state.generation)
-                                (hasDetails ? state.detailsAction : requestAction)(item, action);
+                                (hasDetails ? state.detailsAction : requestAction)(item, card);
                         };
-                        action.addEventListener('click', handler);
-                        state.resultListeners.push([action, 'click', handler]);
+                        const keyboard = event => {
+                            if (event.target !== card || !['Enter', ' '].includes(event.key)) return;
+                            event.preventDefault(); handler();
+                        };
+                        card.addEventListener('click', handler);
+                        card.addEventListener('keydown', keyboard);
+                        state.resultListeners.push([card, 'click', handler], [card, 'keydown', keyboard]);
                         media.appendChild(action);
                         cards.appendChild(card);
                     }
@@ -174,6 +199,7 @@
             const state = current;
             if (!state) return;
             if (state.sessionUserId() !== state.userId) { dispose(); return; }
+            syncLayout(state);
             if (Object.hasOwn(changes, 'parentId') && parentId !== null ||
                 Object.hasOwn(changes, 'collectionType') && collectionType !== null ||
                 Object.hasOwn(changes, 'query') && typeof query !== 'string') { dispose(); return; }
