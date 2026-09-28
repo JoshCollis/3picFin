@@ -8,7 +8,7 @@ const fragment = fs.readFileSync(path.join(base, 'discovery.html'), 'utf8');
 const css = fs.readFileSync(path.join(base, 'discovery.css'), 'utf8');
 const script = () => fs.readFileSync(path.join(base, 'discovery.js'), 'utf8');
 class Element {
-    constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.attrs = {}; this.handlers = {}; this.textContent = ''; this.value = ''; this.disabled = false; this.hidden = false; this.checked = false; }
+    constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.parentNode = null; this.attrs = {}; this.handlers = {}; this.observers = new Set(); this.textContent = ''; this.value = ''; this.disabled = false; this.hidden = false; this.checked = false; this.clientWidth = 300; this.scrollWidth = 300; this.scrollLeft = 0; }
     setAttribute(key, value) { this.attrs[key] = String(value); }
     getAttribute(key) { return this.attrs[key] ?? null; }
     addEventListener(key, fn) { (this.handlers[key] ??= []).push(fn); }
@@ -17,8 +17,14 @@ class Element {
     focus() { this.focused = true; }
     showModal() { this.open = true; }
     close() { this.open = false; this.dispatch('close'); }
-    appendChild(node) { this.children.push(node); return node; }
-    replaceChildren(...nodes) { this.children = nodes; this.textContent = ''; }
+    closest(selector) { for (let node = this; node; node = node.parentNode) if (node.tagName.toLowerCase() === selector) return node; return null; }
+    querySelector(selector) { return this.descendants().find(node => node.tagName.toLowerCase() === selector) || null; }
+    notify() { for (const observer of this.observers) observer.callback(); }
+    appendChild(node) { node.remove(); this.children.push(node); node.parentNode = this; this.notify(); return node; }
+    before(node) { if (!this.parentNode) return; node.remove(); const siblings = this.parentNode.children; siblings.splice(siblings.indexOf(this), 0, node); node.parentNode = this.parentNode; this.parentNode.notify(); }
+    remove() { if (!this.parentNode) return; const parent = this.parentNode; parent.children.splice(parent.children.indexOf(this), 1); this.parentNode = null; parent.notify(); }
+    replaceChildren(...nodes) { for (const child of [...this.children]) child.remove(); this.textContent = ''; for (const node of nodes) this.appendChild(node); }
+    scrollBy({ left }) { this.scrollLeft = Math.max(0, Math.min(this.scrollWidth - this.clientWidth, this.scrollLeft + left)); this.dispatch('scroll'); }
     descendants() { return this.children.flatMap(n => [n, ...n.descendants()]); }
 }
 function deferred() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
@@ -27,20 +33,88 @@ function setup(responses = [], posts = [], host = {}, details = []) {
     const ids = ['threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-seasons', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-discover-tab', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-recommendations', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
     for (const id of ids) assert.match(fragment, new RegExp(`id="${id}"`));
     const nodes = Object.fromEntries(ids.map(id => [id, new Element()]));
-    const root = new Element(); root.querySelector = selector => nodes[selector.slice(1)] || null;
+    const root = new Element();
+    const tabs = new Element();
+    root.querySelector = selector => selector === '.threepic-fin-discovery__tabs' ? tabs : nodes[selector.slice(1)] || null;
+    // Mirror the fragment's rail section/heading relationship instead of
+    // handing every ID a disconnected placeholder node.
+    const rails = ['requests', 'shared-requests', 'recommendations', 'search-results', 'movies', 'tv'];
+    for (const name of rails) {
+        const id = `threepic-fin-${name}`;
+        assert.match(fragment, new RegExp(`<section[^>]*><h3>[^<]+</h3>(?:(?!</section>)[\\s\\S])*?id="${id}"`));
+        const section = new Element('section');
+        section.appendChild(new Element('h3'));
+        section.appendChild(nodes[id]);
+        root.appendChild(section);
+    }
     const calls = [];
     const api = {
         getUrl: (route, params) => { calls.push(['url', route, params]); const u = new URL(route, 'https://example.test/jellyfin/'); for (const [k, v] of Object.entries(params || {})) u.searchParams.set(k, v); return u.href; },
-        getJSON: (url, options) => { calls.push(['getJSON', url, options]); const isDetail = url.includes('TitleDetails'); const queue = isDetail && details.length ? details : responses; if (isDetail && queue === responses && !(responses[0] && (responses[0].MediaType || responses[0].mediaType))) return Promise.resolve(null); const reply = queue.shift(); return reply?.promise || (reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply)); },
+        getJSON: (url, options) => {
+            calls.push(['getJSON', url, options]);
+            if (url.includes('TitleDetails') && !details.length && responses[0] &&
+                responses[0].MediaType === undefined && responses[0].mediaType === undefined &&
+                (responses[0].CanRequest !== undefined || responses[0].canRequest !== undefined)) {
+                // The old request tests queue RequestOptions once. TitleDetails is
+                // a separate read of the same eligibility; leave options queued.
+                const params = new URL(url).searchParams;
+                return Promise.resolve({ ...responses[0], MediaType: params.get('mediaType'), TmdbId: Number(params.get('mediaId')) });
+            }
+            if (url.includes('TitleDetails') && !details.length &&
+                responses[0]?.MediaType === undefined && responses[0]?.mediaType === undefined) return Promise.resolve(null);
+            const reply = (url.includes('TitleDetails') && details.length ? details : responses).shift();
+            return reply?.promise || (reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply));
+        },
         ajax: options => { calls.push(['ajax', options]); const reply = posts.shift(); return reply?.promise || (reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply)); }
     };
-    const context = { document: { createElement: tag => new Element(tag) }, URL, AbortController };
+    const context = {
+        document: { createElement: tag => new Element(tag) }, URL, AbortController,
+        matchMedia: () => ({ matches: false }),
+        requestAnimationFrame: callback => setImmediate(callback),
+        MutationObserver: class {
+            constructor(callback) { this.callback = callback; }
+            observe(node, options) { assert.equal(options.childList, true); this.node = node; node.observers.add(this); }
+            disconnect() { this.node?.observers.delete(this); this.node = null; }
+        }
+    };
     vm.runInNewContext(script(), context);
     const cleanup = context.ThreePicFinDiscovery.mount(root, api, host);
     const el = id => nodes[`threepic-fin-${id}`];
     const text = id => [el(id), ...el(id).descendants()].map(n => n.textContent).join(' ');
     return { nodes, root, calls, api, el, text, cleanup, flush };
 }
+async function requestFromCard(app, name) {
+    const title = app.el(name).children[0].descendants().find(n => n.className === 'threepic-fin-discovery__title-button');
+    assert.ok(title, 'card offers a details action');
+    title.dispatch('click'); await app.flush();
+    assert.equal(app.el('details-request').hidden, false, 'verified details allow request');
+    app.el('details-request').dispatch('click'); await app.flush();
+}
+test('Discovery rails scroll by a bounded page, reset after render, and restore headings on teardown', async () => {
+    const app = setup([bundle(source([{ TmdbId: 9, MediaType: 'movie', Title: 'Film' }]))]);
+    const rail = app.el('movies'), section = rail.closest('section');
+    const heading = section.querySelector('h3'), header = heading.parentNode;
+    assert.equal(header.className, 'threepic-fin-discovery__row-heading');
+    const navigation = header.children[1];
+    rail.scrollWidth = 900;
+    await app.flush();
+    assert.equal(navigation.hidden, false);
+    assert.equal(navigation.children[0].disabled, true);
+    navigation.children[1].dispatch('click');
+    assert.equal(rail.scrollLeft, 240);
+    assert.equal(navigation.children[0].disabled, false);
+    rail.replaceChildren(new Element('article'));
+    await app.flush();
+    assert.equal(rail.scrollLeft, 0);
+    app.cleanup();
+    assert.equal(heading.parentNode, section);
+    assert.equal(header.parentNode, null);
+    assert.equal(rail.observers.size, 0);
+    rail.scrollLeft = 0;
+    navigation.children[1].dispatch('click');
+    assert.equal(rail.scrollLeft, 0, 'removed controls cannot scroll after teardown');
+});
+
 const source = (Items = [], extra = {}) => ({ Items, Error: null, Page: 1, TotalPages: 1, ...extra });
 const bundle = (Movies = source(), Tv = source(), Requests = source()) => ({ Movies, Tv, Requests });
 
@@ -234,7 +308,7 @@ test('movie request is confirmed once with default profile and verified in perso
     const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, MediaStatus: 2, Seasons: [] },
         bundle(source([movie]), source(), source([{ Id: 91, Status: 1, Type: 'movie', TmdbId: 9, Is4k: false }]))], [pending]);
     await app.flush();
-    app.el('movies').children[0].descendants().find(n => n.tagName === 'BUTTON' && n.textContent.startsWith('Request')).dispatch('click'); await app.flush();
+    await requestFromCard(app, 'movies'); await app.flush();
     assert.equal(app.el('request-dialog').open, true);
     assert.equal(app.el('request-4k-wrap').hidden, true);
     app.el('request-form').dispatch('submit'); app.el('request-form').dispatch('submit');
@@ -253,7 +327,7 @@ test('TV requires explicit seasons, 4K permission, and never retries ambiguous P
     const app = setup([bundle(source(), source([show])), { CanRequest: true, CanRequest4k: true, Seasons: [1, 3] },
         bundle(source(), source([show]), source())], [new Error('timeout')]);
     await app.flush();
-    app.el('tv').children[0].descendants().find(n => n.tagName === 'BUTTON' && n.textContent.startsWith('Request')).dispatch('click'); await app.flush();
+    await requestFromCard(app, 'tv'); await app.flush();
     app.el('request-form').dispatch('submit'); assert.equal(app.calls.filter(c => c[0] === 'ajax').length, 0);
     const check = app.el('request-seasons').descendants().find(n => n.tagName === 'INPUT'); check.checked = true;
     app.el('request-4k').checked = true;
@@ -268,7 +342,7 @@ test('a duplicate response reconciles matching personal request without claiming
     const duplicate = Object.assign(new Error('Conflict'), { status: 409 });
     const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
         bundle(source([movie]), source(), source([{ Id: 4, Status: 1, TmdbId: 9, Type: 'movie', Is4k: false }]))], [duplicate]);
-    await app.flush(); app.el('movies').children[0].descendants().find(n => n.tagName === 'BUTTON' && n.textContent.startsWith('Request')).dispatch('click'); await app.flush();
+    await app.flush(); await requestFromCard(app, 'movies'); await app.flush();
     app.el('request-form').dispatch('submit'); await app.flush();
     assert.match(app.text('request-status'), /matching request.*could not be verified/i);
     assert.equal(app.calls.filter(c => c[0] === 'ajax').length, 1);
@@ -278,7 +352,7 @@ test('a duplicate response reconciles matching personal request without claiming
 
 test('4K-only permission selects its only permitted variant', async () => {
     const app = setup([bundle(source([{ TmdbId: 8, MediaType: 'movie', Title: '4K' }])), { CanRequest: false, CanRequest4k: true, Seasons: [] }]);
-    await app.flush(); app.el('movies').children[0].descendants().find(n => n.tagName === 'BUTTON' && n.textContent.startsWith('Request')).dispatch('click'); await app.flush();
+    await app.flush(); await requestFromCard(app, 'movies'); await app.flush();
     assert.equal(app.el('request-4k').checked, true);
     assert.equal(app.el('request-submit').disabled, false);
 });
@@ -289,7 +363,7 @@ test('declined personal movie request does not suppress a new submission', async
     const app = setup([bundle(source([movie]), source(), source([declined])),
         { CanRequest: true, CanRequest4k: false, Seasons: [] },
         bundle(source([movie]), source(), source([declined, { ...declined, Id: 4, Status: 1 }]))], [{ Id: 4, Status: 1 }]);
-    await app.flush(); app.el('movies').children[0].descendants().find(n => n.tagName === 'BUTTON' && n.textContent.startsWith('Request')).dispatch('click'); await app.flush();
+    await app.flush(); await requestFromCard(app, 'movies'); await app.flush();
     app.el('request-form').dispatch('submit'); await app.flush();
     assert.equal(app.calls.filter(c => c[0] === 'ajax').length, 1);
     assert.match(app.text('request-status'), /Pending/);
@@ -299,7 +373,7 @@ test('TV creation reconciles returned ID when Seerr trims already requested seas
     const show = { TmdbId: 7, MediaType: 'tv', Title: 'Series' };
     const app = setup([bundle(source(), source([show])), { CanRequest: true, CanRequest4k: true, Seasons: [1, 2] },
         bundle(source(), source([show]), source([{ Id: 71, Status: 2, Type: 'tv', TmdbId: 7, Is4k: true, Seasons: [2] }]))], [{ Id: 71, Status: 2 }]);
-    await app.flush(); app.el('tv').children[0].descendants().find(n => n.tagName === 'BUTTON' && n.textContent.startsWith('Request')).dispatch('click'); await app.flush();
+    await app.flush(); await requestFromCard(app, 'tv'); await app.flush();
     for (const input of app.el('request-seasons').descendants().filter(n => n.tagName === 'INPUT')) input.checked = true;
     app.el('request-4k').checked = true;
     app.el('request-form').dispatch('submit'); await app.flush();
@@ -310,17 +384,19 @@ test('TV creation reconciles returned ID when Seerr trims already requested seas
 test('blocklisted status disables request regardless of permission and announces why', async () => {
     const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Blocked' };
     const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: true, MediaStatus: 6, MediaStatus4k: 1, Seasons: [] }]);
-    await app.flush(); app.el('movies').children[0].descendants().find(n => n.tagName === 'BUTTON' && n.textContent.startsWith('Request')).dispatch('click'); await app.flush();
-    assert.equal(app.el('request-submit').disabled, true);
-    assert.match(app.text('request-status'), /blocklisted/i);
-    app.el('request-4k').checked = true; app.el('request-form').dispatch('submit');
+    await app.flush();
+    const title = app.el('movies').children[0].descendants().find(n => n.className === 'threepic-fin-discovery__title-button');
+    title.dispatch('click'); await app.flush();
+    assert.equal(app.el('details-request').hidden, true);
+    assert.match(app.text('details-status'), /Blocklisted/);
+    assert.equal(app.el('request-dialog').open, undefined);
     assert.equal(app.calls.filter(c => c[0] === 'ajax').length, 0);
 });
 
 test('variant availability message uses selected standard or 4K status with camelCase DTOs', async () => {
     const movie = { tmdbId: 9, mediaType: 'movie', title: 'Film' };
     const app = setup([bundle(source([movie])), { canRequest: true, canRequest4k: true, mediaStatus: 1, mediaStatus4k: 5, seasons: [] }]);
-    await app.flush(); app.el('movies').children[0].descendants().find(n => n.tagName === 'BUTTON' && n.textContent.startsWith('Request')).dispatch('click'); await app.flush();
+    await app.flush(); await requestFromCard(app, 'movies'); await app.flush();
     assert.doesNotMatch(app.text('request-status'), /available; check/i);
     app.el('request-4k').checked = true; app.el('request-4k').dispatch('change');
     assert.match(app.text('request-status'), /available; check/i);
@@ -331,7 +407,7 @@ test('successful POST with no returned ID on the first personal page stays unkno
     const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
     const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
         bundle(source([movie]), source(), source([{ Id: 3, Status: 1, TmdbId: 9, Type: 'movie', Is4k: false }]))], [{ Id: 4, Status: 1 }]);
-    await app.flush(); app.el('movies').children[0].descendants().find(n => n.tagName === 'BUTTON' && n.textContent.startsWith('Request')).dispatch('click'); await app.flush();
+    await app.flush(); await requestFromCard(app, 'movies'); await app.flush();
     app.el('request-form').dispatch('submit'); await app.flush();
     assert.match(app.text('request-status'), /Outcome unknown/);
     assert.equal(app.el('request-submit').disabled, true);
@@ -342,7 +418,7 @@ test('failed POST with only a declined personal request stays unknown', async ()
     const declined = { Id: 3, Status: 3, TmdbId: 9, Type: 'movie', Is4k: false };
     const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
         bundle(source([movie]), source(), source([declined]))], [new Error('timeout')]);
-    await app.flush(); app.el('movies').children[0].descendants().find(n => n.tagName === 'BUTTON' && n.textContent.startsWith('Request')).dispatch('click'); await app.flush();
+    await app.flush(); await requestFromCard(app, 'movies'); await app.flush();
     app.el('request-form').dispatch('submit'); await app.flush();
     assert.match(app.text('request-status'), /Outcome unknown/);
     assert.equal(app.el('request-submit').disabled, true);
@@ -350,8 +426,9 @@ test('failed POST with only a declined personal request stays unknown', async ()
 
 test('missing options fail closed and dialog closure ignores stale detail', async () => {
     const pending = deferred();
-    const app = setup([bundle(source([{ TmdbId: 5, MediaType: 'movie', Title: 'Title' }])), pending]); await app.flush();
-    app.el('movies').children[0].descendants().find(n => n.tagName === 'BUTTON' && n.textContent.startsWith('Request')).dispatch('click');
+    const app = setup([bundle(source([{ TmdbId: 5, MediaType: 'movie', Title: 'Title' }])), pending], [], {},
+        [{ TmdbId: 5, MediaType: 'movie', CanRequest: true, CanRequest4k: false, Seasons: [] }]); await app.flush();
+    await requestFromCard(app, 'movies');
     app.el('request-cancel').dispatch('click');
     pending.resolve({ CanRequest: true, CanRequest4k: true, Seasons: [] }); await app.flush();
     assert.equal(app.el('request-dialog').open, false);
@@ -477,7 +554,7 @@ test('Calendar loads lazily with a half-open 31-day UTC window and independent s
     assert.match(request[2].start, /^\d{4}-\d\d-\d\d$/);
     assert.equal(app.el('discover-panel').hidden, true);
     assert.equal(app.el('calendar-panel').hidden, false);
-    assert.equal(app.el('calendar-tab').getAttribute('aria-pressed'), 'true');
+    assert.equal(app.el('calendar-tab').getAttribute('aria-selected'), 'true');
     assert.match(app.text('calendar-radarr'), /Movie.*Digital.*title-wide/i);
     assert.match(app.text('calendar-sonarr'), /Show.*S02E03.*Pilot.*Partial/i);
     assert.doesNotMatch(app.text('requests'), /Pilot/);
