@@ -14,8 +14,8 @@ using Rowan.Jellyfin.Plugin.Configuration;
 namespace Rowan.Jellyfin.Plugin.Discovery;
 
 public sealed record CatalogItem(int TmdbId, string MediaType, string Title, string? Date, string? PosterPath, string? Overview, int? Status);
-public sealed record PersonalRequest(int Id, int Status, string? Type, int? TmdbId, string? MediaType, int? MediaStatus, bool? Is4k, IReadOnlyList<int> Seasons, string? Title, string? PosterPath);
-public sealed record SharedRequest(int Id, int Status, string? Type, int? TmdbId, string? MediaType, int? MediaStatus, bool? Is4k, IReadOnlyList<int> Seasons);
+public sealed record PersonalRequest(int Id, int Status, string? Type, int? TmdbId, string? MediaType, int? MediaStatus, bool? Is4k, IReadOnlyList<int> Seasons, string? Title, string? PosterPath, string? RequesterDisplayName = null);
+public sealed record SharedRequest(int Id, int Status, string? Type, int? TmdbId, string? MediaType, int? MediaStatus, bool? Is4k, IReadOnlyList<int> Seasons, string? RequesterDisplayName = null);
 public sealed record SourceResult<T>(IReadOnlyList<T> Items, string? Error, int? Page = null, int? TotalPages = null, int? TotalResults = null);
 public sealed record DiscoveryResponse(SourceResult<CatalogItem> Movies, SourceResult<CatalogItem> Tv, SourceResult<PersonalRequest> Requests);
 
@@ -24,10 +24,10 @@ public static class DiscoveryDtos
 {
     public static SourceResult<SharedRequest> SharedRequests(SeerrResult source)
     {
-        var personal = Requests(source);
+        var personal = RequestsCore(source, null, sharedAuthorized: true);
         var items = new List<SharedRequest>();
         foreach (var item in personal.Items)
-            items.Add(new(item.Id, item.Status, item.Type, item.TmdbId, item.MediaType, item.MediaStatus, item.Is4k, item.Seasons));
+            items.Add(new(item.Id, item.Status, item.Type, item.TmdbId, item.MediaType, item.MediaStatus, item.Is4k, item.Seasons, item.RequesterDisplayName));
         return new(items, personal.Error, personal.Page, personal.TotalPages, personal.TotalResults);
     }
 
@@ -57,7 +57,10 @@ public static class DiscoveryDtos
         return new(items, null, Bounded(Number(root, "page"), 1, 100), Bounded(Number(root, "totalPages"), 0, 10_000), Bounded(Number(root, "totalResults"), 0, 1_000_000));
     }
 
-    public static SourceResult<PersonalRequest> Requests(SeerrResult source)
+    public static SourceResult<PersonalRequest> Requests(SeerrResult source, int? mappedRequesterId = null) =>
+        RequestsCore(source, mappedRequesterId, sharedAuthorized: false);
+
+    private static SourceResult<PersonalRequest> RequestsCore(SeerrResult source, int? mappedRequesterId, bool sharedAuthorized)
     {
         if (source.Failure is { } failure) return new([], failure.ToString());
         if (!TryResults(source.Value, out var results)) return new([], SeerrFailure.UpstreamUnavailable.ToString());
@@ -77,11 +80,25 @@ public static class DiscoveryDtos
                     if (Bounded(Number(season, "seasonNumber"), 0, 1000) is { } number) seasons.Add(number);
                 }
             items.Add(new PersonalRequest(id.Value, status.Value, MediaType(item, "type"), Bounded(Number(media, "tmdbId"), 1, 100_000_000),
-                MediaType(media, "mediaType"), Bounded(Number(media, "status"), 0, 100), Boolean(item, "is4k"), seasons, null, null));
+                MediaType(media, "mediaType"), Bounded(Number(media, "status"), 0, 100), Boolean(item, "is4k"), seasons, null, null, RequesterName(item, mappedRequesterId, sharedAuthorized)));
         }
         var root = source.Value!.Value;
         var pageInfo = root.TryGetProperty("pageInfo", out var info) && info.ValueKind == JsonValueKind.Object ? info : default;
         return new(items, null, Bounded(Number(pageInfo, "page"), 1, 100), Bounded(Number(pageInfo, "pages"), 0, 10_000), Bounded(Number(pageInfo, "results"), 0, 1_000_000));
+    }
+
+    private static string? RequesterName(JsonElement item, int? mappedRequesterId, bool sharedAuthorized)
+    {
+        if (!item.TryGetProperty("requestedBy", out var requester) || requester.ValueKind != JsonValueKind.Object ||
+            Number(requester, "id") is not > 0) return null;
+        if (!sharedAuthorized && (mappedRequesterId is not > 0 || Number(requester, "id") != mappedRequesterId)) return null;
+        // Only an explicit display label. Never fall back to email, username, IDs, or a guessed identity.
+        if (!requester.TryGetProperty("displayName", out var value) || value.ValueKind != JsonValueKind.String) return null;
+        var name = value.GetString()?.Trim();
+        if (string.IsNullOrWhiteSpace(name) || name.Length > 100 || name.Contains('@')) return null;
+        foreach (var character in name)
+            if (char.IsControl(character) || char.GetUnicodeCategory(character) == System.Globalization.UnicodeCategory.Format) return null;
+        return name;
     }
 
     private static bool TryResults(JsonElement? value, out JsonElement results)
@@ -228,7 +245,7 @@ public sealed class DiscoveryController : ControllerBase
     {
         if (!TryUser(out var id)) return Forbid();
         var bundle = await _client.GetDiscoveryAsync(id, moviePage ?? page, tvPage ?? page, requestsPage ?? page, 20, cancellationToken).ConfigureAwait(false);
-        return Ok(new DiscoveryResponse(DiscoveryDtos.Catalog(bundle.Movies, "movie"), DiscoveryDtos.Catalog(bundle.Tv, "tv"), DiscoveryDtos.Requests(bundle.Requests)));
+        return Ok(new DiscoveryResponse(DiscoveryDtos.Catalog(bundle.Movies, "movie"), DiscoveryDtos.Catalog(bundle.Tv, "tv"), DiscoveryDtos.Requests(bundle.Requests, bundle.MappedRequesterId)));
     }
 
     [HttpGet("Search")]

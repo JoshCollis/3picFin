@@ -23,6 +23,63 @@ public sealed class DiscoveryControllerTests
     private static readonly Guid Alice = Guid.Parse("f6b48a38-9e4b-4b1b-a957-e8e425e91922");
     private static readonly Guid Bob = Guid.Parse("e1bc172d-6870-4bad-8bc7-32af478474bc");
 
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("null")]
+    [InlineData("{\"id\":42,\"email\":\"private@example.invalid\",\"username\":\"private-login\"}")]
+    [InlineData("{\"displayName\":\"Missing identity\"}")]
+    [InlineData("{\"id\":\"42\",\"displayName\":\"Invalid identity\"}")]
+    [InlineData("{\"id\":42,\"displayName\":\"private@example.invalid\"}")]
+    [InlineData("{\"id\":42,\"displayName\":\"  \"}")]
+    [InlineData("{\"id\":42,\"displayName\":123}")]
+    [InlineData("{\"id\":42,\"displayName\":\"Bad\\nLabel\"}")]
+    public void MissingOrUnsafeRequesterDisplayIsUnknown(string requester)
+    {
+        using var json = JsonDocument.Parse("{\"results\":[{\"id\":1,\"status\":2,\"requestedBy\":" + requester + "}]}");
+        var source = SeerrResult.Success(json.RootElement);
+        Assert.Null(Assert.Single(DiscoveryDtos.SharedRequests(source).Items).RequesterDisplayName);
+        Assert.Null(Assert.Single(DiscoveryDtos.Requests(source, 42).Items).RequesterDisplayName);
+    }
+
+    [Fact]
+    public void RequesterProjectionRequiresAuthorizationAndRejectsOversizedNames()
+    {
+        using var json = JsonDocument.Parse("""
+            {"results":[{"id":1,"status":2,"requestedBy":{"id":42,"displayName":" Synthetic Alice ","email":"private@example.invalid","token":"private-token"}}]}
+            """);
+        var source = SeerrResult.Success(json.RootElement);
+        Assert.Null(Assert.Single(DiscoveryDtos.Requests(source).Items).RequesterDisplayName);
+        Assert.Null(Assert.Single(DiscoveryDtos.Requests(source, 57).Items).RequesterDisplayName);
+        Assert.Equal("Synthetic Alice", Assert.Single(DiscoveryDtos.Requests(source, 42).Items).RequesterDisplayName);
+        using var oversized = JsonDocument.Parse("{\"results\":[{\"id\":1,\"status\":2,\"requestedBy\":{\"id\":42,\"displayName\":\"" + new string('a', 101) + "\"}}]}");
+        Assert.Null(Assert.Single(DiscoveryDtos.SharedRequests(SeerrResult.Success(oversized.RootElement)).Items).RequesterDisplayName);
+    }
+
+    [Fact]
+    public async Task PersonalRequesterNameIsBoundToFreshMappingEvenWhenUpstreamReturnsAnotherUser()
+    {
+        using var http = Stub(request => {
+            var path = request.RequestUri!.PathAndQuery;
+            if (path.Contains("/user/jellyfin/")) return Json($"{{\"id\":{(path.Contains(Alice.ToString()) ? 42 : 57)}}}");
+            if (!path.Contains("/request?")) return Json("{\"results\":[]}");
+            return Json("""
+                {"results":[{"id":1,"status":2,"requestedBy":{"id":42,"displayName":"Synthetic Alice","email":"private@example.invalid","token":"private-token"}}]}
+                """);
+        });
+        var client = new SeerrClient(http, Options());
+        foreach (var user in new[] { Alice, Bob })
+        {
+            var result = Assert.IsType<OkObjectResult>((await Controller(client, [new Claim("Jellyfin-UserId", user.ToString())]).GetDiscovery()).Result);
+            var response = Assert.IsType<DiscoveryResponse>(result.Value);
+            Assert.Equal(user == Alice ? "Synthetic Alice" : null, Assert.Single(response.Requests.Items).RequesterDisplayName);
+            var wire = JsonSerializer.Serialize(response);
+            Assert.DoesNotContain("private", wire);
+            Assert.DoesNotContain("requestedBy", wire);
+            Assert.DoesNotContain("MappedRequesterId", wire);
+            if (user == Bob) Assert.DoesNotContain("Synthetic Alice", wire);
+        }
+    }
+
     [Fact]
     public async Task SharedRequestsAreExplicitAndIdenticalForDisjointAuthenticatedUsers()
     {
@@ -30,7 +87,7 @@ public sealed class DiscoveryControllerTests
         using var http = Stub(request => {
             paths.Add(request.RequestUri!.PathAndQuery);
             Assert.False(request.Headers.Contains("X-API-User"));
-            return Json("{\"pageInfo\":{\"page\":2,\"pages\":3,\"results\":41},\"results\":[{\"id\":8,\"status\":2,\"type\":\"movie\",\"media\":{\"tmdbId\":123,\"mediaType\":\"movie\",\"status\":5,\"path\":\"private\"},\"requestedBy\":{\"username\":\"Alice\"},\"modifiedBy\":{\"email\":\"private\"},\"serverId\":9,\"secret\":\"private\"}]}");
+            return Json("{\"pageInfo\":{\"page\":2,\"pages\":3,\"results\":41},\"results\":[{\"id\":8,\"status\":2,\"type\":\"movie\",\"media\":{\"tmdbId\":123,\"mediaType\":\"movie\",\"status\":5,\"path\":\"private\"},\"requestedBy\":{\"id\":42,\"displayName\":\"Synthetic Alice\",\"username\":\"private-login\",\"email\":\"private@example.invalid\",\"token\":\"private-token\"},\"modifiedBy\":{\"email\":\"private\"},\"serverId\":9,\"secret\":\"private\"}]}");
         });
         var client = new SeerrClient(http, Options());
         foreach (var user in new[] { Alice, Bob }) {
@@ -41,7 +98,7 @@ public sealed class DiscoveryControllerTests
             Assert.Equal(2, source.Page);
             Assert.Equal(3, source.TotalPages);
             var wire = JsonSerializer.Serialize(source);
-            Assert.DoesNotContain("Alice", wire);
+            Assert.Equal("Synthetic Alice", source.Items[0].RequesterDisplayName);
             Assert.DoesNotContain("private", wire);
             Assert.DoesNotContain("serverId", wire);
             Assert.DoesNotContain("requestedBy", wire);
@@ -60,6 +117,9 @@ public sealed class DiscoveryControllerTests
         foreach (var claims in new[] { Array.Empty<Claim>(), [new Claim("Jellyfin-UserId", Guid.Empty.ToString())], [new Claim("Jellyfin-UserId", Alice.ToString()), new Claim("Jellyfin-UserId", Bob.ToString())] })
             Assert.IsType<ForbidResult>((await Controller(client, claims, shared: true).GetSharedRequests(1, CancellationToken.None)).Result);
         Assert.IsType<ForbidResult>((await Controller(client, [new Claim("Jellyfin-UserId", Alice.ToString())], _ => false, true).GetSharedRequests(1, CancellationToken.None)).Result);
+        var anonymous = Controller(client, [new Claim("Jellyfin-UserId", Alice.ToString())], shared: true);
+        anonymous.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("Jellyfin-UserId", Alice.ToString())]));
+        Assert.IsType<ForbidResult>((await anonymous.GetSharedRequests()).Result);
         Assert.Equal(0, calls);
         Assert.False(new PluginConfiguration().SharedRequestsEnabled);
     }

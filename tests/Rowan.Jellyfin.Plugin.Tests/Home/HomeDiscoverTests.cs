@@ -35,6 +35,43 @@ public sealed class HomeDiscoverTests
     }
 
     [Fact]
+    public async Task DiscoveryTrendingIsIndependentOfHomeButStillRequiresEnabledPageAndIdentity()
+    {
+        var calls = new List<string>();
+        using var http = new HttpClient(new Handler((request, _) => {
+            var path = request.RequestUri!.PathAndQuery;
+            calls.Add(path);
+            if (path.Contains("/user/jellyfin/")) return Task.FromResult(Json("{\"id\":42}"));
+            Assert.Equal("42", request.Headers.GetValues("X-API-User").Single());
+            return Task.FromResult(Json("{\"results\":[],\"page\":1,\"totalPages\":1}"));
+        }));
+        var flags = new PluginConfiguration { HomeEnabled = false, DiscoveryPageEnabled = true };
+        var client = new SeerrClient(http, Options());
+        var controller = Controller(client, flags);
+        Assert.IsType<NotFoundResult>((await controller.GetDiscover()).Result);
+        Assert.IsType<NotFoundResult>((await controller.GetDiscoverMovies()).Result);
+        Assert.IsType<NotFoundResult>((await controller.GetDiscoverTv()).Result);
+        Assert.IsType<BadRequestResult>((await controller.GetDiscoveryTrending(0)).Result);
+        Assert.IsType<BadRequestResult>((await controller.GetDiscoveryTrending(101)).Result);
+        foreach (var claims in new[] { Array.Empty<Claim>(), [new Claim("Jellyfin-UserId", Alice.ToString()), new Claim("Jellyfin-UserId", Bob.ToString())] })
+            Assert.IsType<ForbidResult>((await Controller(client, flags, claims).GetDiscoveryTrending()).Result);
+        Assert.IsType<ForbidResult>((await Controller(client, flags, exists: _ => false).GetDiscoveryTrending()).Result);
+        var anonymous = Controller(client, flags);
+        anonymous.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("Jellyfin-UserId", Alice.ToString())]));
+        Assert.IsType<ForbidResult>((await anonymous.GetDiscoveryTrending()).Result);
+        Assert.Empty(calls);
+        Assert.IsType<OkObjectResult>((await controller.GetDiscoveryTrending()).Result);
+        Assert.Equal("private, no-store", controller.Response.Headers.CacheControl.ToString());
+        Assert.Equal(2, calls.Count);
+        Assert.EndsWith("/discover/trending?page=1", calls[1]);
+        flags.DiscoveryPageEnabled = false;
+        flags.HomeEnabled = flags.DiscoverRowEnabled = true;
+        Assert.IsType<NotFoundResult>((await controller.GetDiscoveryTrending()).Result);
+        Assert.Equal(2, calls.Count);
+        Assert.IsType<OkObjectResult>((await controller.GetDiscover()).Result);
+    }
+
+    [Fact]
     public async Task IndependentDefaultOffFlagsAndIdentityFailClosedBeforeNetwork()
     {
         var calls = 0;
@@ -72,6 +109,10 @@ public sealed class HomeDiscoverTests
         var controller = Controller(new SeerrClient(http, Options()), flags);
         var trending = Assert.IsType<SourceResult<HomeDiscoverItem>>(Assert.IsType<OkObjectResult>((await controller.GetDiscover(1)).Result).Value);
         Assert.Equal(new[] { "Good", "Show" }, trending.Items.Select(i => i.Title));
+        flags.HomeEnabled = false;
+        var discovery = Assert.IsType<SourceResult<HomeDiscoverItem>>(Assert.IsType<OkObjectResult>((await controller.GetDiscoveryTrending(1)).Result).Value);
+        Assert.Equal(trending.Items, discovery.Items);
+        flags.HomeEnabled = true;
         var movies = Assert.IsType<SourceResult<HomeDiscoverItem>>(Assert.IsType<OkObjectResult>((await controller.GetDiscoverMovies(1)).Result).Value);
         Assert.Equal("Good", Assert.Single(movies.Items).Title);
         var tv = Assert.IsType<SourceResult<HomeDiscoverItem>>(Assert.IsType<OkObjectResult>((await controller.GetDiscoverTv(1)).Result).Value);

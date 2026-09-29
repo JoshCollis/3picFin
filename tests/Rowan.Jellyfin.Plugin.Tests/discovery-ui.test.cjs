@@ -29,8 +29,8 @@ class Element {
 }
 function deferred() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 async function flush() { for (let i = 0; i < 6; i++) await new Promise(resolve => setImmediate(resolve)); }
-function setup(responses = [], posts = [], host = {}, details = [], shared = []) {
-    const ids = ['threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-discover-tab', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-recommendations', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-art', 'threepic-fin-request-meta', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
+function setup(responses = [], posts = [], host = {}, details = [], shared = [], trending = []) {
+    const ids = ['threepic-fin-trending-movies', 'threepic-fin-trending-tv', 'threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-discover-tab', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-recommendations', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-art', 'threepic-fin-request-meta', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
     for (const id of ids) if (id !== 'threepic-fin-shared-requests-load') assert.match(fragment, new RegExp(`id="${id}"`));
     const nodes = Object.fromEntries(ids.map(id => [id, new Element()]));
     const root = new Element();
@@ -38,7 +38,7 @@ function setup(responses = [], posts = [], host = {}, details = [], shared = [])
     root.querySelector = selector => selector === '.threepic-fin-discovery__tabs' ? tabs : nodes[selector.slice(1)] || null;
     // Mirror the fragment's rail section/heading relationship instead of
     // handing every ID a disconnected placeholder node.
-    const rails = ['requests', 'shared-requests', 'recommendations', 'search-results', 'movies', 'tv'];
+    const rails = ['trending-movies', 'trending-tv', 'requests', 'shared-requests', 'recommendations', 'search-results', 'movies', 'tv'];
     for (const name of rails) {
         const id = `threepic-fin-${name}`;
         assert.match(fragment, new RegExp(`<section[^>]*><h3>[^<]+</h3>(?:(?!</section>)[\\s\\S])*?id="${id}"`));
@@ -52,6 +52,10 @@ function setup(responses = [], posts = [], host = {}, details = [], shared = [])
     const api = {
         getUrl: (route, params) => { if (route !== '3picFin/SharedRequests') calls.push(['url', route, params]); const u = new URL(route, 'https://example.test/jellyfin/'); for (const [k, v] of Object.entries(params || {})) u.searchParams.set(k, v); return u.href; },
         getJSON: (url, options) => {
+            if (url.includes('Discovery/Trending')) {
+                const reply = trending.shift() ?? {Items: []};
+                return reply?.promise || (reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply));
+            }
             if (url.includes('3picFin/SharedRequests')) {
                 sharedCalls.push(url);
                 const reply = shared.shift() ?? Object.assign(new Error('disabled'), { status: 404 });
@@ -277,7 +281,7 @@ test('discovery renders movies, TV, recommendations and null-metadata personal r
     assert.doesNotMatch(app.text('requests'), /undefined|null/);
     assert.equal(app.el('discover-panel').hidden, false);
     assert.equal(app.el('movies').descendants().some(n => Object.hasOwn(n, 'innerHTML')), false);
-    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery', '3picFin/TitleDetails']);
+    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery', '3picFin/Discovery/Trending', '3picFin/TitleDetails']);
 });
 test('source-shaped Seerr request resolves metadata through authenticated detail without changing request ownership', async () => {
     // Seerr v3.4.1 (69f73a6f) server/routes/request.ts GET / joins
@@ -294,7 +298,7 @@ test('source-shaped Seerr request resolves metadata through authenticated detail
     app.el('requests').descendants().find(n => n.tagName === 'IMG').dispatch('error');
     assert.match(app.text('requests'), /Artwork unavailable/);
     assert.match(app.text('requests'), /Approved/);
-    assert.equal(app.calls.filter(c => c[0] === 'url')[1][1], '3picFin/TitleDetails');
+    assert.equal(app.calls.filter(c => c[0] === 'url').at(-1)[1], '3picFin/TitleDetails');
 });
 test('request enrichment refuses mismatched detail and never paints after disposal', async () => {
     const pending = deferred();
@@ -434,7 +438,7 @@ test('title-level requested status does not claim personal ownership', async () 
     const app = setup([bundle(source([movie]))], [], {}, [{ ...movie, MediaStatus: 3, CanRequest: true, CanRequest4k: false, Seasons: [] }]);
     await app.flush();
     app.el('movies').children[0].descendants().find(n => n.textContent === 'Film').dispatch('click'); await app.flush();
-    assert.match(app.text('details-status'), /Seerr.*title.*requested/i);
+    assert.match(app.text('details-status'), /Requested · Processing/);
     assert.doesNotMatch(app.text('details-status'), /your request|you requested/i);
 });
 
@@ -591,7 +595,7 @@ test('cleanup prevents late rendering and detaches controls', async () => {
 test('Downloads is a separate lazy shared view with title-wide status and safe disclosure', async () => {
     const app = setup([bundle(), { Radarr: source([{ Source: 'Radarr', MediaType: 'movie', TitleId: 7, Title: '<img src=x>', State: 'Downloading', Progress: .257 }]), Sonarr: source([{ Source: 'Sonarr', MediaType: 'tv', TitleId: 8, Title: 'Series', State: 'Queued', Progress: null }], { Partial: true }) }]);
     await app.flush();
-    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery']);
+    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery', '3picFin/Discovery/Trending']);
     app.el('downloads-tab').dispatch('click'); await app.flush();
     assert.equal(app.el('discover-panel').hidden, true);
     assert.equal(app.el('downloads-panel').hidden, false);
@@ -690,7 +694,7 @@ test('leaving Downloads or unmounting aborts and ignores stale responses', async
 test('Calendar loads lazily with a half-open 31-day UTC window and independent sources', async () => {
     const app = setup([bundle(), { Radarr: source([{ Title: 'Movie', TitleId: 7, EventType: 'Digital', Date: '2026-09-29T00:00:00Z' }]), Sonarr: source([{ Title: 'Show', TitleId: 8, EventType: 'Episode', SeasonNumber: 2, EpisodeNumber: 3, EpisodeTitle: 'Pilot', Date: '2026-09-30T21:00:00Z' }], { Partial: true }) }]);
     await app.flush();
-    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery']);
+    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery', '3picFin/Discovery/Trending']);
     app.el('calendar-tab').dispatch('click'); await app.flush();
     const request = app.calls.find(c => c[0] === 'url' && c[1] === '3picFin/Calendar');
     assert.ok(request);
@@ -813,4 +817,73 @@ test('Calendar cancellation on tab switch and unmount prevents stale disclosure'
     assert.doesNotMatch(app.text('calendar-radarr'), /Private old user/);
     app.el('calendar-tab').dispatch('click');
     assert.equal(app.calls.filter(c => c[0] === 'getJSON').length, 3);
+});
+
+
+test('trending separates media types and isolates loading, empty, failed and stale responses', async () => {
+    const movie = {TmdbId: 11, MediaType: 'movie', Title: 'Trending film'};
+    const tv = {TmdbId: 22, MediaType: 'tv', Title: 'Trending series'};
+    const pending = deferred();
+    const app = setup([bundle()], [], {}, [], [], [pending]);
+    assert.match(app.text('trending-movies'), /Loading/);
+    pending.resolve(source([movie, tv, {MediaType:'person', Title:'Exclude'}])); await app.flush();
+    assert.match(app.text('trending-movies'), /Trending film/);
+    assert.doesNotMatch(app.text('trending-movies'), /Trending series|Exclude/);
+    assert.match(app.text('trending-tv'), /Trending series/);
+    assert.doesNotMatch(app.text('trending-tv'), /Trending film|Exclude/);
+    app.cleanup();
+    for (const response of [source(), new Error('disabled'), {Items:null}, source([], {Error:'upstream'})]) {
+        const result = setup([bundle()], [], {}, [], [], [response]); await result.flush();
+        assert.match(result.text('trending-tv'), /No trending shows|unavailable/);
+        assert.match(result.text('movies'), /No Movies/);
+        result.cleanup();
+    }
+    const late = deferred(); const stale = setup([bundle()], [], {}, [], [], [late]);
+    stale.cleanup(); late.resolve(source([movie])); await stale.flush();
+    assert.equal(stale.text('trending-movies'), '');
+});
+
+test('both request lists open details with Type fallback and preserve request state', async () => {
+    const row = {Id:8, Type:'tv', TmdbId:22, Status:2};
+    const detail = {MediaType:'tv', TmdbId:22, Title:'Shared series', MediaStatus:3, CanRequest:true, CanRequest4k:false, Seasons:[1,2]};
+    const app = setup([bundle(source(),source(),source([row]))], [], {}, [detail,detail,detail], [source([row])]);
+    await app.flush();
+    for (const rail of ['requests','shared-requests']) {
+        app.el(rail).children[0].descendants().find(n=>n.className==='threepic-fin-discovery__title-button').dispatch('click'); await app.flush();
+        assert.equal(app.el('details-dialog').open,true);
+        assert.match(app.text('details-status'),/Requested · Processing · Request: Approved/);
+        assert.doesNotMatch(app.text('details-status'),/personal|your request/);
+        assert.match(app.calls.filter(c=>c[0]==='getJSON'&&c[1].includes('TitleDetails')).at(-1)[1],/mediaType=tv&mediaId=22/);
+        app.el('details-close').dispatch('click');
+    }
+    app.cleanup();
+});
+
+test('missing and unsupported media status never becomes Not requested', async () => {
+    const movie = {TmdbId:11, MediaType:'movie', Title:'Synthetic movie'};
+    for (const [state, expected] of [[undefined,'unknown'],[null,'unknown'],[99,'unknown'],[1,'Not requested'],[2,'Pending'],[3,'Processing'],[4,'Partially available'],[5,'Available in Seerr'],[6,'Blocklisted']]) {
+        const app=setup([bundle(source([movie]))],[],{},[{...movie,MediaStatus:state,Seasons:[]}]); await app.flush();
+        app.el('movies').children[0].descendants().find(n=>n.className==='threepic-fin-discovery__title-button').dispatch('click'); await app.flush();
+        assert.ok(app.text('details-status').includes(expected));
+        if (state!==1) assert.doesNotMatch(app.text('details-status'),/Not requested/);
+        app.cleanup();
+    }
+});
+
+
+test('authorized requester display text survives hydration without identity fallbacks', async () => {
+    for (const identity of [{RequesterDisplayName:'Alex <synthetic>'},{requesterDisplayName:'Sam synthetic'},{RequesterDisplayName:null,RequestedBy:{email:'private@example.invalid'}},{}]) {
+        const row={Id:8,Type:'tv',TmdbId:22,Status:2,...identity};
+        const detail={MediaType:'tv',TmdbId:22,Title:'Synthetic series',MediaStatus:3,CanRequest:false};
+        const app=setup([bundle(source(),source(),source([row]))],[],{},[detail,detail,detail],[source([row])]);
+        await app.flush();
+        for(const rail of ['requests','shared-requests']) {
+            app.el(rail).children[0].descendants().find(n=>n.className==='threepic-fin-discovery__title-button').dispatch('click'); await app.flush();
+            assert.ok(app.text('details-status').includes('Requested by: '+(identity.RequesterDisplayName||identity.requesterDisplayName||'Unknown')));
+            assert.doesNotMatch(app.text('details-status'),/private@example/);
+            assert.equal(app.el('details-status').children.length,0);
+            app.el('details-close').dispatch('click');
+        }
+        app.cleanup();
+    }
 });
