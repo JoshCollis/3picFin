@@ -177,13 +177,29 @@
         let requestGeneration = 0, selection = null, options = null, submitting = false, locked = false, personal = null, trigger = null;
         const dialog = el('request-dialog');
         const detailsDialog = el('details-dialog');
-        let detailsGeneration = 0, detailsAbort = null, detailsItem = null, detailsTrigger = null, detailsBusy = false;
-        function invalidateDetails() { ++detailsGeneration; detailsAbort?.abort(); detailsAbort = null; detailsBusy = false; detailsItem = null; }
+        let detailsGeneration = 0, detailsAbort = null, detailsItem = null, detailsTrigger = null, detailsBusy = false, detailsContext = null;
+        function invalidateDetails() { ++detailsGeneration; detailsAbort?.abort(); detailsAbort = null; detailsBusy = false; detailsItem = null; detailsContext = null; }
         function closeDetails(restore = true) {
             invalidateDetails();
             if (detailsDialog.open) detailsDialog.close();
             if (restore && !disposed) detailsTrigger?.focus();
             detailsTrigger = null;
+        }
+        function mediaSummary(item, mediaType) {
+            const date = field(item, 'Date') || field(item, 'ReleaseDate') || field(item, 'FirstAirDate');
+            const seasons = field(item, 'Seasons');
+            const count = mediaType === 'tv' && Array.isArray(seasons) && seasons.length <= 100
+                ? new Set(seasons.filter(n => Number.isInteger(n) && n > 0 && n <= 1000)).size : 0;
+            return [label(mediaType), typeof date === 'string' && /^\d{4}-\d\d-\d\d$/.test(date) ? date.slice(0, 4) : '',
+                count ? `${count} ${count === 1 ? 'season' : 'seasons'}` : ''].filter(Boolean).join(' · ');
+        }
+        function modalArtwork(container, poster) {
+            container.replaceChildren();
+            if (!validPoster(poster)) return;
+            const image = document.createElement('img');
+            image.src = `https://image.tmdb.org/t/p/w500${poster}`; image.alt = '';
+            image.addEventListener('error', () => image.remove());
+            container.appendChild(image);
         }
         async function openDetails(item, button) {
             if (disposed || detailsBusy) return;
@@ -192,7 +208,7 @@
             invalidateDetails();
             const generation = detailsGeneration;
             detailsAbort = new AbortController(); detailsBusy = true; detailsTrigger = button;
-            el('details-body').replaceChildren(); el('details-seasons').replaceChildren();
+            el('details-body').replaceChildren();
             el('details-title').textContent = field(item, 'Title') || label(mediaType);
             el('details-meta').textContent = ''; el('details-overview').textContent = '';
             el('details-status').textContent = 'Loading details…';
@@ -206,21 +222,14 @@
                 const title = field(result, 'Title'), overview = field(result, 'Overview'), poster = field(result, 'PosterPath');
                 el('details-title').textContent = typeof title === 'string' && title.trim() ? title : field(item, 'Title') || label(mediaType);
                 el('details-overview').textContent = typeof overview === 'string' && overview.trim() ? overview : 'No overview available.';
-                if (validPoster(poster)) {
-                    const image = document.createElement('img'); image.src = `https://image.tmdb.org/t/p/w500${poster}`; image.alt = '';
-                    image.addEventListener('error', () => image.remove());
-                    el('details-body').appendChild(image);
-                }
-                const date = field(result, 'Date') || field(result, 'ReleaseDate') || field(result, 'FirstAirDate');
-                el('details-meta').textContent = `${label(mediaType)}${typeof date === 'string' && /^\d{4}-\d\d-\d\d$/.test(date) ? ` · ${date}` : ''}`;
+                detailsContext = result;
+                modalArtwork(el('details-body'), poster);
+                el('details-meta').textContent = mediaSummary(result, mediaType);
                 const libraryId = field(result, 'LibraryItemId');
                 const available = typeof libraryId === 'string' && /^(?:[a-fA-F0-9]{32}|[a-fA-F0-9]{8}(?:-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12})$/.test(libraryId);
                 const state = field(result, 'MediaStatus');
                 el('details-status').textContent = available ? typeof host.openItem === 'function' ? 'Available in your library' : 'Available in your library · opening unavailable here' : ({ 2: 'Seerr title status: pending (personal ownership not established)', 3: 'Seerr title status: requested/tracked (personal ownership not established)', 4: 'Seerr title status: partially available', 5: 'Reported available · not in your library', 6: 'Blocklisted' })[state] || 'Seerr title status: not requested';
                 const seasons = field(result, 'Seasons');
-                if (mediaType === 'tv' && Array.isArray(seasons) && seasons.length <= 100) {
-                    for (const n of seasons) if (Number.isInteger(n) && n > 0 && n <= 1000) text(el('details-seasons'), 'span', `Season ${n}`, 'threepic-fin-discovery__season');
-                }
                 // Only this authenticated, user-visible server match can be opened. Never infer it from the catalog.
                 el('details-open').hidden = !available || typeof host.openItem !== 'function';
                 el('details-open').onclick = available && typeof host.openItem === 'function' ? async () => {
@@ -261,7 +270,7 @@
                 !(el('request-4k').checked ? field(options, 'CanRequest4k') : field(options, 'CanRequest'));
             el('request-submit').disabled = unavailable;
             status(unavailable ? mediaStatus === 5 ? 'This version is reported available. No request can be submitted.' : 'This request option is unavailable.' :
-                `Select ${selection.mediaType === 'tv' ? 'seasons and ' : 'and '}confirm request.`);
+                selection.mediaType === 'tv' ? 'Choose the seasons you want to request.' : 'Confirm your request below.');
         }
         // Declined/completed requests do not reserve seasons in Seerr v3.4.1; movies may be resubmitted.
         const matching = (item, chosen) => ![3, 5].includes(field(item, 'Status')) && field(item, 'TmdbId') === chosen.mediaId &&
@@ -278,14 +287,17 @@
             trigger?.focus(); trigger = null;
             selection = null; options = null;
         }
-        async function openRequest(item, button) {
+        async function openRequest(item, button, context = item) {
             if (disposed || submitting || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
             const generation = ++requestGeneration;
             trigger = button;
             const mediaType = field(item, 'MediaType'), mediaId = field(item, 'TmdbId');
             selection = { mediaType, mediaId };
             options = null; locked = false;
-            el('request-title').textContent = `Request ${field(item, 'Title') || label(mediaType)}`;
+            const contextTitle = field(context, 'Title');
+            el('request-title').textContent = `Request ${typeof contextTitle === 'string' && contextTitle.trim() ? contextTitle : field(item, 'Title') || label(mediaType)}`;
+            modalArtwork(el('request-art'), field(context, 'PosterPath'));
+            el('request-meta').textContent = mediaSummary(context, mediaType);
             el('request-submit').disabled = true;
             el('request-seasons').replaceChildren(); el('request-seasons').hidden = true;
             text(el('request-seasons'), 'legend', 'Select seasons to request');
@@ -592,11 +604,20 @@
         });
         on(el('calendar-prev'), 'click', () => { if (!calendarLoading && calendarOffset > -12 && !el('calendar-panel').hidden) { --calendarOffset; loadCalendar(); } });
         on(el('calendar-next'), 'click', () => { if (!calendarLoading && calendarOffset < 12 && !el('calendar-panel').hidden) { ++calendarOffset; loadCalendar(); } });
+        // Keep keyboard traversal inside either modal, including dynamically enabled actions.
+        for (const modal of [detailsDialog, dialog]) on(modal, 'keydown', event => {
+            if (event.key !== 'Tab') return;
+            const stops = Array.from(modal.querySelectorAll('button, input, [tabindex]'))
+                .filter(node => !node.disabled && node.tabIndex >= 0 && node.getClientRects().length);
+            const first = stops[0], last = stops[stops.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        });
         on(el('request-form'), 'submit', submitRequest);
         on(el('details-close'), 'click', () => closeDetails());
         on(detailsDialog, 'cancel', () => { invalidateDetails(); detailsTrigger?.focus(); detailsTrigger = null; });
         on(detailsDialog, 'close', () => { invalidateDetails(); detailsTrigger?.focus(); detailsTrigger = null; });
-        on(el('details-request'), 'click', () => { if (!detailsItem || detailsBusy || el('details-request').hidden || el('details-request').disabled) return; const item = detailsItem, button = detailsTrigger; closeDetails(false); openRequest(item, button); });
+        on(el('details-request'), 'click', () => { if (!detailsItem || detailsBusy || el('details-request').hidden || el('details-request').disabled) return; const item = detailsItem, button = detailsTrigger, context = detailsContext; closeDetails(false); openRequest(item, button, context); });
         on(el('request-4k'), 'change', () => { if (options && selection && !submitting && !locked) updateRequestStatus(); });
         on(el('request-cancel'), 'click', closeRequest);
         on(el('shared-requests-prev'), 'click', () => { if (sharedPage > 1) sharedRequests(sharedPage - 1); });

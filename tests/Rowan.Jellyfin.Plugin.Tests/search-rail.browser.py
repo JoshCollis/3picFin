@@ -15,6 +15,8 @@ with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     for width in (2560, 1280, 390):
         page = browser.new_page(viewport={'width': width, 'height': 800})
+        # Keep public-theme imports and artwork offline in synthetic acceptance.
+        page.route('**/*', lambda r: r.fulfill(content_type='text/css', body='') if r.request.resource_type == 'stylesheet' else r.abort())
         rows = ''.join(f'<div class="verticalSection"><h2>{name}</h2><div class="itemsContainer"><div class="card" data-type="{kind}">Native {i}</div></div></div>' for i,(name,kind) in enumerate((('Movies','Movie'),('Shows','Series'),('Episodes','Episode'),('People','Person'),('Studios','Studio'))))
         html = f'<html><head></head><body><main id="searchPage"><div class="searchField"><input id="searchTextInput" value="Alien"></div><div class="searchResults">{rows}</div></main></body></html>'
         page.route('http://localhost:8765/**', lambda r: r.fulfill(status=200, content_type='text/html', body=html))
