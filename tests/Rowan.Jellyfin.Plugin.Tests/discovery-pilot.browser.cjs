@@ -15,7 +15,7 @@ const themes = themed ? ['779aa801b912d21089d488ddf5a426fc8c02970ec953566ceee416
 const base = 'af068b5d24499536241cbb28fa806fc6b8125caa';
 fs.mkdirSync(output, {recursive: true});
 const hostCss = `body{margin:0;background:#121923;color:#e5e7eb;font:16px/1.4 system-ui} :root{--textColor:#e5e7eb;--drawerColor:#202a39;--borderColor:#445065;--btnSubmitColor:#5952bc;--dimTextColor:#aebacc} .overflowPortraitCard{width:160px} @media(max-width:600px){.overflowPortraitCard{width:132px}}`;
-async function fixture(browser, width, before = false) {
+async function fixture(browser, width, before = false, parityTitle = null) {
   const page = await browser.newPage({viewport:{width,height:900}});
   page.setDefaultTimeout(5000);
   const errors = [];
@@ -27,10 +27,11 @@ async function fixture(browser, width, before = false) {
   for (const content of themes) await page.evaluate(css => { const style=document.createElement('style'); style.textContent=css; document.head.appendChild(style); },content);
   await page.addStyleTag({content:read('discovery.css')});
   await page.addScriptTag({content:read('discovery.js')});
-  await page.evaluate(() => {
+  await page.evaluate(parityTitle => {
     window.calls=[]; window.posts=[]; window.mediaState=3; window.failDetails=false; window.pending=false; window.trendingMode='ok'; window.owned=[];
     const movie={TmdbId:11,MediaType:'movie',Title:'The Lantern Expedition',PosterPath:'/synthetic.jpg',Date:'2026-01-01'};
     const tv={TmdbId:22,MediaType:'tv',Title:'A Very Long Series Title Across Many Uncharted Constellations',PosterPath:'/synthetic.jpg',Date:'2026-02-01'};
+    if (parityTitle) movie.Title = tv.Title = parityTitle;
     const missing={TmdbId:33,MediaType:'movie',Title:'No Artwork — An Unusually Long Title With Missing Details'};
     const source=Items=>({Items,Page:1,TotalPages:1});
     const api={getCurrentUserId:()=> 'synthetic-user',getUrl:(path,params)=>path+'?'+new URLSearchParams(params),getJSON:async(url,opts)=>{
@@ -51,9 +52,9 @@ async function fixture(browser, width, before = false) {
       throw Error('Unexpected fixture route: '+url);
     },ajax:async options=>{posts.push(JSON.parse(options.data));const x=posts.at(-1);owned=[{Id:99,Status:1,Type:x.mediaType,MediaType:x.mediaType,TmdbId:x.mediaId,Is4k:x.is4k,Seasons:x.seasons||[]}];return {Id:99};}};
     window.mountFixture=()=>window.dispose=ThreePicFinDiscovery.mount(document.querySelector('.threepic-fin-discovery'),api,{userId:'synthetic-user',isCurrent:()=>true});mountFixture();
-  });
+  }, parityTitle);
   await page.locator('#threepic-fin-movies article').first().waitFor();
-  await page.waitForFunction(()=>document.querySelector('#threepic-fin-shared-requests').textContent.includes('Constellations'));
+  await page.waitForFunction(()=>document.querySelector('#threepic-fin-shared-requests article'));
   return {page,errors};
 }
 async function open(page, rail, index=0) {await page.locator(`#threepic-fin-${rail} .threepic-fin-discovery__title-button`).nth(index).click();await page.waitForFunction(()=>!document.querySelector('#threepic-fin-details-status').textContent.includes('Loading'));}
@@ -80,9 +81,70 @@ async function checkHome(browser, width) {
  await page.close();
  console.log(`PASS Home ${width}px: unchanged render after Discover CSS`);
 }
+async function captureCard(page, card, path) {
+ await card.scrollIntoViewIfNeeded();
+ const clip=await card.evaluate(el=>{const r=el.getBoundingClientRect();const x=Math.max(0,r.left+scrollX-6),y=Math.max(0,r.top+scrollY-6);return {x,y,width:r.width+12,height:r.height+12};});
+ await page.screenshot({path,clip,fullPage:true});
+}
+async function checkTitleParity(browser, width, title, kind) {
+ const {page,errors}=await fixture(browser,width,false,title);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.addStyleTag({content:'.cardScalable{position:relative;aspect-ratio:2/3}.cardContent{position:absolute;inset:0}.cardText{text-align:center}.cardBox{margin:0}.card{padding:0}'});
+ await page.addStyleTag({content:fs.readFileSync(web+'native-home-rows.css','utf8')});
+ await page.addScriptTag({content:fs.readFileSync(web+'native-home-rows.js','utf8')});
+ await page.evaluate(title=>{
+  const home=document.createElement('main');home.id='parity-home';home.className='rowan-native-rows';document.body.prepend(home);
+  const observers=[];
+  class Observer {constructor(callback){this.callback=callback;observers.push(this);}observe(){}disconnect(){}}
+  const rows=RowanNativeHomeRows.createRows({document,IntersectionObserver:Observer,enabledRows:['LatestMovies'],openItem:()=>{}});
+  rows.mount(home,{getCurrentUserId:()=> 'synthetic',getUrl:p=>'https://image.tmdb.org/'+p,getJSON:async()=>({Kind:'LatestMovies',Items:[{Id:'0123456789abcdef0123456789abcdef',Type:'Movie',Name:title,ImageTags:{Primary:'abc123'}}]})},'synthetic');
+  home.querySelectorAll('.rowan-native-row').forEach(target=>observers[0].callback([{target,isIntersecting:true}]));
+ },title);
+ await page.locator('#parity-home .cardText').waitFor();
+ const surfaces={home:'#parity-home .card',discover:'#threepic-fin-movies article',personal:'#threepic-fin-requests article',shared:'#threepic-fin-shared-requests article'};
+ const metrics={};
+ for(const [name,selector] of Object.entries(surfaces)) {
+  const card=page.locator(selector).first();
+  const label=card.locator('.cardText');
+  metrics[name]=await label.evaluate(el=>{const text=el.querySelector('button')||el;const s=getComputedStyle(text),r=el.getBoundingClientRect();const poster=el.closest('.card').querySelector('.cardScalable').getBoundingClientRect();return {fontWeight:s.fontWeight,fontSize:s.fontSize,lineHeight:s.lineHeight,fontFamily:s.fontFamily,whiteSpace:s.whiteSpace,overflowWrap:s.overflowWrap,width:r.width,height:r.height,posterWidth:poster.width,posterHeight:poster.height,titleGap:r.top-poster.bottom};});
+  assert.equal(await label.innerText(),title);
+  for(const key of Object.keys(metrics.home)) {
+   const expected=metrics.home[key],actual=metrics[name][key];
+   if(typeof expected==='number') assert(Math.abs(actual-expected)<(key.startsWith('poster')?1.1:1),`${width}px ${kind} ${name} ${key}: ${actual} != ${expected}`);
+   else assert.equal(actual,expected,`${width}px ${kind} ${name} ${key}`);
+  }
+  await card.scrollIntoViewIfNeeded();
+  await page.mouse.move(0,0);
+  await captureCard(page,card,`${output}/parity-${kind}-${width}-${name}-normal.png`);
+  const target=name==='home'?card:card.locator('.threepic-fin-discovery__poster-button');
+  await target.hover();
+  await captureCard(page,card,`${output}/parity-${kind}-${width}-${name}-hover.png`);
+  const focus=name==='home'?card:card.locator('.threepic-fin-discovery__title-button');
+  await page.mouse.move(0,0);
+  await focus.focus();
+  assert(await focus.evaluate(el=>el===document.activeElement && getComputedStyle(el).outlineStyle!=='none'),'visible keyboard focus');
+  await captureCard(page,card,`${output}/parity-${kind}-${width}-${name}-focus.png`);
+  if(name!=='home') {
+   await page.keyboard.press('Enter');
+   await page.locator('#threepic-fin-details-dialog').waitFor();
+   await page.keyboard.press('Escape');
+   assert(await focus.evaluate(el=>el===document.activeElement),'title focus restored');
+  }
+  await focus.evaluate(el=>el.blur());
+ }
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'parity page overflow');
+ assert.deepEqual(errors,[]);
+ fs.writeFileSync(`${output}/parity-${kind}-${width}.json`,JSON.stringify(metrics,null,2));
+ console.log(`PASS direct title parity ${width}px ${kind}: Home, Discover, My Requests, All Requests; typography, wrapping, geometry, hover/focus, keyboard activation`);
+ await page.close();
+}
 (async()=>{
  const browser=await chromium.launch({headless:true});
  try {
+  if(process.env.FIN_TITLE_PARITY_ONLY==='1') {
+   for(const width of [320,390,1280]) for(const [kind,title] of [['movie','The Lantern Expedition'],['long','A Very Long Series Title Across Many Uncharted Constellations']]) await checkTitleParity(browser,width,title,kind);
+   return;
+  }
   for(const before of [true,false]) for(const width of [390,1280]) {
    const {page,errors}=await fixture(browser,width,before);const prefix=`${before?'before':'after'}-${width}`;
    await page.screenshot({path:`${output}/${prefix}-rails.png`,fullPage:true});
@@ -92,6 +154,7 @@ async function checkHome(browser, width) {
    assert.deepEqual(errors,[]);await page.close();
   }
   for(const width of [320,390,1280]) {
+   for(const [kind,title] of [['movie','The Lantern Expedition'],['long','A Very Long Series Title Across Many Uncharted Constellations']]) await checkTitleParity(browser,width,title,kind);
    await checkHome(browser,width);
    const {page,errors}=await fixture(browser,width);
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'page overflow');
