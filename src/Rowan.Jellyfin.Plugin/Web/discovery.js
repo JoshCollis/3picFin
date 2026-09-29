@@ -230,7 +230,10 @@
                 const state = field(result, 'MediaStatus');
                 el('details-status').textContent = available ? typeof host.openItem === 'function' ? 'Available in your library' : 'Available in your library · opening unavailable here' : ({ 1: 'Not requested', 2: 'Requested · Pending', 3: 'Requested · Processing', 4: 'Partially available', 5: 'Available in Seerr · not in your library', 6: 'Blocklisted' })[state] || 'Request status unknown';
                 if (Number.isInteger(field(item, 'Id'))) el('details-status').textContent += ` · Request: ${requestStatus(field(item, 'Status'))}`;
-                // Requester names are not exposed by the current authorized DTOs.
+                if (Number.isInteger(field(item, 'Id'))) {
+                    const requester = field(item, 'RequesterDisplayName');
+                    el('details-status').textContent += ` · Requested by: ${typeof requester === 'string' && requester.trim() ? requester : 'Unknown'}`;
+                }
                 const seasons = field(result, 'Seasons');
                 // Only this authenticated, user-visible server match can be opened. Never infer it from the catalog.
                 el('details-open').hidden = !available || typeof host.openItem !== 'function';
@@ -471,7 +474,7 @@
             const generation = ++trendingGeneration;
             for (const name of ['trending-movies', 'trending-tv']) message(el(name), 'Loading trending titles…');
             try {
-                const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/HomeDiscover/Discover', { page: 1 }), { signal: trendingAbort.signal });
+                const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Discovery/Trending', { page: 1 }), { signal: trendingAbort.signal });
                 if (disposed || generation !== trendingGeneration || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
                 for (const [name, type] of [['trending-movies', 'movie'], ['trending-tv', 'tv']]) {
                     const items = field(result, 'Items');

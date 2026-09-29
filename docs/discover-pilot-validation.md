@@ -1,43 +1,41 @@
-# Discover pilot checkpoint (COL-4)
+# Discover pilot review handoff (COL-4)
 
-## Scope and checkout
+## Implementation
 
-The latest saved answer requests a new feature branch. The checkpoint is now on `feat/request-modal-refresh`, created from `94b6a28806bdf4f9a686c572f1a1300a451643ae`; prior main history is preserved. Implementation base: `af068b5d24499536241cbb28fa806fc6b8125caa`. Frontend changes only; no backend fields, live requests, production access, push, merge, or deployment.
+Branch: `feat/request-modal-refresh` in the assigned 3picFin checkout. Full implementation base: `af068b5d24499536241cbb28fa806fc6b8125caa`; original required revision `e069ff14e601eb22f138df352ce96b5f6929b3d0` is an ancestor. Backend checkpoint `63071e1ee24fdb63fe297138d0839c0219316f18` is preserved. The uploaded review manifest records the final head and file hashes.
 
-Search now leads the Discover content area at full width. Separate Trending Movies and Trending Shows rails split the existing authenticated `3picFin/HomeDiscover/Discover` response by media type; unavailable/empty states remain independent of search and other feeds. Both request lists open the existing details/request controller using media type and TMDb identity. Missing or unsupported media statuses remain unknown. Known media states and request-list states replace personal-attachment wording. Existing native card classes and theme variables remain in use. Long synopsis text is fully retained in a keyboard-focusable scroll region.
+Search leads Discover at full content width. Trending Movies and Trending Shows use the authenticated `3picFin/Discovery/Trending` contract independently of Home flags. Home poster classes, 2:3 artwork, rail spacing and theme variables are retained. Both request lists open the same details modal using TMDb ID and media type. Known media/request states are explicit; missing, unsupported or failed lookups stay unknown. Request-list modals show only the server-authorized `RequesterDisplayName` as text; absent names show Unknown, with no nested-user/email fallback. Full synopsis text stays accessible in a keyboard-focusable scroll region.
 
-## Focused checks
+The existing request controller retains permission checks, standard/4K controls, TV season selection, duplicate protection, POST/read-back reconciliation, cancellation and stale-response invalidation. This continuation changes only discovery.js, related fixtures and this report. Backend changes were separately implemented and validated in the authorized sequential handoff.
 
-- `node --check src/Rowan.Jellyfin.Plugin/Web/discovery.js` — passed.
-- `node --check tests/Rowan.Jellyfin.Plugin.Tests/discovery-pilot.browser.cjs` — passed.
-- `node --test tests/Rowan.Jellyfin.Plugin.Tests/discovery-ui.test.cjs tests/Rowan.Jellyfin.Plugin.Tests/discovery-host-contract.test.cjs tests/Rowan.Jellyfin.Plugin.Tests/native-home-rows.test.cjs tests/Rowan.Jellyfin.Plugin.Tests/home-adapter.test.cjs` — 101 passed, 0 failed.
-- `git diff --check` — passed.
+## Exact focused commands and results
 
-Coverage includes separate trending types, independent loading/empty/errors, teardown and stale responses, both request lists including Type fallback, known/unknown status mapping, permissions, POST/read-back reconciliation, duplicate protection, standard/4K, season selection, search, and related home contracts. Unit DOM fixtures are not visual or browser verification.
+- `node --test tests/Rowan.Jellyfin.Plugin.Tests/discovery-ui.test.cjs tests/Rowan.Jellyfin.Plugin.Tests/discovery-host-contract.test.cjs tests/Rowan.Jellyfin.Plugin.Tests/native-home-rows.test.cjs tests/Rowan.Jellyfin.Plugin.Tests/home-adapter.test.cjs` — 102 passed, 0 failed.
+- `.qa-tools/run-browser.sh node tests/Rowan.Jellyfin.Plugin.Tests/discovery-pilot.browser.cjs` — synthetic host browser assertions at 320, 390 and 1280px.
+- `FIN_PUBLIC_THEME=1 .qa-tools/run-browser.sh node tests/Rowan.Jellyfin.Plugin.Tests/discovery-pilot.browser.cjs` — same assertions with both approved public CSS references, hash-checked before use.
+- `node --check src/Rowan.Jellyfin.Plugin/Web/discovery.js` and `node --check tests/Rowan.Jellyfin.Plugin.Tests/discovery-pilot.browser.cjs` — syntax validation.
+- `git diff --check` — whitespace validation.
 
-## Browser environment and unverified acceptance
+The browser output files in the uploaded evidence bundle record final results. Chromium 153.0.8010.12 uses workspace-local Playwright, libraries and fonts through the CEO-provisioned wrapper. All external requests are aborted except locally fulfilled synthetic poster responses; no live service calls. Public CSS imports/fonts are blocked. Initial public CSS insertion awaited blocked imports and failed; inserting the same verified bytes as a style element resolved the fixture-only problem.
 
-Local setup: `npm install --prefix .qa-tools --no-audit --no-fund playwright` and `PLAYWRIGHT_BROWSERS_PATH="$PWD/.qa-tools/browsers" .qa-tools/node_modules/.bin/playwright install chromium` succeeded. No system packages or .NET SDK installed. Python venv setup failed because ensurepip is absent; the Node fixture avoids that dependency.
+Browser coverage: full-width search and typed rails; both request-list identities; authorized/missing requester text and HTML-like text escaping; all supported media statuses plus unknown/error; request modal overflow; 60 seasons and long titles; 4K TV POST/read-back; duplicate-submit disabling; synopsis retention; focus trapping/restoration; Escape/close/cancel; aborted and stale details; search; independent failed/empty trending feeds. Home is rendered with the actual Home row component and a synthetic native-shaped host; before/after screenshots are byte-identical when Discover CSS is added. Unit tests additionally cover unauthorized shared lists, standard requests, permissions, read-back mismatches, teardown and invalidation.
 
-`PLAYWRIGHT_BROWSERS_PATH="$PWD/.qa-tools/browsers" node tests/Rowan.Jellyfin.Plugin.Tests/discovery-pilot.browser.cjs` failed before creating a browser: `libglib-2.0.so.0` missing. `ldd` reports 20 missing libraries: GLib/GObject/GIO, NSPR/NSS/NSSUtil, ATK/ATK bridge/AT-SPI, DBus, X11/Xcomposite/Xdamage/Xext/Xfixes/Xrandr/XCB, GBM, xkbcommon, ALSA.
+CEO's backend-validation issue document reports successful C# compilation and 184 focused tests, 0 failed/skipped, using checksum-verified .NET 10.0.401. Those results are inherited evidence, not a frontend rerun. They include disabled-Home/enabled-Discover and requester privacy coverage. No broad backend suite was run here.
 
-The fixture is prepared to capture before/after rails and movie/TV/missing-data dialogs at 390px and 1280px, and check 320px overflow, long titles, 60 seasons, keyboard focus/dismissal, stale responses, search and synthetic request submission. **It has not run, and no screenshots exist yet.** It uses synthetic host CSS, not an ElegantFin reference. Full visual acceptance, actual browser behaviors and home appearance remain unverified.
+## Visual evidence and reference provenance
 
-## Integration and review gaps for CEO
+The evidence bundle contains before/after rails and movie, TV and missing-data modals at 390px and 1280px, with base files obtained through `git show af068b5:...`. It also includes requester dialogs, many-season controls, and Home regression captures at 320/390/1280px. Both synthetic-host and public-theme variants are provided. Synthetic artwork and names only.
 
-- Trending uses the only existing trending endpoint, which requires `HomeEnabled` and `DiscoverRowEnabled`; it can be unavailable while ordinary Discover still works. No configuration changed.
-- Apple-originals semantics are not exposed by existing allowlisted routes/DTOs. No Apple rail was invented or substituted with streaming-provider availability.
-- `PersonalRequest`, `SharedRequest`, and `TitleDetails` expose no requester name. No requester identity is inferred. Adding identity requires a separately approved backend contract.
-- The copied plan names no authorized public ElegantFin source/revision. No public reference fetched, no private captures accessed, and no claim about Josh's customized installation. CEO must provide/approve the exact public reference for the theme comparison; record revision and SHA-256 on use.
-- COL-4 checkout returned `executionPolicy: null` and `executionState: null`. CEO must configure the native Modal Reviewer gate before completion is submitted. Implementation must not be marked done or handed directly around that gate.
+Approved public source inputs (unchanged downloaded bytes; no private capture):
 
-Next: resolve browser runtime and reference/review configuration, run and inspect browser evidence, correct findings, upload screenshots, then submit through the normal issue completion route. This checkpoint is not implementation completion.
+- `lscambo13/ElegantFin`, revision `9d43fa9b898c74055237133b7a7b8b8c5543f0ce`, `Theme/ElegantFin-jellyfin-theme-build-latest-minified.css`; SHA-256 `779aa801b912d21089d488ddf5a426fc8c02970ec953566ceee416e0d8bce643`.
+- `mihaif7/elegantfin-jf12`, revision `afdd0e8109266979fb76136374db5192ed2e574a`, `Theme/ElegantFin-jf12-modern-latest.css`; SHA-256 `525ac149903b4d2b8d55bdab36c1efaf8e27fc635ffa16afe0a0534705026841`.
 
-## Continuation: feature branch and bounded backend needs
+Sources: https://github.com/lscambo13/ElegantFin/blob/9d43fa9b898c74055237133b7a7b8b8c5543f0ce/Theme/ElegantFin-jellyfin-theme-build-latest-minified.css and https://github.com/mihaif7/elegantfin-jf12/blob/afdd0e8109266979fb76136374db5192ed2e574a/Theme/ElegantFin-jf12-modern-latest.css .
 
-- `git switch -c feat/request-modal-refresh` succeeded from the clean checkpoint. `git merge-base --is-ancestor e069ff14e601eb22f138df352ce96b5f6929b3d0 HEAD` exited 0: the originally named revision is an ancestor, not the pilot diff base. No history reset or unrelated changes.
-- Re-ran `PLAYWRIGHT_BROWSERS_PATH="$PWD/.qa-tools/browsers" node tests/Rowan.Jellyfin.Plugin.Tests/discovery-pilot.browser.cjs`: exit 1 before browser startup, still missing `libglib-2.0.so.0`. No screenshots or browser assertions completed. Repeated retries will not fix missing runtime dependencies.
-- CEO scope triage: `Discovery/HomeDiscoverController.cs` gates trending on HomeEnabled/DiscoverRowEnabled. A bounded backend assignment could expose existing authenticated, filtered trending to Discover without requiring home-row settings; retain all user mapping, filtering, timeout, and caching policies.
-- Requester display needs an explicitly authorized minimal DTO field and privacy tests in `DiscoveryController.cs` / `TitleDetailsController.cs`. Do not expose an upstream requester object wholesale. Apple-originals support needs a verified catalog contract; provider availability is insufficient.
-- Latest answer suggests backend help if needed. Frontend engineer routes that staffing/scope decision to CEO under the standing frontend boundary and sequential-worker rule; no hires, delegated tasks, or backend changes were made here.
-- Browser runtime provisioning, a named public ElegantFin revision, and native Modal Reviewer policy remain unresolved. This branch is a checkpoint, not completion or a review-gate submission.
+## Boundaries and remaining review
+
+- Apple originals are unsupported by existing contracts. Provider availability is not originals provenance; no Apple rail/integration was invented. CEO already accepted this bounded limitation in the handoff.
+- Public-reference synthetic rendering does not establish parity with Josh's customized hosted installation or an authenticated Jellyfin client. Private/production layout and real Seerr operations remain unverified and out of this run's access scope. The host shell/native baseline is synthetic; Home pixel checks prove CSS isolation in that fixture, not whole-client visual equivalence.
+- Independent findings belong to the configured native Modal Reviewer stage and existing COL-5 report path. Submit through the ordinary completion route; implementation is not independently approved until that gate finishes.
+- No push, merge, publication or deployment. CEO coordinates Josh's final handoff.
