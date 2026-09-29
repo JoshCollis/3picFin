@@ -6,13 +6,13 @@ const { execFileSync } = require('node:child_process');
 const assert = require('node:assert/strict');
 const web = 'src/Rowan.Jellyfin.Plugin/Web/';
 const themed = process.env.FIN_PUBLIC_THEME === '1';
-const output = '.qa-tools/evidence' + (themed ? '/public-theme' : '');
+const output = (process.env.FIN_EVIDENCE_DIR || '.qa-tools/evidence') + (themed ? '/public-theme' : '');
 const crypto = require('node:crypto');
 const themes = themed ? ['779aa801b912d21089d488ddf5a426fc8c02970ec953566ceee416e0d8bce643','525ac149903b4d2b8d55bdab36c1efaf8e27fc635ffa16afe0a0534705026841'].map((hash,i) => {
  const css = fs.readFileSync(`.qa-tools/elegantfin/elegant-source-${i}.css`,'utf8');
  assert.equal(crypto.createHash('sha256').update(css).digest('hex'),hash); return css;
 }) : [];
-const base = 'af068b5d24499536241cbb28fa806fc6b8125caa';
+const base = 'ba17ebd96b3f1e225b83760affbad962320f19fa';
 fs.mkdirSync(output, {recursive: true});
 const hostCss = `body{margin:0;background:#121923;color:#e5e7eb;font:16px/1.4 system-ui} :root{--textColor:#e5e7eb;--drawerColor:#202a39;--borderColor:#445065;--btnSubmitColor:#5952bc;--dimTextColor:#aebacc} .overflowPortraitCard{width:160px} @media(max-width:600px){.overflowPortraitCard{width:132px}}`;
 async function fixture(browser, width, before = false, parityTitle = null) {
@@ -37,6 +37,7 @@ async function fixture(browser, width, before = false, parityTitle = null) {
     const api={getCurrentUserId:()=> 'synthetic-user',getUrl:(path,params)=>path+'?'+new URLSearchParams(params),getJSON:async(url,opts)=>{
       calls.push({url,opts});
       if((url.startsWith('3picFin/HomeDiscover/') || url.startsWith('3picFin/Discovery/Trending'))) {if(trendingMode==='fail') throw Error('fixture'); return source(trendingMode==='empty'?[]:[movie,tv]);}
+      if(url.startsWith('3picFin/Discovery/Upcoming')) return source(url.includes('UpcomingTV') ? [tv] : [movie]);
       if(url.startsWith('3picFin/Discovery')) return {Movies:source([movie,missing]),Tv:source([tv]),Requests:source([{Id:1,Type:'movie',TmdbId:11,Status:2}])};
       if(url.startsWith('3picFin/SharedRequests')) return source([{Id:2,Type:'tv',TmdbId:22,Status:1,RequesterDisplayName:'Alex <synthetic>'}]);
       if(url.startsWith('3picFin/Search')) return source([tv]);
@@ -51,7 +52,7 @@ async function fixture(browser, width, before = false, parityTitle = null) {
       if(url.startsWith('3picFin/Requests')) return source(owned);
       throw Error('Unexpected fixture route: '+url);
     },ajax:async options=>{posts.push(JSON.parse(options.data));const x=posts.at(-1);owned=[{Id:99,Status:1,Type:x.mediaType,MediaType:x.mediaType,TmdbId:x.mediaId,Is4k:x.is4k,Seasons:x.seasons||[]}];return {Id:99};}};
-    window.mountFixture=()=>window.dispose=ThreePicFinDiscovery.mount(document.querySelector('.threepic-fin-discovery'),api,{userId:'synthetic-user',isCurrent:()=>true});mountFixture();
+    window.fixtureApi=api; window.mountFixture=()=>window.dispose=ThreePicFinDiscovery.mount(document.querySelector('.threepic-fin-discovery'),api,{userId:'synthetic-user',isCurrent:()=>true});mountFixture();
   }, parityTitle);
   await page.locator('#threepic-fin-movies article').first().waitFor();
   await page.waitForFunction(()=>document.querySelector('#threepic-fin-shared-requests article'));
@@ -138,7 +139,8 @@ async function checkTitleParity(browser, width, title, kind) {
  console.log(`PASS direct title parity ${width}px ${kind}: Home, Discover, My Requests, All Requests; typography, wrapping, geometry, hover/focus, keyboard activation`);
  await page.close();
 }
-(async()=>{
+module.exports={fixture,open};
+if(require.main===module) (async()=>{
  const browser=await chromium.launch({headless:true});
  try {
   if(process.env.FIN_TITLE_PARITY_ONLY==='1') {
@@ -160,7 +162,7 @@ async function checkTitleParity(browser, width, title, kind) {
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'page overflow');
    assert(await page.evaluate(()=>Math.abs(document.querySelector('#threepic-fin-search-form').getBoundingClientRect().width-document.querySelector('#threepic-fin-discover-panel').getBoundingClientRect().width)<2),'full width search');
    assert(await page.evaluate(()=>document.querySelector('#threepic-fin-discover-panel').firstElementChild.id==='threepic-fin-search-form'));
-   assert.equal(await page.locator('#threepic-fin-trending-movies article').count(),1);assert.equal(await page.locator('#threepic-fin-trending-tv article').count(),1);
+   assert.equal(await page.locator('#threepic-fin-trending article').count(),2);
    for(const rail of ['requests','shared-requests']) {
     await open(page,rail);assert.match(await page.locator('#threepic-fin-details-status').innerText(),/Request: (Approved|Pending)/);
     assert.match(await page.locator('#threepic-fin-details-status').innerText(),rail==='requests'?/Requested by: Unknown/:/Requested by: Alex <synthetic>/);
@@ -185,7 +187,7 @@ async function checkTitleParity(browser, width, title, kind) {
    await page.locator('#threepic-fin-request-seasons input').last().check();await page.locator('#threepic-fin-request-4k').check();await page.locator('#threepic-fin-request-submit').click();await page.waitForFunction(()=>document.querySelector('#threepic-fin-request-status').textContent.includes('Check My Requests'));
    assert.deepEqual(await page.evaluate(()=>posts),[{mediaType:'tv',mediaId:22,is4k:true,seasons:[60]}]);assert(await page.locator('#threepic-fin-request-submit').isDisabled());await page.locator('#threepic-fin-request-cancel').click();
    await page.locator('#threepic-fin-search').fill('constellations');await page.locator('#threepic-fin-search-form button').click();await page.locator('#threepic-fin-search-results article').waitFor();
-   for(const mode of ['empty','fail']) {await page.evaluate(x=>{dispose();window.trendingMode=x;mountFixture();},mode);await page.waitForFunction(()=>document.querySelector('#threepic-fin-trending-tv').textContent.match(/No trending|unavailable/));assert(await page.locator('#threepic-fin-search').isVisible());}
+   for(const mode of ['empty','fail']) {await page.evaluate(x=>{dispose();window.trendingMode=x;mountFixture();},mode);await page.waitForFunction(()=>document.querySelector('#threepic-fin-trending').textContent.match(/No Trending|unavailable/));assert(await page.locator('#threepic-fin-search').isVisible());}
    assert.deepEqual(errors,[]);await page.evaluate(()=>dispose());await page.close();console.log(`PASS synthetic browser ${width}px: requests, statuses, POST/read-back, 4K, 60 seasons, focus, stale response, feed failures, overflow`);
   }
  }finally{await browser.close();}

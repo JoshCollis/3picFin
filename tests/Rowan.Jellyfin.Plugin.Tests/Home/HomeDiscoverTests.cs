@@ -35,6 +35,28 @@ public sealed class HomeDiscoverTests
     }
 
     [Fact]
+    public async Task DiscoveryTrendingPreservesMixedOrderAndReadsExactlyRequestedPageWithoutRefill()
+    {
+        var paths = new List<string>();
+        using var http = new HttpClient(new Handler((request, _) => {
+            var path = request.RequestUri!.PathAndQuery;
+            paths.Add(path);
+            if (path.Contains("/user/jellyfin/")) return Task.FromResult(Json("{\"id\":42}"));
+            if (path.EndsWith("/tv/11")) return Task.FromResult(Json("{\"id\":11,\"contentRatings\":{\"results\":[{\"iso_3166_1\":\"US\",\"rating\":\"TV-PG\"}]}}"));
+            return Task.FromResult(Json("""
+                {"page":2,"totalPages":8,"results":[{"id":11,"mediaType":"movie","title":"Movie first","adult":false},{"id":11,"mediaType":"tv","name":"TV same numeric id"},{"id":12,"mediaType":"movie","title":"Movie third","adult":false}]}
+                """));
+        }));
+        var controller = Controller(new SeerrClient(http, Options()), new PluginConfiguration { DiscoveryPageEnabled = true });
+        var source = Assert.IsType<SourceResult<HomeDiscoverItem>>(Assert.IsType<OkObjectResult>((await controller.GetDiscoveryTrending(2)).Result).Value);
+        Assert.Equal(new[] { "movie:11", "tv:11", "movie:12" }, source.Items.Select(item => $"{item.MediaType}:{item.TmdbId}"));
+        Assert.Equal(2, source.Page);
+        Assert.Equal(8, source.TotalPages);
+        Assert.Single(paths, path => path.Contains("/discover/"));
+        Assert.Contains("/seerr/api/v1/discover/trending?page=2", paths);
+    }
+
+    [Fact]
     public async Task DiscoveryTrendingIsIndependentOfHomeButStillRequiresEnabledPageAndIdentity()
     {
         var calls = new List<string>();

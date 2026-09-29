@@ -423,8 +423,8 @@ public sealed class SeerrClient
         var boundedRequests = Math.Clamp(requestsPage, 1, 100);
         var boundedTake = Math.Clamp(take, 1, 100);
         // Start all three reads after mapping; a stalled source must not prevent the others from starting.
-        var movies = CachedReadAsync(userId, $"api/v1/discover/movies?page={boundedMovies}", id, mapping.Fingerprint, _timeout - elapsed.Elapsed, timeout.Token, cancellationToken);
-        var tv = CachedReadAsync(userId, $"api/v1/discover/tv?page={boundedTv}", id, mapping.Fingerprint, _timeout - elapsed.Elapsed, timeout.Token, cancellationToken);
+        var movies = CachedReadAsync(userId, $"api/v1/discover/movies?page={boundedMovies}&sortBy=popularity.desc", id, mapping.Fingerprint, _timeout - elapsed.Elapsed, timeout.Token, cancellationToken);
+        var tv = CachedReadAsync(userId, $"api/v1/discover/tv?page={boundedTv}&sortBy=popularity.desc", id, mapping.Fingerprint, _timeout - elapsed.Elapsed, timeout.Token, cancellationToken);
         var requests = CachedReadAsync(userId, $"api/v1/request?take={boundedTake}&skip={(boundedRequests - 1) * boundedTake}&requestedBy={id.ToString(CultureInfo.InvariantCulture)}", id, mapping.Fingerprint, _timeout - elapsed.Elapsed, timeout.Token, cancellationToken);
         await Task.WhenAll(movies, tv, requests).ConfigureAwait(false);
         return new SeerrBundle(movies.Result, tv.Result, requests.Result) { MappedRequesterId = id };
@@ -510,7 +510,7 @@ public sealed class SeerrClient
     {
         if (string.IsNullOrEmpty(path) || path.Contains('#') || path.Contains('\\') || path.IndexOfAny(['\r', '\n']) >= 0) return false;
         var route = path.Split('?', 2)[0];
-        return route is "api/v1/search" or "api/v1/discover/trending" or "api/v1/discover/movies" or "api/v1/discover/tv";
+        return route is "api/v1/search" or "api/v1/discover/trending" or "api/v1/discover/movies" or "api/v1/discover/tv" or "api/v1/discover/movies/upcoming" or "api/v1/discover/tv/upcoming";
     }
 
     private async Task<(HttpStatusCode Status, byte[]? Body, bool CsrfEnabled)> GetAsync(string path, int? userId, CancellationToken token)
