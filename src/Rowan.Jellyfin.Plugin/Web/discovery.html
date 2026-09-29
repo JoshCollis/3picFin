@@ -7,6 +7,15 @@
             <button id="threepic-fin-calendar-tab" role="tab" type="button" aria-controls="threepic-fin-calendar-panel" aria-selected="false" tabindex="-1">Calendar</button>
         </div>
         <div id="threepic-fin-discover-panel" role="tabpanel" aria-labelledby="threepic-fin-discover-tab">
+            <form id="threepic-fin-search-form" role="search">
+                <label for="threepic-fin-search">Search movies and TV</label>
+                <div class="threepic-fin-discovery__search-controls">
+                    <input id="threepic-fin-search" type="search" maxlength="200" autocomplete="off">
+                    <button type="submit">Search</button>
+                </div>
+            </form>
+            <section aria-label="Trending Movies"><h3>Trending Movies</h3><div id="threepic-fin-trending-movies" class="threepic-fin-discovery__cards" aria-live="polite"></div></section>
+            <section aria-label="Trending Shows"><h3>Trending Shows</h3><div id="threepic-fin-trending-tv" class="threepic-fin-discovery__cards" aria-live="polite"></div></section>
             <section aria-label="My Requests"><h3>My Requests</h3><div id="threepic-fin-requests" class="threepic-fin-discovery__cards" aria-live="polite"></div>
                 <div class="threepic-fin-discovery__pager" aria-label="My Requests pages"><button id="threepic-fin-requests-prev" type="button" aria-label="Previous requests page" disabled>Previous</button><span id="threepic-fin-requests-page" aria-live="polite"></span><button id="threepic-fin-requests-next" type="button" aria-label="Next requests page" disabled>Next</button></div>
             </section>
@@ -15,13 +24,6 @@
                 <div class="threepic-fin-discovery__pager" aria-label="All Requests pages"><button id="threepic-fin-shared-requests-prev" type="button" disabled>Previous</button><span id="threepic-fin-shared-requests-page" aria-live="polite"></span><button id="threepic-fin-shared-requests-next" type="button" disabled>Next</button></div>
             </section>
             <section aria-label="More to discover"><h3>More to discover</h3><div id="threepic-fin-recommendations" class="threepic-fin-discovery__cards" aria-live="polite"></div></section>
-            <form id="threepic-fin-search-form" role="search">
-                <label for="threepic-fin-search">Search movies and TV</label>
-                <div class="threepic-fin-discovery__search-controls">
-                    <input id="threepic-fin-search" type="search" maxlength="200" autocomplete="off">
-                    <button type="submit">Search</button>
-                </div>
-            </form>
             <section aria-label="Search results"><h3>Search results</h3><div id="threepic-fin-search-results" class="threepic-fin-discovery__cards" aria-live="polite"></div>
                 <div class="threepic-fin-discovery__pager"><button id="threepic-fin-search-prev" type="button" aria-label="Previous search results page" disabled>Previous</button><span id="threepic-fin-search-page" aria-live="polite"></span><button id="threepic-fin-search-next" type="button" aria-label="Next search results page" disabled>Next</button></div>
             </section>
@@ -52,7 +54,7 @@
             <button id="threepic-fin-details-close" class="threepic-fin-discovery__details-close" type="button" aria-label="Close details">×</button>
             <div id="threepic-fin-details-body"></div>
             <div class="threepic-fin-discovery__details-heading"><h3 id="threepic-fin-details-title"></h3><p id="threepic-fin-details-meta"></p></div>
-            <p id="threepic-fin-details-overview"></p>
+            <p id="threepic-fin-details-overview" tabindex="0" aria-label="Synopsis"></p>
             <p id="threepic-fin-details-status" role="status" aria-live="polite"></p>
             <div class="threepic-fin-discovery__actions"><button id="threepic-fin-details-open" type="button" hidden>Open in Jellyfin</button><button id="threepic-fin-details-request" type="button" hidden>Request</button></div>
         </dialog>

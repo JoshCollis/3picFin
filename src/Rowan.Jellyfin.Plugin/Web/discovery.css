@@ -52,9 +52,8 @@
 }
 .threepic-fin-discovery .threepic-fin-discovery__poster-button:focus-visible::after,
 .threepic-fin-discovery .threepic-fin-discovery__poster-button:hover::after { background: var(--primary-accent-color, #435dad); opacity: 1; }
-.threepic-fin-discovery .threepic-fin-discovery__title-button { min-height: 0; border: 0; padding: 0; background: none; text-align: center; font-weight: inherit; }
+.threepic-fin-discovery .threepic-fin-discovery__title-button { min-height: 0; border: 0; padding: 0; background: none; text-align: center; font: inherit; line-height: inherit; width: 100%; display: block; overflow-wrap: inherit; }
 .threepic-fin-discovery__card-info p { margin-block: .35rem 0; font-size: .85rem; color: var(--secondary-text-color, #bbb); }
-.threepic-fin-discovery__card-info h4 { line-height: 1.3; }
 .threepic-fin-discovery__card-info > button { margin-top: .5rem; font-size: .85rem; min-height: 36px; width: 100%; }
 .threepic-fin-discovery__message { flex: 1 0 100%; color: var(--secondary-text-color, #bbb); }
 .threepic-fin-discovery__downloads, .threepic-fin-discovery__calendar { display: grid; gap: .65rem; }
@@ -110,8 +109,7 @@
     color: var(--secondary-text-color, #c9d2e1);
     font-size: .9rem; line-height: 1.35;
 }
-.threepic-fin-discovery .threepic-fin-discovery__title-button { min-height: 44px; width: 100%; display: block; line-height: 1.25; }
-.threepic-fin-discovery__card-info { padding: 0 .2rem .5rem; }
+.threepic-fin-discovery__card-info .cardText { overflow-wrap: anywhere; }
 .threepic-fin-discovery__details .threepic-fin-discovery__actions button,
 .threepic-fin-discovery__dialog .threepic-fin-discovery__actions button { min-height: 44px; }
 .threepic-fin-discovery__details #threepic-fin-details-request:not([hidden]),
@@ -148,3 +146,10 @@
     .threepic-fin-discovery__details:has(#threepic-fin-details-body:empty) { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { .threepic-fin-discovery *, .threepic-fin-discovery *::before, .threepic-fin-discovery *::after { scroll-behavior: auto; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* Keep search prominent even when host theme form rules arrive later. */
+.threepic-fin-discovery #threepic-fin-search-form { width: 100%; margin-block: 1.25rem 1.5rem; }
+.threepic-fin-discovery #threepic-fin-search-form label { margin-top: 0; font-weight: 600; }
+.threepic-fin-discovery__search-controls { width: 100%; }
+.threepic-fin-discovery #threepic-fin-search { width: 100%; font-size: 1rem; }
+.threepic-fin-discovery__details #threepic-fin-details-overview { max-height: 15rem; overflow-y: auto; }
