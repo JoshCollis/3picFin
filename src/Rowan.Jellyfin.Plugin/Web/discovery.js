@@ -45,10 +45,12 @@
             posterHost.appendChild(image);
         } else text(posterHost, 'div', 'Artwork unavailable', 'threepic-fin-discovery__poster-fallback');
         const info = document.createElement('div');
-        info.className = 'threepic-fin-discovery__card-info cardText cardTextCentered';
+        info.className = 'threepic-fin-discovery__card-info';
         const displayTitle = typeof title === 'string' && title.trim() ? title : `${label(type)}${Number.isInteger(tmdbId) && tmdbId > 0 ? ` · TMDb #${tmdbId}` : ' · details unavailable'}`;
-        if (canInspect) { const heading = document.createElement('h4'); const link = text(heading, 'button', displayTitle, 'threepic-fin-discovery__title-button'); link.type = 'button'; link.addEventListener('click', () => openDetails(item, link)); info.appendChild(heading); }
-        else text(info, 'h4', displayTitle);
+        // Let native cardText own title typography and wrapping, as it does on Home.
+        const heading = text(info, 'div', '', 'cardText cardTextCentered');
+        if (canInspect) { const link = text(heading, 'button', displayTitle, 'threepic-fin-discovery__title-button'); link.type = 'button'; link.addEventListener('click', () => openDetails(item, link)); }
+        else heading.textContent = displayTitle;
         if (title) text(info, 'p', label(type));
         if (request) text(info, 'p', `Request status: ${requestStatus(field(item, 'Status'))}`);
         else if (field(item, 'Date')) text(info, 'p', field(item, 'Date'));
