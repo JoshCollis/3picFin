@@ -28,7 +28,7 @@
         const title = field(item, 'Title');
         const tmdbId = field(item, 'TmdbId');
         const poster = field(item, 'PosterPath');
-        const canInspect = !request && (type === 'movie' || type === 'tv') && Number.isInteger(tmdbId) && tmdbId > 0;
+        const canInspect = (type === 'movie' || type === 'tv') && Number.isInteger(tmdbId) && tmdbId > 0;
         const posterHost = canInspect ? document.createElement('button') : document.createElement('div');
         posterHost.className = `cardContent cardImageContainer ${canInspect ? 'threepic-fin-discovery__poster-button' : 'threepic-fin-discovery__poster-frame'}`;
         if (canInspect) { posterHost.type = 'button'; posterHost.setAttribute('aria-label', `Details for ${typeof title === 'string' && title.trim() ? title : label(type)}`); posterHost.addEventListener('click', () => openDetails(item, posterHost)); }
@@ -146,7 +146,7 @@
             const rows = original.map(item => ({ ...item }));
             const paint = () => {
                 if (disposed || generation !== (shared ? sharedListGeneration : requestListGeneration) || shared && (host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId)) return;
-                render(container, { Items: rows }, empty, true);
+                render(container, { Items: rows }, empty, true, openRequest, openDetails);
             };
             for (const row of rows) {
                 const type = field(row, 'MediaType') || field(row, 'Type'), id = field(row, 'TmdbId');
@@ -202,8 +202,8 @@
             container.appendChild(image);
         }
         async function openDetails(item, button) {
-            if (disposed || detailsBusy) return;
-            const mediaType = field(item, 'MediaType'), mediaId = field(item, 'TmdbId');
+            if (disposed || detailsBusy || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
+            const mediaType = field(item, 'MediaType') || field(item, 'Type'), mediaId = field(item, 'TmdbId');
             if (!['movie', 'tv'].includes(mediaType) || !Number.isInteger(mediaId) || mediaId <= 0) return;
             invalidateDetails();
             const generation = detailsGeneration;
@@ -218,7 +218,7 @@
                 const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/TitleDetails', { mediaType, mediaId }), { signal: detailsAbort.signal });
                 if (disposed || generation !== detailsGeneration || !detailsDialog.open || host.isCurrent && !host.isCurrent()) return;
                 if (field(result, 'MediaType') !== mediaType || field(result, 'TmdbId') !== mediaId) throw Error('Invalid details');
-                detailsItem = item;
+                detailsItem = { ...item, MediaType: mediaType };
                 const title = field(result, 'Title'), overview = field(result, 'Overview'), poster = field(result, 'PosterPath');
                 el('details-title').textContent = typeof title === 'string' && title.trim() ? title : field(item, 'Title') || label(mediaType);
                 el('details-overview').textContent = typeof overview === 'string' && overview.trim() ? overview : 'No overview available.';
@@ -228,12 +228,14 @@
                 const libraryId = field(result, 'LibraryItemId');
                 const available = typeof libraryId === 'string' && /^(?:[a-fA-F0-9]{32}|[a-fA-F0-9]{8}(?:-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12})$/.test(libraryId);
                 const state = field(result, 'MediaStatus');
-                el('details-status').textContent = available ? typeof host.openItem === 'function' ? 'Available in your library' : 'Available in your library · opening unavailable here' : ({ 2: 'Seerr title status: pending (personal ownership not established)', 3: 'Seerr title status: requested/tracked (personal ownership not established)', 4: 'Seerr title status: partially available', 5: 'Reported available · not in your library', 6: 'Blocklisted' })[state] || 'Seerr title status: not requested';
+                el('details-status').textContent = available ? typeof host.openItem === 'function' ? 'Available in your library' : 'Available in your library · opening unavailable here' : ({ 1: 'Not requested', 2: 'Requested · Pending', 3: 'Requested · Processing', 4: 'Partially available', 5: 'Available in Seerr · not in your library', 6: 'Blocklisted' })[state] || 'Request status unknown';
+                if (Number.isInteger(field(item, 'Id'))) el('details-status').textContent += ` · Request: ${requestStatus(field(item, 'Status'))}`;
+                // Requester names are not exposed by the current authorized DTOs.
                 const seasons = field(result, 'Seasons');
                 // Only this authenticated, user-visible server match can be opened. Never infer it from the catalog.
                 el('details-open').hidden = !available || typeof host.openItem !== 'function';
                 el('details-open').onclick = available && typeof host.openItem === 'function' ? async () => {
-                    if (disposed || detailsItem !== item || detailsBusy || !detailsDialog.open) return;
+                    if (disposed || field(detailsItem, 'TmdbId') !== mediaId || detailsBusy || !detailsDialog.open) return;
                     const ticket = detailsGeneration;
                     detailsBusy = true; el('details-open').disabled = true;
                     try {
@@ -259,7 +261,7 @@
                     mediaType === 'tv' ? 'Request seasons' : canNormal ? 'Request' : 'Request 4K';
             } catch (_) {
                 if (disposed || generation !== detailsGeneration || !detailsDialog.open || host.isCurrent && !host.isCurrent()) return;
-                el('details-status').textContent = 'Details unavailable right now.';
+                el('details-status').textContent = 'Details unavailable right now. Request status unknown.';
                 el('details-open').hidden = true; el('details-request').hidden = true;
             } finally { if (generation === detailsGeneration) { detailsBusy = false; detailsAbort = null; } }
         }
@@ -291,7 +293,7 @@
             if (disposed || submitting || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
             const generation = ++requestGeneration;
             trigger = button;
-            const mediaType = field(item, 'MediaType'), mediaId = field(item, 'TmdbId');
+            const mediaType = field(item, 'MediaType') || field(item, 'Type'), mediaId = field(item, 'TmdbId');
             selection = { mediaType, mediaId };
             options = null; locked = false;
             const contextTitle = field(context, 'Title');
@@ -401,7 +403,7 @@
         const on = (element, event, handler) => { element.addEventListener(event, handler); controls.push(() => element.removeEventListener(event, handler)); };
         // Keep a page of cards in one Home-style row. Rail arrows move within
         // that page; the existing pager fetches the next bounded server page.
-        for (const name of ['requests', 'shared-requests', 'recommendations', 'search-results', 'movies', 'tv']) {
+        for (const name of ['requests', 'shared-requests', 'recommendations', 'search-results', 'movies', 'tv', 'trending-movies', 'trending-tv']) {
             const rail = el(name), section = rail.closest('section'), heading = section.querySelector('h3');
             const header = document.createElement('div');
             header.className = 'threepic-fin-discovery__row-heading';
@@ -461,6 +463,23 @@
                 else if (!section.hidden) message(el('shared-requests'), 'All requests unavailable right now.');
                 sharedMax = 1;
                 pager('shared-requests', page, 1);
+            }
+        }
+        let trendingGeneration = 0;
+        const trendingAbort = new AbortController();
+        async function trending() {
+            const generation = ++trendingGeneration;
+            for (const name of ['trending-movies', 'trending-tv']) message(el(name), 'Loading trending titles…');
+            try {
+                const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/HomeDiscover/Discover', { page: 1 }), { signal: trendingAbort.signal });
+                if (disposed || generation !== trendingGeneration || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
+                for (const [name, type] of [['trending-movies', 'movie'], ['trending-tv', 'tv']]) {
+                    const items = field(result, 'Items');
+                    render(el(name), { Items: Array.isArray(items) ? items.filter(item => field(item, 'MediaType') === type) : null, Error: field(result, 'Error') }, type === 'movie' ? 'trending movies' : 'trending shows', false, openRequest, openDetails);
+                }
+            } catch (_) {
+                if (disposed || generation !== trendingGeneration) return;
+                for (const name of ['trending-movies', 'trending-tv']) message(el(name), 'Trending unavailable right now.');
             }
         }
         async function discovery() {
@@ -643,13 +662,14 @@
             if (disposed || activated) return;
             activated = true;
             discovery();
+            trending();
             sharedRequests(1);
         };
         if (!deferInitialLoad) activate();
         const cleanup = () => {
             if (disposed) return;
-            disposed = true; metadataAbort.abort(); metadata.clear(); ++requestListGeneration; ++sharedListGeneration; closeDetails(false); stopDownloads(); stopCalendar(); ++searchGeneration; ++discoveryGeneration; ++requestGeneration; ++sharedGeneration;
-            for (const name of ['movies', 'tv', 'requests', 'recommendations', 'shared-requests', 'search-results', 'downloads-radarr', 'downloads-sonarr', 'calendar-radarr', 'calendar-sonarr']) el(name).replaceChildren();
+            disposed = true; trendingAbort.abort(); ++trendingGeneration; metadataAbort.abort(); metadata.clear(); ++requestListGeneration; ++sharedListGeneration; closeDetails(false); stopDownloads(); stopCalendar(); ++searchGeneration; ++discoveryGeneration; ++requestGeneration; ++sharedGeneration;
+            for (const name of ['movies', 'tv', 'requests', 'recommendations', 'trending-movies', 'trending-tv', 'shared-requests', 'search-results', 'downloads-radarr', 'downloads-sonarr', 'calendar-radarr', 'calendar-sonarr']) el(name).replaceChildren();
             el('shared-requests').closest('section').hidden = true;
             el('calendar-panel').hidden = true;
             if (dialog.open) dialog.close();
