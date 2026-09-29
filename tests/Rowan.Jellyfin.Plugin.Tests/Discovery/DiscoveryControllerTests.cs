@@ -23,6 +23,58 @@ public sealed class DiscoveryControllerTests
     private static readonly Guid Alice = Guid.Parse("f6b48a38-9e4b-4b1b-a957-e8e425e91922");
     private static readonly Guid Bob = Guid.Parse("e1bc172d-6870-4bad-8bc7-32af478474bc");
 
+    [Fact]
+    public async Task UpcomingRoutesUseMappedIdentityEndpointTypeAndBoundedPages()
+    {
+        var paths = new List<string>();
+        using var http = Stub(request => {
+            var path = request.RequestUri!.PathAndQuery;
+            paths.Add(path);
+            if (path.Contains("/user/jellyfin/")) return Json("{\"id\":42}");
+            Assert.Equal("42", request.Headers.GetValues("X-API-User").Single());
+            return Json("""
+                {"page":2,"totalPages":5,"results":[{"id":71,"title":"Future film","name":"Future series","posterPath":"/fixture.jpg","mediaInfo":{"status":2}},{"id":72,"mediaType":"person","name":"Ignore"}]}
+                """);
+        });
+        var client = new SeerrClient(http, Options());
+        var controller = Controller(client, [new Claim("Jellyfin-UserId", Alice.ToString())]);
+        Assert.IsType<BadRequestResult>((await controller.GetUpcomingMovies(0)).Result);
+        Assert.IsType<BadRequestResult>((await controller.GetUpcomingTv(101)).Result);
+        Assert.IsType<ForbidResult>((await Controller(client, []).GetUpcomingMovies()).Result);
+        Assert.IsType<ForbidResult>((await Controller(client, [], _ => false).GetUpcomingTv()).Result);
+        Assert.Empty(paths);
+        var movie = Assert.IsType<SourceResult<CatalogItem>>(Assert.IsType<OkObjectResult>((await controller.GetUpcomingMovies(2)).Result).Value);
+        var tv = Assert.IsType<SourceResult<CatalogItem>>(Assert.IsType<OkObjectResult>((await controller.GetUpcomingTv(2)).Result).Value);
+        Assert.Equal("movie", Assert.Single(movie.Items).MediaType);
+        Assert.Equal("tv", Assert.Single(tv.Items).MediaType);
+        Assert.Equal("Future film", movie.Items[0].Title);
+        Assert.Equal("Future series", tv.Items[0].Title);
+        Assert.Equal(2, movie.Items[0].Status);
+        Assert.Equal(2, movie.Page);
+        Assert.Equal(5, tv.TotalPages);
+        Assert.Contains("/seerr/api/v1/discover/movies/upcoming?page=2", paths);
+        Assert.Contains("/seerr/api/v1/discover/tv/upcoming?page=2", paths);
+        Assert.Equal("private, no-store", controller.Response.Headers.CacheControl.ToString());
+    }
+
+    [Fact]
+    public async Task UpcomingFailureIsSanitizedAndDoesNotPoisonOtherFeed()
+    {
+        using var http = Stub(request => {
+            var path = request.RequestUri!.PathAndQuery;
+            if (path.Contains("/user/jellyfin/")) return Json("{\"id\":42}");
+            if (path.Contains("/movies/upcoming")) return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+            return Json("{\"results\":[{\"id\":9,\"name\":\"TV still works\"}]}");
+        });
+        var controller = Controller(new SeerrClient(http, Options()), [new Claim("Jellyfin-UserId", Alice.ToString())]);
+        var movie = Assert.IsType<SourceResult<CatalogItem>>(Assert.IsType<OkObjectResult>((await controller.GetUpcomingMovies()).Result).Value);
+        var tv = Assert.IsType<SourceResult<CatalogItem>>(Assert.IsType<OkObjectResult>((await controller.GetUpcomingTv()).Result).Value);
+        Assert.Equal("UpstreamUnavailable", movie.Error);
+        Assert.Empty(movie.Items);
+        Assert.Null(tv.Error);
+        Assert.Single(tv.Items);
+    }
+
     [Theory]
     [InlineData("{}")]
     [InlineData("null")]
@@ -203,8 +255,8 @@ public sealed class DiscoveryControllerTests
         Assert.IsType<OkObjectResult>((await controller.GetDiscovery(1, CancellationToken.None, moviePage: 3, tvPage: 2, requestsPage: 4)).Result);
         Assert.Equal(4, paths.Count);
         Assert.Single(paths, path => path.Contains("/user/jellyfin/", StringComparison.Ordinal));
-        Assert.Single(paths, path => path.Contains("/discover/movies?page=3", StringComparison.Ordinal));
-        Assert.Single(paths, path => path.Contains("/discover/tv?page=2", StringComparison.Ordinal));
+        Assert.Single(paths, path => path.EndsWith("/discover/movies?page=3&sortBy=popularity.desc", StringComparison.Ordinal));
+        Assert.Single(paths, path => path.EndsWith("/discover/tv?page=2&sortBy=popularity.desc", StringComparison.Ordinal));
         Assert.Single(paths, path => path.Contains("take=20&skip=60&requestedBy=42", StringComparison.Ordinal));
     }
 

@@ -9,7 +9,11 @@
 .threepic-fin-discovery #threepic-fin-discover-panel > section > h3 { margin-block: .9rem .5rem; }
 .threepic-fin-discovery #threepic-fin-discover-panel > section > .threepic-fin-discovery__cards:has(> .threepic-fin-discovery__message) { padding-block: 0; }
 .threepic-fin-discovery #threepic-fin-discover-panel > section > .threepic-fin-discovery__cards > .threepic-fin-discovery__message { margin: .25rem 0; }
-.threepic-fin-discovery #threepic-fin-search-form { margin-block: .75rem; }
+/* Host themes often cap form and search-input widths. Scope the override to Discover. */
+.threepic-fin-discovery #threepic-fin-search-form { margin-block: .75rem; width: 100%; max-width: none; }
+.threepic-fin-discovery #threepic-fin-search-form .threepic-fin-discovery__search-controls { width: 100%; max-width: none; flex-wrap: nowrap; }
+.threepic-fin-discovery #threepic-fin-search { width: 100%; max-width: none; min-width: 0; flex: 1 1 0; }
+.threepic-fin-discovery #threepic-fin-search-form button { flex: 0 0 auto; }
 .threepic-fin-discovery h2 { margin-block: 0 1rem; font-size: clamp(1.5rem, 4vw, 2rem); }
 .threepic-fin-discovery h3 { margin-block: 1.5rem .75rem; font-size: 1.25rem; }
 .threepic-fin-discovery__row-heading { display: flex; justify-content: space-between; align-items: end; gap: 1rem; margin-top: 1.3rem; }
