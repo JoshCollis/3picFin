@@ -49,18 +49,16 @@
             <section aria-label="TV calendar"><h3>TV</h3><div id="threepic-fin-calendar-sonarr" class="threepic-fin-discovery__calendar" aria-live="polite"></div></section>
         </div>
         <dialog id="threepic-fin-details-dialog" class="threepic-fin-discovery__dialog threepic-fin-discovery__details" aria-labelledby="threepic-fin-details-title" aria-describedby="threepic-fin-details-status">
-            <button id="threepic-fin-details-close" class="threepic-fin-discovery__details-close" type="button" aria-label="Close details">✕</button>
+            <button id="threepic-fin-details-close" class="threepic-fin-discovery__details-close" type="button" aria-label="Close details">×</button>
             <div id="threepic-fin-details-body"></div>
-            <h3 id="threepic-fin-details-title"></h3>
-            <p id="threepic-fin-details-meta"></p>
+            <div class="threepic-fin-discovery__details-heading"><h3 id="threepic-fin-details-title"></h3><p id="threepic-fin-details-meta"></p></div>
             <p id="threepic-fin-details-overview"></p>
             <p id="threepic-fin-details-status" role="status" aria-live="polite"></p>
-            <div id="threepic-fin-details-seasons"></div>
             <div class="threepic-fin-discovery__actions"><button id="threepic-fin-details-open" type="button" hidden>Open in Jellyfin</button><button id="threepic-fin-details-request" type="button" hidden>Request</button></div>
         </dialog>
         <dialog id="threepic-fin-request-dialog" class="threepic-fin-discovery__dialog" aria-labelledby="threepic-fin-request-title" aria-describedby="threepic-fin-request-status">
             <form id="threepic-fin-request-form">
-                <h3 id="threepic-fin-request-title">Request media</h3>
+                <div class="threepic-fin-discovery__request-heading"><div id="threepic-fin-request-art"></div><div><h3 id="threepic-fin-request-title">Request media</h3><p id="threepic-fin-request-meta"></p></div></div>
                 <p id="threepic-fin-request-status" role="status" aria-live="polite"></p>
                 <fieldset id="threepic-fin-request-seasons" hidden><legend>Select seasons to request</legend></fieldset>
                 <label id="threepic-fin-request-4k-wrap" hidden><input id="threepic-fin-request-4k" type="checkbox"> Request in 4K</label>
