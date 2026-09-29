@@ -30,7 +30,7 @@ class Element {
 function deferred() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 async function flush() { for (let i = 0; i < 6; i++) await new Promise(resolve => setImmediate(resolve)); }
 function setup(responses = [], posts = [], host = {}, details = [], shared = [], trending = []) {
-    const ids = ['threepic-fin-trending-movies', 'threepic-fin-trending-tv', 'threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-discover-tab', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-recommendations', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-art', 'threepic-fin-request-meta', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
+    const ids = ['threepic-fin-trending', 'threepic-fin-upcoming-movies', 'threepic-fin-upcoming-tv', 'threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-discover-tab', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-recommendations', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-art', 'threepic-fin-request-meta', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests', 'trending', 'upcoming-movies', 'upcoming-tv'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
     for (const id of ids) if (id !== 'threepic-fin-shared-requests-load') assert.match(fragment, new RegExp(`id="${id}"`));
     const nodes = Object.fromEntries(ids.map(id => [id, new Element()]));
     const root = new Element();
@@ -38,7 +38,7 @@ function setup(responses = [], posts = [], host = {}, details = [], shared = [],
     root.querySelector = selector => selector === '.threepic-fin-discovery__tabs' ? tabs : nodes[selector.slice(1)] || null;
     // Mirror the fragment's rail section/heading relationship instead of
     // handing every ID a disconnected placeholder node.
-    const rails = ['trending-movies', 'trending-tv', 'requests', 'shared-requests', 'recommendations', 'search-results', 'movies', 'tv'];
+    const rails = ['trending', 'upcoming-movies', 'upcoming-tv', 'requests', 'shared-requests', 'recommendations', 'search-results', 'movies', 'tv'];
     for (const name of rails) {
         const id = `threepic-fin-${name}`;
         assert.match(fragment, new RegExp(`<section[^>]*><h3>[^<]+</h3>(?:(?!</section>)[\\s\\S])*?id="${id}"`));
@@ -52,6 +52,7 @@ function setup(responses = [], posts = [], host = {}, details = [], shared = [],
     const api = {
         getUrl: (route, params) => { if (route !== '3picFin/SharedRequests') calls.push(['url', route, params]); const u = new URL(route, 'https://example.test/jellyfin/'); for (const [k, v] of Object.entries(params || {})) u.searchParams.set(k, v); return u.href; },
         getJSON: (url, options) => {
+            if (url.includes('Discovery/Upcoming')) return Promise.resolve({Items: []});
             if (url.includes('Discovery/Trending')) {
                 const reply = trending.shift() ?? {Items: []};
                 return reply?.promise || (reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply));
@@ -281,7 +282,7 @@ test('discovery renders movies, TV, recommendations and null-metadata personal r
     assert.doesNotMatch(app.text('requests'), /undefined|null/);
     assert.equal(app.el('discover-panel').hidden, false);
     assert.equal(app.el('movies').descendants().some(n => Object.hasOwn(n, 'innerHTML')), false);
-    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery', '3picFin/Discovery/Trending', '3picFin/TitleDetails']);
+    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery', '3picFin/Discovery/Trending', '3picFin/Discovery/UpcomingMovies', '3picFin/Discovery/UpcomingTV', '3picFin/TitleDetails']);
 });
 test('source-shaped Seerr request resolves metadata through authenticated detail without changing request ownership', async () => {
     // Seerr v3.4.1 (69f73a6f) server/routes/request.ts GET / joins
@@ -595,7 +596,7 @@ test('cleanup prevents late rendering and detaches controls', async () => {
 test('Downloads is a separate lazy shared view with title-wide status and safe disclosure', async () => {
     const app = setup([bundle(), { Radarr: source([{ Source: 'Radarr', MediaType: 'movie', TitleId: 7, Title: '<img src=x>', State: 'Downloading', Progress: .257 }]), Sonarr: source([{ Source: 'Sonarr', MediaType: 'tv', TitleId: 8, Title: 'Series', State: 'Queued', Progress: null }], { Partial: true }) }]);
     await app.flush();
-    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery', '3picFin/Discovery/Trending']);
+    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery', '3picFin/Discovery/Trending', '3picFin/Discovery/UpcomingMovies', '3picFin/Discovery/UpcomingTV']);
     app.el('downloads-tab').dispatch('click'); await app.flush();
     assert.equal(app.el('discover-panel').hidden, true);
     assert.equal(app.el('downloads-panel').hidden, false);
@@ -694,7 +695,7 @@ test('leaving Downloads or unmounting aborts and ignores stale responses', async
 test('Calendar loads lazily with a half-open 31-day UTC window and independent sources', async () => {
     const app = setup([bundle(), { Radarr: source([{ Title: 'Movie', TitleId: 7, EventType: 'Digital', Date: '2026-09-29T00:00:00Z' }]), Sonarr: source([{ Title: 'Show', TitleId: 8, EventType: 'Episode', SeasonNumber: 2, EpisodeNumber: 3, EpisodeTitle: 'Pilot', Date: '2026-09-30T21:00:00Z' }], { Partial: true }) }]);
     await app.flush();
-    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery', '3picFin/Discovery/Trending']);
+    assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery', '3picFin/Discovery/Trending', '3picFin/Discovery/UpcomingMovies', '3picFin/Discovery/UpcomingTV']);
     app.el('calendar-tab').dispatch('click'); await app.flush();
     const request = app.calls.find(c => c[0] === 'url' && c[1] === '3picFin/Calendar');
     assert.ok(request);
@@ -820,27 +821,27 @@ test('Calendar cancellation on tab switch and unmount prevents stale disclosure'
 });
 
 
-test('trending separates media types and isolates loading, empty, failed and stale responses', async () => {
+test('trending preserves mixed media order and isolates loading, empty, failed and stale responses', async () => {
     const movie = {TmdbId: 11, MediaType: 'movie', Title: 'Trending film'};
     const tv = {TmdbId: 22, MediaType: 'tv', Title: 'Trending series'};
     const pending = deferred();
     const app = setup([bundle()], [], {}, [], [], [pending]);
-    assert.match(app.text('trending-movies'), /Loading/);
-    pending.resolve(source([movie, tv, {MediaType:'person', Title:'Exclude'}])); await app.flush();
-    assert.match(app.text('trending-movies'), /Trending film/);
-    assert.doesNotMatch(app.text('trending-movies'), /Trending series|Exclude/);
-    assert.match(app.text('trending-tv'), /Trending series/);
-    assert.doesNotMatch(app.text('trending-tv'), /Trending film|Exclude/);
+    assert.match(app.text('trending'), /Loading/);
+    pending.resolve(source([movie, tv])); await app.flush();
+    assert.match(app.text('trending'), /Trending film/);
+    assert(app.text('trending').indexOf('Trending film') < app.text('trending').indexOf('Trending series'));
+    assert.match(app.text('trending'), /Trending series/);
+
     app.cleanup();
     for (const response of [source(), new Error('disabled'), {Items:null}, source([], {Error:'upstream'})]) {
         const result = setup([bundle()], [], {}, [], [], [response]); await result.flush();
-        assert.match(result.text('trending-tv'), /No trending shows|unavailable/);
+        assert.match(result.text('trending'), /No Trending|unavailable/);
         assert.match(result.text('movies'), /No Movies/);
         result.cleanup();
     }
     const late = deferred(); const stale = setup([bundle()], [], {}, [], [], [late]);
     stale.cleanup(); late.resolve(source([movie])); await stale.flush();
-    assert.equal(stale.text('trending-movies'), '');
+    assert.equal(stale.text('trending'), '');
 });
 
 test('both request lists open details with Type fallback and preserve request state', async () => {
@@ -886,4 +887,17 @@ test('authorized requester display text survives hydration without identity fall
         }
         app.cleanup();
     }
+});
+
+
+test('movie-heavy Trending has no per-type quota and More to discover deduplicates by type plus ID', async () => {
+    const movies = Array.from({length:19}, (_,i) => ({TmdbId:i+1, MediaType:'movie', Title:`Film ${i+1}`}));
+    const tv = {TmdbId:1, MediaType:'tv', Title:'Same numeric identity, different media'};
+    const app = setup([bundle(source(movies), source([tv]))], [], {}, [], [], [source([...movies,tv])]);
+    await app.flush();
+    assert.equal(app.el('trending').children.length,20);
+    assert.equal(app.el('recommendations').children.length,20);
+    assert.match(app.text('trending'), /Same numeric identity/);
+    assert.equal(app.calls.filter(call=>call[0]==='url'&&call[1]==='3picFin/Discovery/Trending').length,1);
+    app.cleanup();
 });

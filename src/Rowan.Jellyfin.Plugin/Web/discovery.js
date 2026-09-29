@@ -408,7 +408,7 @@
         const on = (element, event, handler) => { element.addEventListener(event, handler); controls.push(() => element.removeEventListener(event, handler)); };
         // Keep a page of cards in one Home-style row. Rail arrows move within
         // that page; the existing pager fetches the next bounded server page.
-        for (const name of ['requests', 'shared-requests', 'recommendations', 'search-results', 'movies', 'tv', 'trending-movies', 'trending-tv']) {
+        for (const name of ['requests', 'shared-requests', 'recommendations', 'search-results', 'movies', 'tv', 'trending', 'upcoming-movies', 'upcoming-tv']) {
             const rail = el(name), section = rail.closest('section'), heading = section.querySelector('h3');
             const header = document.createElement('div');
             header.className = 'threepic-fin-discovery__row-heading';
@@ -470,22 +470,52 @@
                 pager('shared-requests', page, 1);
             }
         }
-        let trendingGeneration = 0;
-        const trendingAbort = new AbortController();
-        async function trending() {
-            const generation = ++trendingGeneration;
-            for (const name of ['trending-movies', 'trending-tv']) message(el(name), 'Loading trending titles…');
-            try {
-                const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Discovery/Trending', { page: 1 }), { signal: trendingAbort.signal });
-                if (disposed || generation !== trendingGeneration || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
-                for (const [name, type] of [['trending-movies', 'movie'], ['trending-tv', 'tv']]) {
-                    const items = field(result, 'Items');
-                    render(el(name), { Items: Array.isArray(items) ? items.filter(item => field(item, 'MediaType') === type) : null, Error: field(result, 'Error') }, type === 'movie' ? 'trending movies' : 'trending shows', false, openRequest, openDetails);
+        const catalogSources = new Map();
+        const catalogFeeds = {
+            trending: { route: 'Trending', title: 'Trending', page: 1, max: 1, generation: 0 },
+            'upcoming-movies': { route: 'UpcomingMovies', title: 'Upcoming Movies', page: 1, max: 1, generation: 0 },
+            'upcoming-tv': { route: 'UpcomingTV', title: 'Upcoming TV', page: 1, max: 1, generation: 0 }
+        };
+        const catalogAbort = new AbortController();
+        function currentUser() {
+            return !disposed && (!host.isCurrent || host.isCurrent()) && (!host.userId || ApiClient.getCurrentUserId?.() === host.userId);
+        }
+        function recommendations() {
+            const seen = new Set(), items = [];
+            // Only the five currently loaded catalog pages: at most 100 candidates,
+            // no extra retrieval, per-type quota, or cross-user persistence.
+            for (const name of ['trending', 'movies', 'tv', 'upcoming-movies', 'upcoming-tv']) {
+                const source = catalogSources.get(name);
+                if (field(source, 'Error')) continue;
+                for (const item of list(field(source, 'Items')).slice(0, 20)) {
+                    const type = field(item, 'MediaType'), id = field(item, 'TmdbId');
+                    const key = `${type}:${id}`;
+                    if (!['movie', 'tv'].includes(type) || !Number.isInteger(id) || id <= 0 || seen.has(key)) continue;
+                    seen.add(key); items.push(item);
                 }
-            } catch (_) {
-                if (disposed || generation !== trendingGeneration) return;
-                for (const name of ['trending-movies', 'trending-tv']) message(el(name), 'Trending unavailable right now.');
             }
+            const failed = [...catalogSources.values()].some(source => field(source, 'Error'));
+            render(el('recommendations'), { Items: items, Error: !items.length && failed ? 'Unavailable' : null }, 'titles', false, openRequest, openDetails);
+            if (items.length && failed) text(el('recommendations'), 'p', 'Some catalog feeds are unavailable.', 'threepic-fin-discovery__message');
+        }
+        async function catalog(name, page = 1) {
+            const feed = catalogFeeds[name], generation = ++feed.generation;
+            feed.page = page; feed.max = 1;
+            message(el(name), `Loading ${feed.title}…`);
+            pager(name, page, 1);
+            try {
+                const result = await ApiClient.getJSON(ApiClient.getUrl(`3picFin/Discovery/${feed.route}`, { page }), { signal: catalogAbort.signal });
+                if (!currentUser() || generation !== feed.generation) return;
+                render(el(name), result, feed.title, false, openRequest, openDetails);
+                feed.max = field(result, 'Error') || !Array.isArray(field(result, 'Items')) ? 1 : maxPages(result);
+                catalogSources.set(name, result);
+            } catch (_) {
+                if (!currentUser() || generation !== feed.generation) return;
+                message(el(name), `${feed.title} unavailable right now.`);
+                catalogSources.set(name, { Error: 'Unavailable' });
+            }
+            pager(name, page, feed.max);
+            recommendations();
         }
         async function discovery() {
             const generation = ++discoveryGeneration;
@@ -493,22 +523,25 @@
             for (const name of Object.keys(pages)) pager(name, pages[name], 1);
             try {
                 const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Discovery', { moviePage: pages.movies, tvPage: pages.tv, requestsPage: pages.requests }));
-                if (disposed || generation !== discoveryGeneration) return;
+                if (!currentUser() || generation !== discoveryGeneration) return;
                 const movies = field(result, 'Movies'), tv = field(result, 'Tv'), requests = field(result, 'Requests');
                 personal = requests;
                 render(el('movies'), movies, 'Movies', false, openRequest, openDetails);
                 render(el('tv'), tv, 'TV', false, openRequest, openDetails);
                 requestCards(el('requests'), requests, 'Requests');
-                // A small sample from the current discovery pages, not personalized recommendations.
-                const suggestions = [...list(field(movies, 'Items')).slice(0, 2), ...list(field(tv, 'Items')).slice(0, 2)];
-                render(el('recommendations'), { Items: suggestions, Error: field(movies, 'Error') && field(tv, 'Error') }, 'titles', false, openRequest, openDetails);
+                catalogSources.set('movies', movies);
+                catalogSources.set('tv', tv);
+                recommendations();
                 for (const [name, source] of Object.entries({ movies, tv, requests })) {
                     maxima[name] = field(source, 'Error') || !Array.isArray(field(source, 'Items')) ? 1 : maxPages(source);
                     pager(name, pages[name], maxima[name]);
                 }
             } catch (_) {
-                if (disposed || generation !== discoveryGeneration) return;
-                for (const name of ['movies', 'tv', 'requests', 'recommendations']) message(el(name), 'Content unavailable right now.');
+                if (!currentUser() || generation !== discoveryGeneration) return;
+                for (const name of ['movies', 'tv', 'requests']) message(el(name), 'Content unavailable right now.');
+                catalogSources.set('movies', { Error: 'Unavailable' });
+                catalogSources.set('tv', { Error: 'Unavailable' });
+                recommendations();
                 for (const name of Object.keys(pages)) pager(name, pages[name], 1);
             }
         }
@@ -519,12 +552,12 @@
             pager('search', page, 1);
             try {
                 const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Search', { query: searchQuery, page }));
-                if (disposed || generation !== searchGeneration) return;
+                if (!currentUser() || generation !== searchGeneration) return;
                 render(el('search-results'), result, 'Search results', false, openRequest, openDetails);
-                searchMax = maxPages(result);
+                searchMax = field(result, 'Error') || !Array.isArray(field(result, 'Items')) ? 1 : maxPages(result);
                 pager('search', page, searchMax);
             } catch (_) {
-                if (disposed || generation !== searchGeneration) return;
+                if (!currentUser() || generation !== searchGeneration) return;
                 message(el('search-results'), 'Search results unavailable right now.');
                 pager('search', page, 1);
             }
@@ -651,7 +684,8 @@
         on(el('search-form'), 'submit', e => {
             e.preventDefault();
             const query = el('search').value.trim();
-            if (!query || query.length > 200) return;
+            if (!query) { ++searchGeneration; searchQuery = ''; searchPage = searchMax = 1; el('search-results').replaceChildren(); pager('search', 1, 1); return; }
+            if (query.length > 200) return;
             searchQuery = query; search(1);
         });
         on(el('search-prev'), 'click', () => { if (searchPage > 1) search(searchPage - 1); });
@@ -660,6 +694,10 @@
             on(el(`${name}-prev`), 'click', () => { if (pages[name] > 1) { --pages[name]; discovery(); } });
             on(el(`${name}-next`), 'click', () => { if (pages[name] < maxima[name]) { ++pages[name]; discovery(); } });
         }
+        for (const [name, feed] of Object.entries(catalogFeeds)) {
+            on(el(`${name}-prev`), 'click', () => { if (feed.page > 1) catalog(name, feed.page - 1); });
+            on(el(`${name}-next`), 'click', () => { if (feed.page < feed.max) catalog(name, feed.page + 1); });
+        }
         pager('search', 1, 1);
         pager('shared-requests', 1, 1);
         let activated = false;
@@ -667,14 +705,14 @@
             if (disposed || activated) return;
             activated = true;
             discovery();
-            trending();
+            for (const name of Object.keys(catalogFeeds)) catalog(name);
             sharedRequests(1);
         };
         if (!deferInitialLoad) activate();
         const cleanup = () => {
             if (disposed) return;
-            disposed = true; trendingAbort.abort(); ++trendingGeneration; metadataAbort.abort(); metadata.clear(); ++requestListGeneration; ++sharedListGeneration; closeDetails(false); stopDownloads(); stopCalendar(); ++searchGeneration; ++discoveryGeneration; ++requestGeneration; ++sharedGeneration;
-            for (const name of ['movies', 'tv', 'requests', 'recommendations', 'trending-movies', 'trending-tv', 'shared-requests', 'search-results', 'downloads-radarr', 'downloads-sonarr', 'calendar-radarr', 'calendar-sonarr']) el(name).replaceChildren();
+            disposed = true; catalogAbort.abort(); catalogSources.clear(); metadataAbort.abort(); metadata.clear(); ++requestListGeneration; ++sharedListGeneration; closeDetails(false); stopDownloads(); stopCalendar(); ++searchGeneration; ++discoveryGeneration; ++requestGeneration; ++sharedGeneration;
+            for (const name of ['movies', 'tv', 'requests', 'recommendations', 'trending', 'upcoming-movies', 'upcoming-tv', 'shared-requests', 'search-results', 'downloads-radarr', 'downloads-sonarr', 'calendar-radarr', 'calendar-sonarr']) el(name).replaceChildren();
             el('shared-requests').closest('section').hidden = true;
             el('calendar-panel').hidden = true;
             if (dialog.open) dialog.close();

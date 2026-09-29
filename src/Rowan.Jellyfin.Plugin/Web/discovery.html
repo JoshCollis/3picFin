@@ -14,8 +14,12 @@
                     <button type="submit">Search</button>
                 </div>
             </form>
-            <section aria-label="Trending Movies"><h3>Trending Movies</h3><div id="threepic-fin-trending-movies" class="threepic-fin-discovery__cards" aria-live="polite"></div></section>
-            <section aria-label="Trending Shows"><h3>Trending Shows</h3><div id="threepic-fin-trending-tv" class="threepic-fin-discovery__cards" aria-live="polite"></div></section>
+            <section aria-label="Search results"><h3>Search results</h3><div id="threepic-fin-search-results" class="threepic-fin-discovery__cards" aria-live="polite"></div>
+                <div class="threepic-fin-discovery__pager"><button id="threepic-fin-search-prev" type="button" aria-label="Previous search results page" disabled>Previous</button><span id="threepic-fin-search-page" aria-live="polite"></span><button id="threepic-fin-search-next" type="button" aria-label="Next search results page" disabled>Next</button></div>
+            </section>
+            <section aria-label="Trending"><h3>Trending</h3><div id="threepic-fin-trending" class="threepic-fin-discovery__cards" aria-live="polite"></div>
+                <div class="threepic-fin-discovery__pager" aria-label="Trending pages"><button id="threepic-fin-trending-prev" type="button" aria-label="Previous Trending page" disabled>Previous</button><span id="threepic-fin-trending-page" aria-live="polite"></span><button id="threepic-fin-trending-next" type="button" aria-label="Next Trending page" disabled>Next</button></div>
+            </section>
             <section aria-label="My Requests"><h3>My Requests</h3><div id="threepic-fin-requests" class="threepic-fin-discovery__cards" aria-live="polite"></div>
                 <div class="threepic-fin-discovery__pager" aria-label="My Requests pages"><button id="threepic-fin-requests-prev" type="button" aria-label="Previous requests page" disabled>Previous</button><span id="threepic-fin-requests-page" aria-live="polite"></span><button id="threepic-fin-requests-next" type="button" aria-label="Next requests page" disabled>Next</button></div>
             </section>
@@ -24,14 +28,17 @@
                 <div class="threepic-fin-discovery__pager" aria-label="All Requests pages"><button id="threepic-fin-shared-requests-prev" type="button" disabled>Previous</button><span id="threepic-fin-shared-requests-page" aria-live="polite"></span><button id="threepic-fin-shared-requests-next" type="button" disabled>Next</button></div>
             </section>
             <section aria-label="More to discover"><h3>More to discover</h3><div id="threepic-fin-recommendations" class="threepic-fin-discovery__cards" aria-live="polite"></div></section>
-            <section aria-label="Search results"><h3>Search results</h3><div id="threepic-fin-search-results" class="threepic-fin-discovery__cards" aria-live="polite"></div>
-                <div class="threepic-fin-discovery__pager"><button id="threepic-fin-search-prev" type="button" aria-label="Previous search results page" disabled>Previous</button><span id="threepic-fin-search-page" aria-live="polite"></span><button id="threepic-fin-search-next" type="button" aria-label="Next search results page" disabled>Next</button></div>
-            </section>
-            <section aria-label="Discover movies"><h3>Movies</h3><div id="threepic-fin-movies" class="threepic-fin-discovery__cards" aria-live="polite"></div>
+            <section aria-label="Popular Movies"><h3>Popular Movies</h3><div id="threepic-fin-movies" class="threepic-fin-discovery__cards" aria-live="polite"></div>
                 <div class="threepic-fin-discovery__pager" aria-label="Movies pages"><button id="threepic-fin-movies-prev" type="button" aria-label="Previous movies page" disabled>Previous</button><span id="threepic-fin-movies-page" aria-live="polite"></span><button id="threepic-fin-movies-next" type="button" aria-label="Next movies page" disabled>Next</button></div>
             </section>
-            <section aria-label="Discover TV"><h3>TV</h3><div id="threepic-fin-tv" class="threepic-fin-discovery__cards" aria-live="polite"></div>
+            <section aria-label="Popular TV"><h3>Popular TV</h3><div id="threepic-fin-tv" class="threepic-fin-discovery__cards" aria-live="polite"></div>
                 <div class="threepic-fin-discovery__pager" aria-label="TV pages"><button id="threepic-fin-tv-prev" type="button" aria-label="Previous TV page" disabled>Previous</button><span id="threepic-fin-tv-page" aria-live="polite"></span><button id="threepic-fin-tv-next" type="button" aria-label="Next TV page" disabled>Next</button></div>
+            </section>
+            <section aria-label="Upcoming Movies"><h3>Upcoming Movies</h3><div id="threepic-fin-upcoming-movies" class="threepic-fin-discovery__cards" aria-live="polite"></div>
+                <div class="threepic-fin-discovery__pager" aria-label="Upcoming Movies pages"><button id="threepic-fin-upcoming-movies-prev" type="button" aria-label="Previous Upcoming Movies page" disabled>Previous</button><span id="threepic-fin-upcoming-movies-page" aria-live="polite"></span><button id="threepic-fin-upcoming-movies-next" type="button" aria-label="Next Upcoming Movies page" disabled>Next</button></div>
+            </section>
+            <section aria-label="Upcoming TV"><h3>Upcoming TV</h3><div id="threepic-fin-upcoming-tv" class="threepic-fin-discovery__cards" aria-live="polite"></div>
+                <div class="threepic-fin-discovery__pager" aria-label="Upcoming TV pages"><button id="threepic-fin-upcoming-tv-prev" type="button" aria-label="Previous Upcoming TV page" disabled>Previous</button><span id="threepic-fin-upcoming-tv-page" aria-live="polite"></span><button id="threepic-fin-upcoming-tv-next" type="button" aria-label="Next Upcoming TV page" disabled>Next</button></div>
             </section>
         </div>
         <div id="threepic-fin-downloads-panel" role="tabpanel" aria-labelledby="threepic-fin-downloads-tab" hidden>
