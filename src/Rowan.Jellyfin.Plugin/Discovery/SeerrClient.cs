@@ -48,7 +48,12 @@ public sealed class SeerrResult
 }
 
 /// <summary>Independent source outcomes after one identity mapping.</summary>
-public sealed record SeerrBundle(SeerrResult Movies, SeerrResult Tv, SeerrResult Requests);
+public sealed record SeerrBundle(SeerrResult Movies, SeerrResult Tv, SeerrResult Requests)
+{
+    // Server-side authorization context only; never part of a browser response.
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int? MappedRequesterId { get; init; }
+}
 
 /// <summary>Read-only, per-call Jellyfin-to-Seerr identity binding. No identity cache or browser-supplied Seerr ID.</summary>
 public sealed class SeerrClient
@@ -422,7 +427,7 @@ public sealed class SeerrClient
         var tv = CachedReadAsync(userId, $"api/v1/discover/tv?page={boundedTv}", id, mapping.Fingerprint, _timeout - elapsed.Elapsed, timeout.Token, cancellationToken);
         var requests = CachedReadAsync(userId, $"api/v1/request?take={boundedTake}&skip={(boundedRequests - 1) * boundedTake}&requestedBy={id.ToString(CultureInfo.InvariantCulture)}", id, mapping.Fingerprint, _timeout - elapsed.Elapsed, timeout.Token, cancellationToken);
         await Task.WhenAll(movies, tv, requests).ConfigureAwait(false);
-        return new SeerrBundle(movies.Result, tv.Result, requests.Result);
+        return new SeerrBundle(movies.Result, tv.Result, requests.Result) { MappedRequesterId = id };
     }
 
     private static SeerrBundle FailedBundle(SeerrFailure failure)
