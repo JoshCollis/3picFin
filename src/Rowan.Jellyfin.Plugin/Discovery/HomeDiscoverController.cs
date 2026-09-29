@@ -51,10 +51,10 @@ public sealed class HomeDiscoverController : ControllerBase
     /// <summary>Discover-page trending uses the same mapped, filtered feed independently of Home flags.</summary>
     [HttpGet("/3picFin/Discovery/Trending")]
     public Task<ActionResult<SourceResult<HomeDiscoverItem>>> GetDiscoveryTrending([FromQuery] int page = 1, CancellationToken cancellationToken = default) =>
-        ReadAsync("trending", null, config => config.DiscoveryPageEnabled, page, cancellationToken);
+        ReadAsync("trending", null, config => config.DiscoveryPageEnabled, page, cancellationToken, maxPages: 1);
 
     private async Task<ActionResult<SourceResult<HomeDiscoverItem>>> ReadAsync(string source, string? expectedType,
-        Func<PluginConfiguration, bool> enabled, int page, CancellationToken cancellationToken)
+        Func<PluginConfiguration, bool> enabled, int page, CancellationToken cancellationToken, int maxPages = 3)
     {
         if (User.Identity?.IsAuthenticated != true || !RecentlyAddedPolicy.TryGetUserId(User, out var userId) || !_userExists(userId)) return Forbid();
         var configuration = _configuration();
@@ -67,7 +67,7 @@ public sealed class HomeDiscoverController : ControllerBase
         var seen = new HashSet<(string, int)>();
         var tvChecks = 0;
         int? totalPages = null, totalResults = null;
-        for (var next = page; next <= 100 && next < page + 3 && items.Count < 20; next++)
+        for (var next = page; next <= 100 && next < page + maxPages && items.Count < 20; next++)
         {
             SeerrResult result;
             try { result = await _client.GetUserReadAsync(userId, $"api/v1/discover/{source}?page={next}", deadline.Token).ConfigureAwait(false); }

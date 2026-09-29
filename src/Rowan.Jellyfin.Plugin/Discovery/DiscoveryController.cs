@@ -248,6 +248,23 @@ public sealed class DiscoveryController : ControllerBase
         return Ok(new DiscoveryResponse(DiscoveryDtos.Catalog(bundle.Movies, "movie"), DiscoveryDtos.Catalog(bundle.Tv, "tv"), DiscoveryDtos.Requests(bundle.Requests, bundle.MappedRequesterId)));
     }
 
+    [HttpGet("Discovery/UpcomingMovies")]
+    public Task<ActionResult<SourceResult<CatalogItem>>> GetUpcomingMovies([FromQuery] int page = 1, CancellationToken cancellationToken = default) =>
+        GetUpcoming("movies", "movie", page, cancellationToken);
+
+    [HttpGet("Discovery/UpcomingTV")]
+    public Task<ActionResult<SourceResult<CatalogItem>>> GetUpcomingTv([FromQuery] int page = 1, CancellationToken cancellationToken = default) =>
+        GetUpcoming("tv", "tv", page, cancellationToken);
+
+    private async Task<ActionResult<SourceResult<CatalogItem>>> GetUpcoming(string endpoint, string mediaType, int page, CancellationToken cancellationToken)
+    {
+        if (!TryUser(out var id)) return Forbid();
+        if (page is < 1 or > 100) return BadRequest();
+        Response.Headers.CacheControl = "private, no-store";
+        var result = await _client.GetUserReadAsync(id, $"api/v1/discover/{endpoint}/upcoming?page={page}", cancellationToken).ConfigureAwait(false);
+        return Ok(DiscoveryDtos.Catalog(result, mediaType));
+    }
+
     [HttpGet("Search")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
