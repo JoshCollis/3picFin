@@ -38,22 +38,27 @@ public sealed class HomeDiscoverController : ControllerBase
 
     [HttpGet("Discover")]
     public Task<ActionResult<SourceResult<HomeDiscoverItem>>> GetDiscover([FromQuery] int page = 1, CancellationToken cancellationToken = default) =>
-        ReadAsync("trending", null, config => config.DiscoverRowEnabled, page, cancellationToken);
+        ReadAsync("trending", null, config => config.HomeEnabled && config.DiscoverRowEnabled, page, cancellationToken);
 
     [HttpGet("DiscoverMovies")]
     public Task<ActionResult<SourceResult<HomeDiscoverItem>>> GetDiscoverMovies([FromQuery] int page = 1, CancellationToken cancellationToken = default) =>
-        ReadAsync("movies", "movie", config => config.DiscoverMoviesRowEnabled, page, cancellationToken);
+        ReadAsync("movies", "movie", config => config.HomeEnabled && config.DiscoverMoviesRowEnabled, page, cancellationToken);
 
     [HttpGet("DiscoverTV")]
     public Task<ActionResult<SourceResult<HomeDiscoverItem>>> GetDiscoverTv([FromQuery] int page = 1, CancellationToken cancellationToken = default) =>
-        ReadAsync("tv", "tv", config => config.DiscoverTvRowEnabled, page, cancellationToken);
+        ReadAsync("tv", "tv", config => config.HomeEnabled && config.DiscoverTvRowEnabled, page, cancellationToken);
+
+    /// <summary>Discover-page trending uses the same mapped, filtered feed independently of Home flags.</summary>
+    [HttpGet("/3picFin/Discovery/Trending")]
+    public Task<ActionResult<SourceResult<HomeDiscoverItem>>> GetDiscoveryTrending([FromQuery] int page = 1, CancellationToken cancellationToken = default) =>
+        ReadAsync("trending", null, config => config.DiscoveryPageEnabled, page, cancellationToken);
 
     private async Task<ActionResult<SourceResult<HomeDiscoverItem>>> ReadAsync(string source, string? expectedType,
         Func<PluginConfiguration, bool> enabled, int page, CancellationToken cancellationToken)
     {
         if (User.Identity?.IsAuthenticated != true || !RecentlyAddedPolicy.TryGetUserId(User, out var userId) || !_userExists(userId)) return Forbid();
         var configuration = _configuration();
-        if (configuration?.HomeEnabled != true || !enabled(configuration)) return NotFound();
+        if (configuration is null || !enabled(configuration)) return NotFound();
         if (page is < 1 or > 100) return BadRequest();
         Response.Headers.CacheControl = "private, no-store";
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
