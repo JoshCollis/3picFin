@@ -69,18 +69,39 @@
 .threepic-fin-discovery #threepic-fin-discover-panel .threepic-fin-discovery__pager button:disabled { display: none; }
 .threepic-fin-discovery #threepic-fin-discover-panel .threepic-fin-discovery__pager:has(button:disabled + span + button:disabled) { display: none; }
 .threepic-fin-discovery__dialog {
-    max-width: min(34rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto;
-    padding: 1.5rem; border: 1px solid var(--border-color, #777); border-radius: .75rem;
-    color: var(--primary-text-color, #f5f5f5); background: var(--drawerColor, var(--background-color, #202020));
-    backdrop-filter: blur(18px); box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .5);
+    width: min(38rem, calc(100vw - 2rem)); max-width: calc(100vw - 2rem);
+    max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.5rem;
+    border: 1px solid var(--borderColor, var(--border-color, #47505c));
+    border-radius: var(--ef12-surfaceRadius, 1rem);
+    color: var(--textColor, var(--primary-text-color, #d1d5db));
+    background: var(--drawerColor, var(--background-color, #1e2836));
+    font: inherit; backdrop-filter: blur(18px); box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .5);
 }
-.threepic-fin-discovery .threepic-fin-discovery__details[open] { display: grid; grid-template-columns: minmax(0, 9rem) minmax(0, 1fr); column-gap: 1.2rem; align-content: start; width: min(40rem, calc(100vw - 1.5rem)); padding: 1.25rem; padding-right: 3.25rem; position: fixed; }
-.threepic-fin-discovery__details h3 { grid-column: 2; margin: .1rem 0 .25rem; font-size: clamp(1.2rem, 3vw, 1.5rem); line-height: 1.25; }
-.threepic-fin-discovery__details p { line-height: 1.4; overflow-wrap: anywhere; margin: .15rem 0 .7rem; }
-.threepic-fin-discovery__details #threepic-fin-details-body { grid-column: 1; grid-row: 1 / span 4; }
+.threepic-fin-discovery .threepic-fin-discovery__details[open] {
+    display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 0 1.5rem;
+    align-content: start; width: min(44rem, calc(100vw - 2rem)); padding: 2rem; position: fixed;
+}
+.threepic-fin-discovery .threepic-fin-discovery__dialog h3 {
+    margin: 0 0 .5rem; font-size: clamp(1.35rem, 3vw, 1.8rem); line-height: 1.2;
+    font-weight: 600; overflow-wrap: anywhere;
+}
+.threepic-fin-discovery__details-heading { grid-column: 2; min-width: 0; padding-right: 2rem; }
+.threepic-fin-discovery__details p { line-height: 1.6; overflow-wrap: anywhere; margin: 0 0 1rem; }
+.threepic-fin-discovery__details #threepic-fin-details-body { grid-column: 1; grid-row: 1 / span 3; }
 .threepic-fin-discovery__details #threepic-fin-details-body:empty { display: none; }
-.threepic-fin-discovery__details #threepic-fin-details-body img { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: .3rem; }
+.threepic-fin-discovery__dialog img { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--smallRadius, .5rem); }
 .threepic-fin-discovery__details:has(#threepic-fin-details-body:empty) { grid-template-columns: minmax(0, 1fr); }
+.threepic-fin-discovery__dialog :is(button, input) { font: inherit; }
+.threepic-fin-discovery__dialog button {
+    color: inherit; background: transparent; border-color: var(--borderColor, #47505c);
+    border-radius: var(--smallRadius, .5rem); padding: .65rem 1rem;
+}
+.threepic-fin-discovery__dialog :is(button, input):focus-visible { outline: 2px solid var(--textColor, #d1d5db); outline-offset: 3px; }
+.threepic-fin-discovery__request-heading { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr); gap: 1rem; align-items: center; margin-bottom: 1.5rem; }
+.threepic-fin-discovery__request-heading:has(#threepic-fin-request-art:empty) { grid-template-columns: minmax(0, 1fr); }
+#threepic-fin-request-art:empty { display: none; }
+.threepic-fin-discovery__dialog #threepic-fin-request-meta { margin: 0; color: var(--dimTextColor, #9ca3af); }
+.threepic-fin-discovery__dialog #threepic-fin-request-status { line-height: 1.5; overflow-wrap: anywhere; }
 /* Missing or failed art retains the same poster rhythm as decoded artwork. */
 .threepic-fin-discovery__card:has(.threepic-fin-discovery__poster-fallback) .threepic-fin-discovery__poster-frame,
 .threepic-fin-discovery__card:has(.threepic-fin-discovery__poster-fallback) .threepic-fin-discovery__poster-button { aspect-ratio: 2 / 3; height: auto; }
@@ -96,25 +117,24 @@
 .threepic-fin-discovery__details #threepic-fin-details-request:not([hidden]),
 .threepic-fin-discovery__details #threepic-fin-details-open:not([hidden]),
 .threepic-fin-discovery__dialog #threepic-fin-request-submit:not(:disabled) {
-    background: var(--primary-accent-color, #435dad); color: #fff; border-color: transparent;
+    background: var(--btnSubmitColor, var(--primary-accent-color, #3d36b2)); color: #fff; border-color: transparent;
 }
-.threepic-fin-discovery__details:has(#threepic-fin-details-body:empty) :is(h3, p, #threepic-fin-details-seasons, .threepic-fin-discovery__actions) { grid-column: 1; }
-.threepic-fin-discovery__details #threepic-fin-details-meta { grid-column: 2; color: var(--secondary-text-color, #bbb); font-size: .9rem; }
-.threepic-fin-discovery__details #threepic-fin-details-overview { grid-column: 2; max-height: 10rem; overflow-y: auto; }
-.threepic-fin-discovery__details #threepic-fin-details-status { grid-column: 2; font-size: .9rem; }
-.threepic-fin-discovery__details #threepic-fin-details-seasons, .threepic-fin-discovery__details .threepic-fin-discovery__actions { grid-column: 1 / -1; }
-.threepic-fin-discovery__details .threepic-fin-discovery__actions { margin-top: .5rem; }
-.threepic-fin-discovery__details-close { position: absolute; top: .75rem; right: .75rem; width: 2.3rem; min-height: 2.3rem !important; padding: 0 !important; }
-.threepic-fin-discovery__season { display: inline-block; padding: .35rem .65rem; margin: .15rem; border: 1px solid var(--border-color, #777); border-radius: .4rem; }
+.threepic-fin-discovery__details:has(#threepic-fin-details-body:empty) :is(.threepic-fin-discovery__details-heading, p, .threepic-fin-discovery__actions) { grid-column: 1; }
+.threepic-fin-discovery__details #threepic-fin-details-meta { grid-column: 2; color: var(--dimTextColor, var(--secondary-text-color, #9ca3af)); font-size: .9rem; }
+.threepic-fin-discovery__details #threepic-fin-details-overview { grid-column: 2; }
+.threepic-fin-discovery__details #threepic-fin-details-status { grid-column: 2; font-size: .9rem; color: var(--dimTextColor, #9ca3af); }
+.threepic-fin-discovery__details .threepic-fin-discovery__actions { grid-column: 1 / -1; }
+.threepic-fin-discovery__details .threepic-fin-discovery__actions { margin-top: .5rem; padding-top: 1rem; border-top: 1px solid var(--borderColor, #47505c); }
+.threepic-fin-discovery__details-close { position: absolute; top: .5rem; right: .5rem; width: 2.75rem; min-height: 2.75rem !important; border: 0 !important; padding: 0 !important; }
 .threepic-fin-discovery__dialog::backdrop { background: rgba(0, 0, 0, .75); }
-.threepic-fin-discovery__dialog fieldset { max-height: 14rem; overflow: auto; border: 1px solid var(--border-color, #777); }
+.threepic-fin-discovery__dialog fieldset { max-height: 14rem; overflow: auto; border: 1px solid var(--borderColor, #47505c); border-radius: var(--smallRadius, .5rem); margin: 1rem 0; }
 .threepic-fin-discovery__dialog fieldset label { margin: .25rem 0; display: flex; align-items: center; gap: .5rem; }
-.threepic-fin-discovery__dialog input[type="checkbox"] { min-height: 1.5rem; min-width: 1.5rem; }
+.threepic-fin-discovery__dialog input[type="checkbox"] { accent-color: var(--accentColor, #5d55e7); min-height: 1.5rem; min-width: 1.5rem; }
 .threepic-fin-discovery__actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
 .threepic-fin-discovery [hidden] { display: none !important; }
 @media (max-width: 600px) {
     .threepic-fin-discovery__content { padding-inline: 3.3%; }
-    .threepic-fin-discovery .threepic-fin-discovery__details[open] { grid-template-columns: 5.5rem minmax(0, 1fr); gap: .25rem .85rem; padding: 1rem; padding-right: 3rem; }
+    .threepic-fin-discovery .threepic-fin-discovery__details[open] { grid-template-columns: 5.5rem minmax(0, 1fr); gap: .25rem .85rem; padding: 1.25rem; }
     .threepic-fin-discovery .threepic-fin-discovery__dialog { width: calc(100vw - 1.5rem); max-height: calc(100dvh - 1.5rem); }
     .threepic-fin-discovery .threepic-fin-discovery__details[open] { padding-bottom: 1rem; }
     .threepic-fin-discovery__details .threepic-fin-discovery__actions,
@@ -122,7 +142,8 @@
     .threepic-fin-discovery__details .threepic-fin-discovery__actions button,
     .threepic-fin-discovery__dialog .threepic-fin-discovery__actions button { flex: 1 1 9rem; }
     .threepic-fin-discovery__dialog #threepic-fin-request-form { min-width: 0; }
-    .threepic-fin-discovery__details #threepic-fin-details-body { grid-row: 1 / span 3; }
+    .threepic-fin-discovery__details #threepic-fin-details-body { grid-row: 1; margin-bottom: 1rem; }
+    .threepic-fin-discovery__details-heading { align-self: center; }
     .threepic-fin-discovery__details #threepic-fin-details-overview, .threepic-fin-discovery__details #threepic-fin-details-status { grid-column: 1 / -1; }
     .threepic-fin-discovery__details:has(#threepic-fin-details-body:empty) { grid-template-columns: minmax(0, 1fr); }
 }
