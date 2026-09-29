@@ -3,3 +3,7 @@
 /dist/
 **/__pycache__/
 *.pyc
+
+# Workspace-local synthetic browser tooling and evidence
+.qa-tools/
+.qa-venv/

@@ -148,3 +148,10 @@
     .threepic-fin-discovery__details:has(#threepic-fin-details-body:empty) { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { .threepic-fin-discovery *, .threepic-fin-discovery *::before, .threepic-fin-discovery *::after { scroll-behavior: auto; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* Keep search prominent even when host theme form rules arrive later. */
+.threepic-fin-discovery #threepic-fin-search-form { width: 100%; margin-block: 1.25rem 1.5rem; }
+.threepic-fin-discovery #threepic-fin-search-form label { margin-top: 0; font-weight: 600; }
+.threepic-fin-discovery__search-controls { width: 100%; }
+.threepic-fin-discovery #threepic-fin-search { width: 100%; font-size: 1rem; }
+.threepic-fin-discovery__details #threepic-fin-details-overview { max-height: 15rem; overflow-y: auto; }
