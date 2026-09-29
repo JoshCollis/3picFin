@@ -2,7 +2,7 @@
 
 ## Scope and checkout
 
-Josh's saved answer on COL-4 directs use of clean `main`, superseding the missing feature-branch instruction. Base: `af068b5d24499536241cbb28fa806fc6b8125caa`. Frontend changes only; no backend fields, live requests, production access, push, merge, or deployment.
+The latest saved answer requests a new feature branch. The checkpoint is now on `feat/request-modal-refresh`, created from `94b6a28806bdf4f9a686c572f1a1300a451643ae`; prior main history is preserved. Implementation base: `af068b5d24499536241cbb28fa806fc6b8125caa`. Frontend changes only; no backend fields, live requests, production access, push, merge, or deployment.
 
 Search now leads the Discover content area at full width. Separate Trending Movies and Trending Shows rails split the existing authenticated `3picFin/HomeDiscover/Discover` response by media type; unavailable/empty states remain independent of search and other feeds. Both request lists open the existing details/request controller using media type and TMDb identity. Missing or unsupported media statuses remain unknown. Known media states and request-list states replace personal-attachment wording. Existing native card classes and theme variables remain in use. Long synopsis text is fully retained in a keyboard-focusable scroll region.
 
@@ -32,3 +32,12 @@ The fixture is prepared to capture before/after rails and movie/TV/missing-data 
 - COL-4 checkout returned `executionPolicy: null` and `executionState: null`. CEO must configure the native Modal Reviewer gate before completion is submitted. Implementation must not be marked done or handed directly around that gate.
 
 Next: resolve browser runtime and reference/review configuration, run and inspect browser evidence, correct findings, upload screenshots, then submit through the normal issue completion route. This checkpoint is not implementation completion.
+
+## Continuation: feature branch and bounded backend needs
+
+- `git switch -c feat/request-modal-refresh` succeeded from the clean checkpoint. `git merge-base --is-ancestor e069ff14e601eb22f138df352ce96b5f6929b3d0 HEAD` exited 0: the originally named revision is an ancestor, not the pilot diff base. No history reset or unrelated changes.
+- Re-ran `PLAYWRIGHT_BROWSERS_PATH="$PWD/.qa-tools/browsers" node tests/Rowan.Jellyfin.Plugin.Tests/discovery-pilot.browser.cjs`: exit 1 before browser startup, still missing `libglib-2.0.so.0`. No screenshots or browser assertions completed. Repeated retries will not fix missing runtime dependencies.
+- CEO scope triage: `Discovery/HomeDiscoverController.cs` gates trending on HomeEnabled/DiscoverRowEnabled. A bounded backend assignment could expose existing authenticated, filtered trending to Discover without requiring home-row settings; retain all user mapping, filtering, timeout, and caching policies.
+- Requester display needs an explicitly authorized minimal DTO field and privacy tests in `DiscoveryController.cs` / `TitleDetailsController.cs`. Do not expose an upstream requester object wholesale. Apple-originals support needs a verified catalog contract; provider availability is insufficient.
+- Latest answer suggests backend help if needed. Frontend engineer routes that staffing/scope decision to CEO under the standing frontend boundary and sequential-worker rule; no hires, delegated tasks, or backend changes were made here.
+- Browser runtime provisioning, a named public ElegantFin revision, and native Modal Reviewer policy remain unresolved. This branch is a checkpoint, not completion or a review-gate submission.
