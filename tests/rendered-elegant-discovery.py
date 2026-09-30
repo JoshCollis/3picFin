@@ -74,7 +74,7 @@ def run():
                     page.screenshot(path=str(Path(os.environ['ELEGANTFIN_SCREENSHOTS']) / f'{width}-rows.png'), full_page=True)
                 print(json.dumps({'width':width,'geometry':g}))
                 assert g['decoded'] == 80
-                for name in ('movies', 'tv', 'requests', 'shared-requests', 'recommendations'):
+                for name in ('movies', 'tv', 'requests', 'shared-requests', 'trending'):
                     card_style = page.locator(f'#threepic-fin-{name} .threepic-fin-discovery__card').first.evaluate('''e => {
                       const shape = n => n && ({background:getComputedStyle(n).backgroundColor,border:getComputedStyle(n).borderWidth});
                       return {box:shape(e.querySelector('.cardBox')),title:shape(e.querySelector('.cardText')),footer:shape(e.querySelector('.cardFooter'))};
@@ -96,7 +96,7 @@ def run():
                 poster_button.focus()
                 assert poster_button.evaluate("e => document.activeElement === e"), 'poster Details stays keyboard focusable'
                 assert g['missing']['h'] >= g['poster']['h'], 'missing-art card should hold the poster rhythm'
-                gaps = [b['rect']['y'] - a['rect']['bottom'] for a,b in zip(g['sections'],g['sections'][1:]) if a['heading'] != 'More to discover']
+                gaps = [b['rect']['y'] - a['rect']['bottom'] for a,b in zip(g['sections'],g['sections'][1:])]
                 assert max(gaps) <= 32, f'oversized section gaps: {gaps}'
                 page.locator('#threepic-fin-movies .threepic-fin-discovery__title-button').first.click()
                 dialog = page.locator('#threepic-fin-details-dialog')
