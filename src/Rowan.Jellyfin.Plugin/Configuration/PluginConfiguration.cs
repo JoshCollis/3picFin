@@ -66,6 +66,9 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets whether server-side Seerr integration is enabled. Disabled by default.</summary>
     public bool SeerrEnabled { get; set; }
 
+    /// <summary>Allow new 4K requests subject to Seerr permissions. Legacy configurations default off.</summary>
+    public bool Enable4kRequests { get; set; }
+
     /// <summary>Household-wide requests for existing signed-in users. Default off.</summary>
     public bool SharedRequestsEnabled { get; set; }
 

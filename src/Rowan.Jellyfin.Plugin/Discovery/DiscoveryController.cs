@@ -121,20 +121,23 @@ public sealed class DiscoveryController : ControllerBase
     private readonly SeerrClient _client;
     private readonly Func<Guid, bool> _userExists;
     private readonly Func<bool> _sharedEnabled;
-    private readonly Func<Guid, int, bool> _movieAvailable;
+    private readonly Func<Guid, int, TitleLibraryResolution> _movieResolution;
+    private readonly Func<Guid, int, TitleLibraryResolution> _movie4kResolution;
 
     [ActivatorUtilitiesConstructor]
-    public DiscoveryController(SeerrClient client, IUserManager users, ILibraryManager libraries) : this(client, id => users.GetUserById(id) is not null,
+    public DiscoveryController(SeerrClient client, IUserManager users, ILibraryManager libraries, IMediaSourceManager mediaSources) : this(client, id => users.GetUserById(id) is not null,
         () => Plugin.Current?.Configuration.SharedRequestsEnabled == true,
-        (id, tmdb) => TitleDetailsController.ResolveLibrary(users, libraries, id, "movie", tmdb, null).ItemId.HasValue) { }
+        movieResolution: (id, tmdb) => TitleDetailsController.ResolveLibrary(users, libraries, id, "movie", tmdb, null),
+        movie4kResolution: (id, tmdb) => TitleDetailsController.ResolveLibrary(users, libraries, id, "movie", tmdb, null, item => TitleDetailsController.Is4kMovie(mediaSources, item))) { }
 
     /// <summary>Allows isolated controller tests without a live Jellyfin database.</summary>
-    public DiscoveryController(SeerrClient client, Func<Guid, bool> userExists, Func<bool>? sharedEnabled = null, Func<Guid, int, bool>? movieAvailable = null)
+    public DiscoveryController(SeerrClient client, Func<Guid, bool> userExists, Func<bool>? sharedEnabled = null, Func<Guid, int, bool>? movieAvailable = null, Func<Guid, int, TitleLibraryResolution>? movieResolution = null, Func<Guid, int, TitleLibraryResolution>? movie4kResolution = null)
     {
         _client = client;
         _userExists = userExists;
         _sharedEnabled = sharedEnabled ?? (() => false);
-        _movieAvailable = movieAvailable ?? ((_, _) => false);
+        _movie4kResolution = movie4kResolution ?? ((_, _) => new(null, "absent"));
+        _movieResolution = movieResolution ?? ((id, tmdb) => movieAvailable?.Invoke(id, tmdb) == true ? new(Guid.Empty, "present") : new(null, "absent"));
     }
 
     [HttpGet("SharedRequests")]
@@ -163,6 +166,18 @@ public sealed class DiscoveryController : ControllerBase
         if (!TryUser(out var id)) return Forbid();
         if (mediaType is not ("movie" or "tv") || mediaId < 1 || mediaId > 100_000_000) return BadRequest();
         var result = await _client.GetRequestOptionsAsync(id, mediaType, mediaId, cancellationToken).ConfigureAwait(false);
+        Response.Headers.CacheControl = "private, no-store";
+        if (result.Value is not null && mediaType == "movie")
+        {
+            try
+            {
+                result = result with { Value = result.Value with {
+                    CanRequest = result.Value.CanRequest && _movieResolution(id, mediaId).Status == "absent",
+                    CanRequest4k = result.Value.CanRequest4k && _movie4kResolution(id, mediaId).Status == "absent"
+                } };
+            }
+            catch (Exception) { return StatusCode(StatusCodes.Status502BadGateway); }
+        }
         return result.Failure is null ? Ok(result.Value) : StatusCode(result.Failure == SeerrFailure.UserNotMapped ? 403 : 502);
     }
 
@@ -178,9 +193,19 @@ public sealed class DiscoveryController : ControllerBase
         if (!TrySelection(body, out var selection)) return BadRequest("Invalid request selection.");
         // A uniquely resolved movie in this user's visible library is already available
         // even when Seerr has not synchronized its media status. Series ID proves no seasons.
-        if (selection!.MediaType == "movie" && !selection.Is4k && _movieAvailable(id, selection.MediaId))
-            return StatusCode(StatusCodes.Status409Conflict);
-        var result = await _client.CreateRequestAsync(id, selection!, cancellationToken).ConfigureAwait(false);
+        SeerrFailure? LocalEligibility()
+        {
+            if (selection!.MediaType != "movie") return null;
+            try
+            {
+                var local = (selection.Is4k ? _movie4kResolution : _movieResolution)(id, selection.MediaId);
+                return local.ItemId.HasValue ? SeerrFailure.AlreadyRequested : local.Status == "absent" ? null : SeerrFailure.UpstreamUnavailable;
+            }
+            catch (Exception) { return SeerrFailure.UpstreamUnavailable; }
+        }
+        var localFailure = LocalEligibility();
+        var result = localFailure is not null ? new SeerrCreateResult(null, localFailure) :
+            await _client.CreateRequestAsync(id, selection!, cancellationToken, LocalEligibility).ConfigureAwait(false);
         return result.Failure switch
         {
             null => Created((string?)null, result.Value),
