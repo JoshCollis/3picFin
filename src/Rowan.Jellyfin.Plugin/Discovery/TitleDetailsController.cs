@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations.Entities;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Dto;
+using MediaBrowser.Model.Querying;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -27,20 +29,50 @@ public sealed record TitleDetails(
     [property: JsonPropertyName("CanRequest")] bool CanRequest,
     [property: JsonPropertyName("CanRequest4k")] bool CanRequest4k,
     [property: JsonPropertyName("Seasons")] int[] Seasons,
-    [property: JsonPropertyName("Date")] string? Date = null);
+    [property: JsonPropertyName("Date")] string? Date = null,
+    [property: JsonPropertyName("LibraryStatus")] string LibraryStatus = "unknown");
 public sealed record TitleDetailResult(TitleDetails? Value, Guid? JellyfinHint, SeerrFailure? Failure);
 public sealed record TitleLibraryCandidate(Guid Id, string Type, string? TmdbId, bool Visible, Guid RootId = default);
 
-/// <summary>Only a unique eligible TMDb match can become a playable item ID.</summary>
+public sealed record TitleLibraryResolution(Guid? ItemId, string Status);
+
+/// <summary>Provider identity and current access, never titles or Seerr status, establish membership.</summary>
 public static class TitleLibraryPolicy
 {
     public static Guid? Resolve(IEnumerable<TitleLibraryCandidate> candidates, string type, int tmdbId, Guid? hint,
         Func<TitleLibraryCandidate, bool>? revalidate = null)
     {
         var matches = candidates.Where(item => item.Visible && item.Id != Guid.Empty && item.Type == type &&
-            item.TmdbId == tmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture)).Take(2).ToArray();
-        return matches.Length == 1 && (hint is null || hint == matches[0].Id) &&
-            (revalidate is null || revalidate(matches[0])) ? matches[0].Id : null;
+            item.TmdbId == tmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .DistinctBy(item => item.Id).OrderBy(item => item.Id).ToArray();
+        // An accessible hint is a preference only. A stale/foreign hint cannot veto a verified match.
+        return matches.OrderByDescending(item => item.Id == hint)
+            .FirstOrDefault(item => revalidate is null || revalidate(item))?.Id;
+    }
+
+    public const int CandidateLimit = 32;
+
+    public static InternalItemsQuery CreateQuery(User user, Guid[] roots, string type, int tmdb) => new(user)
+    {
+        Recursive = true, AncestorIds = roots,
+        IncludeItemTypes = type == "movie" ? [BaseItemKind.Movie] : [BaseItemKind.Series],
+        HasAnyProviderId = new Dictionary<string, string> { ["Tmdb"] = tmdb.ToString(System.Globalization.CultureInfo.InvariantCulture) },
+        DtoOptions = new DtoOptions { Fields = [ItemFields.ProviderIds], EnableImages = false, EnableUserData = false },
+        IsVirtualItem = false, Limit = CandidateLimit + 1, EnableTotalRecordCount = false,
+        GroupByPresentationUniqueKey = false, IncludeAlternateVersions = true
+    };
+
+    public static TitleLibraryResolution Lookup(User user, Guid[] roots, string type, int tmdb, Guid? hint,
+        Func<InternalItemsQuery, IEnumerable<TitleLibraryCandidate>> query, Func<TitleLibraryCandidate, bool> revalidate)
+    {
+        // Never allow an empty ancestor filter to accidentally become an unrestricted query.
+        if (roots.Length == 0) return new(null, "absent");
+        var candidates = query(CreateQuery(user, roots, type, tmdb)).Take(CandidateLimit + 1).ToArray();
+        // Bounded duplicate budget; truncation is uncertainty, not proof of absence or uniqueness.
+        if (candidates.Length > CandidateLimit) return new(null, "unknown");
+        var match = Resolve(candidates, type, tmdb, hint, revalidate);
+        if (match is not null) return new(match, "present");
+        return new(null, candidates.Length == 0 ? "absent" : "unknown");
     }
 }
 
@@ -51,14 +83,14 @@ public sealed class TitleDetailsController : ControllerBase
 {
     private readonly SeerrClient _seerr;
     private readonly Func<Guid, bool> _userExists;
-    private readonly Func<Guid, string, int, Guid?, Guid?> _resolve;
+    private readonly Func<Guid, string, int, Guid?, TitleLibraryResolution> _resolve;
 
     [ActivatorUtilitiesConstructor]
     public TitleDetailsController(SeerrClient seerr, IUserManager users, ILibraryManager libraries)
         : this(seerr, id => users.GetUserById(id) is not null,
             (id, type, tmdb, hint) => ResolveLibrary(users, libraries, id, type, tmdb, hint)) { }
 
-    public TitleDetailsController(SeerrClient seerr, Func<Guid, bool> userExists, Func<Guid, string, int, Guid?, Guid?> resolve)
+    public TitleDetailsController(SeerrClient seerr, Func<Guid, bool> userExists, Func<Guid, string, int, Guid?, TitleLibraryResolution> resolve)
     {
         _seerr = seerr; _userExists = userExists; _resolve = resolve;
     }
@@ -74,51 +106,37 @@ public sealed class TitleDetailsController : ControllerBase
         var result = await _seerr.GetTitleDetailAsync(id, mediaType, mediaId, cancellationToken).ConfigureAwait(false);
         if (result.Failure is not null || result.Value is null)
             return StatusCode(result.Failure == SeerrFailure.UserNotMapped ? 403 : 502);
-        var itemId = _resolve(id, mediaType, mediaId, result.JellyfinHint);
-        return Ok(result.Value with { LibraryItemId = itemId });
+        TitleLibraryResolution membership;
+        try { membership = _resolve(id, mediaType, mediaId, result.JellyfinHint); }
+        catch (Exception) { membership = new(null, "unavailable"); }
+        return Ok(result.Value with { LibraryItemId = membership.ItemId, LibraryStatus = membership.Status });
     }
 
-    internal static Guid? ResolveLibrary(IUserManager users, ILibraryManager libraries, Guid userId, string type, int tmdb, Guid? hint)
+    internal static TitleLibraryResolution ResolveLibrary(IUserManager users, ILibraryManager libraries, Guid userId, string type, int tmdb, Guid? hint)
     {
         var user = users.GetUserById(userId);
-        if (user is null) return null;
-        var roots = libraries.GetUserRootFolder().GetChildren(user, true).OfType<CollectionFolder>()
-            .Select(folder => folder.Id).Distinct().Take(9).ToArray();
-        if (roots.Length == 0 || roots.Length > 8) return null;
-        var candidates = new List<TitleLibraryCandidate>();
-        foreach (var root in roots)
-        {
-            // Finite scan: never claim uniqueness if the result set exceeds the inspection budget.
-            var items = libraries.GetItemsResult(new InternalItemsQuery(user)
+        if (user is null) return new(null, "unknown");
+        Guid[] Roots(User current) => libraries.GetUserRootFolder().GetChildren(current, true).OfType<CollectionFolder>()
+            .Where(folder => folder.IsVisibleStandalone(current)).SelectMany(folder => folder.PhysicalFolderIds)
+            .Where(id => id != Guid.Empty).Distinct().ToArray();
+        var roots = Roots(user);
+        return TitleLibraryPolicy.Lookup(user, roots, type, tmdb, hint, query =>
+            libraries.GetItemsResult(query).Items.Select(item =>
             {
-                ParentId = root, Recursive = true, IncludeItemTypes = type == "movie" ? [BaseItemKind.Movie] : [BaseItemKind.Series],
-                IsVirtualItem = false, Limit = 257, EnableTotalRecordCount = false
-            }).Items;
-            if (items.Count > 256) return null;
-            foreach (var item in items)
-            {
-                var ancestors = item.GetAncestorIds().ToArray();
-                var eligible = !item.IsVirtualItem && item.IsVisibleStandalone(user) && ancestors.Contains(root);
-                foreach (var parentId in ancestors.TakeWhile(parent => parent != root))
-                {
-                    var parent = libraries.GetItemById(parentId);
-                    if (parent is null || !parent.IsVisibleStandalone(user)) { eligible = false; break; }
-                }
-                candidates.Add(new(item.Id, item is MediaBrowser.Controller.Entities.Movies.Movie ? "movie" :
-                    item is MediaBrowser.Controller.Entities.TV.Series ? "tv" : "other", item.ProviderIds.TryGetValue("Tmdb", out var providerId) ? providerId : null, eligible, root));
-            }
-        }
-        return TitleLibraryPolicy.Resolve(candidates, type, tmdb, hint, candidate =>
+                var root = item.GetAncestorIds().FirstOrDefault(roots.Contains);
+                return new TitleLibraryCandidate(item.Id, item is MediaBrowser.Controller.Entities.Movies.Movie ? "movie" :
+                    item is MediaBrowser.Controller.Entities.TV.Series ? "tv" : "other",
+                    item.ProviderIds.TryGetValue("Tmdb", out var providerId) ? providerId : null,
+                    root != Guid.Empty && !item.IsVirtualItem && item.IsVisibleStandalone(user), root);
+            }), candidate =>
         {
-            // Re-read all visibility gates after the scan: a queried snapshot can predate revocation.
+            // Re-read user, roots, item identity and every ancestor after the targeted query.
+            // The host calls this endpoint again immediately before navigation.
             var currentUser = users.GetUserById(userId);
-            if (currentUser is null) return false;
-            var currentRoots = libraries.GetUserRootFolder().GetChildren(currentUser, true).OfType<CollectionFolder>()
-                .Select(folder => folder.Id).Distinct().Take(9).ToArray();
-            if (currentRoots.Length > 8 || !currentRoots.Contains(candidate.RootId)) return false;
+            if (currentUser is null || !Roots(currentUser).Contains(candidate.RootId)) return false;
             var currentRoot = libraries.GetItemById(candidate.RootId);
             var currentItem = libraries.GetItemById(candidate.Id);
-            if (currentRoot is not CollectionFolder || !currentRoot.IsVisibleStandalone(currentUser) ||
+            if (currentRoot is not Folder || !currentRoot.IsVisibleStandalone(currentUser) ||
                 currentItem is null || currentItem.IsVirtualItem || !currentItem.IsVisibleStandalone(currentUser) ||
                 (type == "movie" ? currentItem is not MediaBrowser.Controller.Entities.Movies.Movie :
                     currentItem is not MediaBrowser.Controller.Entities.TV.Series) ||
