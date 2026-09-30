@@ -22,6 +22,16 @@ public sealed class TitleDetailsTests
     private static readonly Guid Item = Guid.Parse("731b21f6-0c54-4f0f-8a4d-f92389b460dd");
 
     [Fact]
+    public async Task SynopsisBeyondCardLengthIsPreservedForAccessibleModal()
+    {
+        var synopsis = new string('x', 1500);
+        using var http = new HttpClient(new Handler(req => Json(req.RequestUri!.AbsolutePath.Contains("/user/") ?
+            "{\"id\":42,\"permissions\":32}" : JsonSerializer.Serialize(new { id = 9, title = "Synthetic", overview = synopsis }))));
+        var detail = await Client(http).GetTitleDetailAsync(Alice, "movie", 9, default);
+        Assert.Equal(synopsis, detail.Value!.Overview);
+    }
+
+    [Fact]
     public async Task MappedDetailIsBoundedAllowlistedAndLocallyScoped()
     {
         var calls = new List<(string Path, string? User)>();
@@ -30,7 +40,7 @@ public sealed class TitleDetailsTests
             var user = req.Headers.TryGetValues("X-API-User", out var values) ? string.Join(",", values) : null;
             calls.Add((path, user));
             if (path.Contains("/user/jellyfin/")) return Json($"{{\"id\":{(path.Contains(Alice.ToString()) ? 42 : 57)},\"permissions\":528384}}");
-            return Json($$"""{"id":9,"name":"Show","overview":"Plot","firstAirDate":"2024-03-04","posterPath":"/poster.jpg","seasons":[{"seasonNumber":0},{"seasonNumber":1}],"mediaInfo":{"status":5,"jellyfinMediaId":"{{Item:D}}"},"secret":"do-not-leak"}""");
+            return Json($$"""{"id":9,"name":"Show","overview":"Plot","firstAirDate":"2024-03-04","posterPath":"/poster.jpg","seasons":[{"seasonNumber":0},{"seasonNumber":1}],"mediaInfo":{"status":5,"status4k":1,"requests":[],"seasons":[{"seasonNumber":1,"status":5,"status4k":1}],"jellyfinMediaId":"{{Item:D}}"},"secret":"do-not-leak"}""");
         }));
         var client = Client(http);
         foreach (var (user, expected) in new[] { (Alice, Item), (Bob, (Guid?)null) })
@@ -64,7 +74,7 @@ public sealed class TitleDetailsTests
     {
         using var http = new HttpClient(new Handler(req => Json(req.RequestUri!.AbsolutePath.Contains("/user/jellyfin/")
             ? "{\"id\":42,\"permissions\":32}"
-            : "{\"id\":9,\"title\":\"Fixture\",\"mediaInfo\":{\"status\":5}}")));
+            : "{\"id\":9,\"title\":\"Fixture\",\"mediaInfo\":{\"status\":5,\"status4k\":1,\"requests\":[]}}")));
         var controller = Controller(Client(http), Alice, (_, _, _, _) => throw new InvalidOperationException("private diagnostic"));
         var response = Assert.IsType<OkObjectResult>((await controller.GetTitleDetails("movie", 9, CancellationToken.None)).Result);
         var value = Assert.IsType<TitleDetails>(response.Value);
@@ -133,7 +143,7 @@ public sealed class TitleDetailsTests
         Assert.IsType<StatusCodeResult>((await controller.GetTitleDetails("movie", 9, CancellationToken.None)).Result);
     }
 
-    private static SeerrClient Client(HttpClient http) => new(http, SeerrOptions.FromConfiguration(new PluginConfiguration { SeerrEnabled = true, SeerrBaseUrl = "https://seerr.example/seerr", SeerrApiKey = "secret" }));
+    private static SeerrClient Client(HttpClient http) => new(http, SeerrOptions.FromConfiguration(new PluginConfiguration { SeerrEnabled = true, Enable4kRequests = true, SeerrBaseUrl = "https://seerr.example/seerr", SeerrApiKey = "secret" }));
     private static TitleDetailsController Controller(SeerrClient client, Guid user, Func<Guid, string, int, Guid?, Guid?> resolve)
     {
         var controller = new TitleDetailsController(client, id => id == user, (id, type, tmdb, hint) => { var match = resolve(id, type, tmdb, hint); return new(match, match is null ? "unknown" : "present"); });

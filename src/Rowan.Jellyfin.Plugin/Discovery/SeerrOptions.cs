@@ -7,13 +7,15 @@ namespace Rowan.Jellyfin.Plugin.Discovery;
 /// <summary>Validated server-only Seerr connection settings; null means no upstream calls.</summary>
 public sealed class SeerrOptions
 {
-    private SeerrOptions(Uri baseUri, string apiKey)
+    private SeerrOptions(Uri baseUri, string apiKey, bool enable4kRequests)
     {
         BaseUri = baseUri;
         ApiKey = apiKey;
+        Enable4kRequests = enable4kRequests;
     }
 
     public Uri BaseUri { get; }
+    public bool Enable4kRequests { get; }
 
     /// <summary>Secret for server-side transport only. Never return in a user-facing response or log.</summary>
     [JsonIgnore]
@@ -41,7 +43,7 @@ public sealed class SeerrOptions
         }
 
         var baseUri = uri.AbsoluteUri.EndsWith("/", StringComparison.Ordinal) ? uri : new Uri(uri.AbsoluteUri + "/");
-        return new SeerrOptions(baseUri, configuration.SeerrApiKey);
+        return new SeerrOptions(baseUri, configuration.SeerrApiKey, configuration.Enable4kRequests);
     }
 
     public override string ToString() => "SeerrOptions { credentials = [REDACTED] }";

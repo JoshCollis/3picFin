@@ -84,15 +84,17 @@ public sealed class TitleDetailsController : ControllerBase
     private readonly SeerrClient _seerr;
     private readonly Func<Guid, bool> _userExists;
     private readonly Func<Guid, string, int, Guid?, TitleLibraryResolution> _resolve;
+    private readonly Func<Guid, int, TitleLibraryResolution>? _resolve4k;
 
     [ActivatorUtilitiesConstructor]
-    public TitleDetailsController(SeerrClient seerr, IUserManager users, ILibraryManager libraries)
+    public TitleDetailsController(SeerrClient seerr, IUserManager users, ILibraryManager libraries, IMediaSourceManager mediaSources)
         : this(seerr, id => users.GetUserById(id) is not null,
-            (id, type, tmdb, hint) => ResolveLibrary(users, libraries, id, type, tmdb, hint)) { }
+            (id, type, tmdb, hint) => ResolveLibrary(users, libraries, id, type, tmdb, hint),
+            (id, tmdb) => ResolveLibrary(users, libraries, id, "movie", tmdb, null, item => Is4kMovie(mediaSources, item))) { }
 
-    public TitleDetailsController(SeerrClient seerr, Func<Guid, bool> userExists, Func<Guid, string, int, Guid?, TitleLibraryResolution> resolve)
+    public TitleDetailsController(SeerrClient seerr, Func<Guid, bool> userExists, Func<Guid, string, int, Guid?, TitleLibraryResolution> resolve, Func<Guid, int, TitleLibraryResolution>? resolve4k = null)
     {
-        _seerr = seerr; _userExists = userExists; _resolve = resolve;
+        _seerr = seerr; _userExists = userExists; _resolve = resolve; _resolve4k = resolve4k;
     }
 
     [HttpGet("TitleDetails")]
@@ -109,10 +111,26 @@ public sealed class TitleDetailsController : ControllerBase
         TitleLibraryResolution membership;
         try { membership = _resolve(id, mediaType, mediaId, result.JellyfinHint); }
         catch (Exception) { membership = new(null, "unavailable"); }
-        return Ok(result.Value with { LibraryItemId = membership.ItemId, LibraryStatus = membership.Status });
+        var can4k = result.Value.CanRequest4k;
+        if (can4k && mediaType == "movie" && _resolve4k is not null)
+        {
+            try { can4k = _resolve4k(id, mediaId).Status == "absent"; }
+            catch (Exception) { can4k = false; }
+        }
+        return Ok(result.Value with { CanRequest4k = can4k, LibraryItemId = membership.ItemId, LibraryStatus = membership.Status,
+            CanRequest = result.Value.CanRequest && (mediaType != "movie" || membership.Status == "absent") });
     }
 
-    internal static TitleLibraryResolution ResolveLibrary(IUserManager users, ILibraryManager libraries, Guid userId, string type, int tmdb, Guid? hint)
+    internal static bool Is4kMovie(IMediaSourceManager sources, BaseItem item)
+    {
+        var streams = sources.GetMediaStreams(item.Id).Where(s => s.Type == MediaBrowser.Model.Entities.MediaStreamType.Video).ToArray();
+        if (streams.Length == 0 || streams.Any(s => !s.Width.HasValue))
+            throw new InvalidOperationException("Local video variant unknown.");
+        // Match Seerr v3.4.1 Jellyfin scanner classification, including cropped video.
+        return streams.Any(s => s.Width > 2000);
+    }
+
+    internal static TitleLibraryResolution ResolveLibrary(IUserManager users, ILibraryManager libraries, Guid userId, string type, int tmdb, Guid? hint, Func<BaseItem, bool>? variant = null)
     {
         var user = users.GetUserById(userId);
         if (user is null) return new(null, "unknown");
@@ -121,14 +139,18 @@ public sealed class TitleDetailsController : ControllerBase
             .Where(id => id != Guid.Empty).Distinct().ToArray();
         var roots = Roots(user);
         return TitleLibraryPolicy.Lookup(user, roots, type, tmdb, hint, query =>
-            libraries.GetItemsResult(query).Items.Select(item =>
+        {
+            var items = libraries.GetItemsResult(query).Items;
+            if (items.Count > TitleLibraryPolicy.CandidateLimit) throw new InvalidOperationException("Library candidates incomplete.");
+            return items.Where(item => variant is null || variant(item)).Select(item =>
             {
                 var root = item.GetAncestorIds().FirstOrDefault(roots.Contains);
                 return new TitleLibraryCandidate(item.Id, item is MediaBrowser.Controller.Entities.Movies.Movie ? "movie" :
                     item is MediaBrowser.Controller.Entities.TV.Series ? "tv" : "other",
                     item.ProviderIds.TryGetValue("Tmdb", out var providerId) ? providerId : null,
                     root != Guid.Empty && !item.IsVirtualItem && item.IsVisibleStandalone(user), root);
-            }), candidate =>
+            });
+        }, candidate =>
         {
             // Re-read user, roots, item identity and every ancestor after the targeted query.
             // The host calls this endpoint again immediately before navigation.
@@ -137,7 +159,7 @@ public sealed class TitleDetailsController : ControllerBase
             var currentRoot = libraries.GetItemById(candidate.RootId);
             var currentItem = libraries.GetItemById(candidate.Id);
             if (currentRoot is not Folder || !currentRoot.IsVisibleStandalone(currentUser) ||
-                currentItem is null || currentItem.IsVirtualItem || !currentItem.IsVisibleStandalone(currentUser) ||
+                currentItem is null || (variant is not null && !variant(currentItem)) || currentItem.IsVirtualItem || !currentItem.IsVisibleStandalone(currentUser) ||
                 (type == "movie" ? currentItem is not MediaBrowser.Controller.Entities.Movies.Movie :
                     currentItem is not MediaBrowser.Controller.Entities.TV.Series) ||
                 !currentItem.ProviderIds.TryGetValue("Tmdb", out var provider) ||
