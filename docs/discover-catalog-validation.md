@@ -1,5 +1,7 @@
 # Discover catalog follow-up validation
 
+> Historical validation of the original catalog implementation. The subsequent rail-order change removes the overlapping “More to discover” composite. Current Discover order is Search results, My Requests, All Requests (when enabled), Trending, Popular Movies, Popular TV, Upcoming Movies, Upcoming TV. The older composite-specific tests and observations below describe that prior implementation.
+
 Implementation branch: `feat/discover-catalog-rails`. Isolated worktree: `.worktrees/col-6` within the approved 3picFin checkout. Base: `ba17ebd96b3f1e225b83760affbad962320f19fa` (local main at assignment). The uploaded manifest records the final commit and changed files.
 
 Search and its results/pagination now precede every rail. Scoped CSS overrides representative host form/input width caps. Empty submitted queries clear results and invalidate pending searches; errors disable pagination. The five catalog rails are Trending, Popular Movies, Popular TV, Upcoming Movies and Upcoming TV. All retain the existing Home-shaped cards and details/request flows. More to discover deduplicates the current five loaded pages by `(MediaType, TmdbId)`; the populated fixture renders 22 unique titles. It does not accumulate pages indefinitely or fetch titles just to fill a quota.

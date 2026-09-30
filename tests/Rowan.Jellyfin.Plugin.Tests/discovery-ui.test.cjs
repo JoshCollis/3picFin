@@ -30,7 +30,7 @@ class Element {
 function deferred() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 async function flush() { for (let i = 0; i < 6; i++) await new Promise(resolve => setImmediate(resolve)); }
 function setup(responses = [], posts = [], host = {}, details = [], shared = [], trending = []) {
-    const ids = ['threepic-fin-search-heading', 'threepic-fin-trending', 'threepic-fin-upcoming-movies', 'threepic-fin-upcoming-tv', 'threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-discover-tab', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-recommendations', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-art', 'threepic-fin-request-meta', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests', 'trending', 'upcoming-movies', 'upcoming-tv'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
+    const ids = ['threepic-fin-search-heading', 'threepic-fin-trending', 'threepic-fin-upcoming-movies', 'threepic-fin-upcoming-tv', 'threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-discover-tab', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-art', 'threepic-fin-request-meta', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests', 'trending', 'upcoming-movies', 'upcoming-tv'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
     for (const id of ids) if (id !== 'threepic-fin-shared-requests-load') assert.match(fragment, new RegExp(`id="${id}"`));
     const nodes = Object.fromEntries(ids.map(id => [id, new Element()]));
     const root = new Element();
@@ -38,7 +38,7 @@ function setup(responses = [], posts = [], host = {}, details = [], shared = [],
     root.querySelector = selector => selector === '.threepic-fin-discovery__tabs' ? tabs : nodes[selector.slice(1)] || null;
     // Mirror the fragment's rail section/heading relationship instead of
     // handing every ID a disconnected placeholder node.
-    const rails = ['trending', 'upcoming-movies', 'upcoming-tv', 'requests', 'shared-requests', 'recommendations', 'search-results', 'movies', 'tv'];
+    const rails = ['trending', 'upcoming-movies', 'upcoming-tv', 'requests', 'shared-requests', 'search-results', 'movies', 'tv'];
     for (const name of rails) {
         const id = `threepic-fin-${name}`;
         assert.match(fragment, new RegExp(`<section[^>]*><h3[^>]*>[^<]+</h3>(?:(?!</section>)[\\s\\S])*?id="${id}"`));
@@ -129,12 +129,21 @@ test('Discovery rails scroll by a bounded page, reset after render, and restore 
 const source = (Items = [], extra = {}) => ({ Items, Error: null, Page: 1, TotalPages: 1, ...extra });
 const bundle = (Movies = source(), Tv = source(), Requests = source()) => ({ Movies, Tv, Requests });
 
+test('Discover places requests before Trending and shows no overlapping More to discover rail', () => {
+    const panel = fragment.split('id="threepic-fin-discover-panel"')[1].split('id="threepic-fin-downloads-panel"')[0];
+    const sections = [...panel.matchAll(/<section aria-label="([^"]+)"/g)].map(match => match[1]);
+    assert.deepEqual(sections, ['Search results', 'My Requests', 'All Requests', 'Trending',
+        'Popular Movies', 'Popular TV', 'Upcoming Movies', 'Upcoming TV']);
+    assert.doesNotMatch(panel, /threepic-fin-recommendations|More to discover/);
+    assert.doesNotMatch(script(), /recommendations\(\)|el\('recommendations'\)/);
+});
+
 test('all catalog and request rails use native-shape unplayable cards with separate Details and status', async () => {
     const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film', PosterPath: '/film.jpg' };
     const tv = { TmdbId: 10, MediaType: 'tv', Title: 'Series' };
-    const app = setup([bundle(source([movie]), source([tv]), source([{ ...movie, Status: 2 }]))], [], {}, [], [source([{ ...tv, Type: 'tv', Status: 1 }])]);
+    const app = setup([bundle(source([movie]), source([tv]), source([{ ...movie, Status: 2 }]))], [], {}, [], [source([{ ...tv, Type: 'tv', Status: 1 }])], [source([movie])]);
     await app.flush();
-    for (const name of ['movies', 'tv', 'requests', 'shared-requests', 'recommendations']) {
+    for (const name of ['movies', 'tv', 'requests', 'shared-requests', 'trending']) {
         const card = app.el(name).children[0];
         assert.match(card.className, /card-hoverable.*overflowPortraitCard/, name);
         assert.ok(card.descendants().some(n => n.className === 'cardBox'));
@@ -266,18 +275,17 @@ test('fragment remains host-owned and Calendar is a keyboard accessible nested v
     assert.doesNotMatch(fragment, /<(script|link|main)\b/i);
     assert.match(fragment, /id="threepic-fin-calendar-tab"[^>]*aria-controls="threepic-fin-calendar-panel"/);
     assert.match(fragment, /id="threepic-fin-calendar-panel"[^>]*hidden/);
-    assert.match(fragment, /<section aria-label="More to discover"><h3>More to discover<\/h3>/);
+    assert.doesNotMatch(fragment, /More to discover|threepic-fin-recommendations/);
     assert.doesNotMatch(fragment, /<h3>Recommendations<\/h3>/);
     assert.match(css, /prefers-reduced-motion/);
     assert.match(css, /min-height:\s*44px/);
     assert.match(css, /:focus-visible/);
 });
-test('discovery renders movies, TV, recommendations and null-metadata personal requests safely', async () => {
+test('discovery renders movies, TV and null-metadata personal requests safely', async () => {
     const app = setup([bundle(source([{ TmdbId: 12, MediaType: 'movie', Title: '<script>x</script>', PosterPath: '/ok.jpg' }]), source([{ TmdbId: 20, MediaType: 'tv', Title: 'A show' }]), source([{ Id: 4, Status: 2, Type: 'tv', TmdbId: 20, Title: null, PosterPath: null }]))]);
     await app.flush();
     assert.match(app.text('movies'), /<script>x<\/script>/);
     assert.match(app.text('tv'), /A show/);
-    assert.match(app.text('recommendations'), /A show|<script>x<\/script>/);
     assert.match(app.text('requests'), /Title unavailable.*TV/);
     assert.doesNotMatch(app.text('requests'), /undefined|null/);
     assert.equal(app.el('discover-panel').hidden, false);
@@ -350,9 +358,9 @@ test('search failures are distinct and empty search does not make a request', as
     assert.match(app.text('search-results'), /unavailable/i);
     assert.doesNotMatch(app.text('search-results'), /private upstream detail/);
 });
-test('one inner Fin view contains requests, discovery and recommendations with nested Calendar', () => {
+test('one inner Fin view contains requests and Trending with nested Calendar', () => {
     assert.match(fragment, /id="threepic-fin-discover-panel"[\s\S]*id="threepic-fin-requests"/);
-    assert.match(fragment, /id="threepic-fin-discover-panel"[\s\S]*id="threepic-fin-recommendations"/);
+    assert.match(fragment, /id="threepic-fin-discover-panel"[\s\S]*id="threepic-fin-trending"/);
     assert.doesNotMatch(fragment, /id="threepic-fin-requests-panel"/);
     assert.doesNotMatch(fragment, /id="threepic-fin-my-requests"/);
     assert.match(fragment, /3pic Fin views[\s\S]*threepic-fin-calendar-tab/);
@@ -890,13 +898,12 @@ test('authorized requester display text survives hydration without identity fall
 });
 
 
-test('movie-heavy Trending has no per-type quota and More to discover deduplicates by type plus ID', async () => {
+test('movie-heavy Trending preserves mixed media identities without an extra recommendations rail', async () => {
     const movies = Array.from({length:19}, (_,i) => ({TmdbId:i+1, MediaType:'movie', Title:`Film ${i+1}`}));
     const tv = {TmdbId:1, MediaType:'tv', Title:'Same numeric identity, different media'};
     const app = setup([bundle(source(movies), source([tv]))], [], {}, [], [], [source([...movies,tv])]);
     await app.flush();
     assert.equal(app.el('trending').children.length,20);
-    assert.equal(app.el('recommendations').children.length,20);
     assert.match(app.text('trending'), /Same numeric identity/);
     assert.equal(app.calls.filter(call=>call[0]==='url'&&call[1]==='3picFin/Discovery/Trending').length,1);
     app.cleanup();
