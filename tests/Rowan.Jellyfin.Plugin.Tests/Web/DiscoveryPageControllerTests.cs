@@ -99,7 +99,8 @@ public sealed class DiscoveryPageControllerTests
         var controller = new DiscoveryPageController(() => true);
         using var reader = new StreamReader(Assert.IsType<FileStreamResult>(controller.GetAsset("discovery.html")).FileStream);
         var page = reader.ReadToEnd();
-        Assert.Contains("<h2 id=\"threepic-fin-discovery-title\">3pic Fin</h2>", page, StringComparison.Ordinal);
+        Assert.Contains("role=\"region\" aria-label=\"3pic Fin\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("threepic-fin-discovery-title", page, StringComparison.Ordinal);
         Assert.DoesNotContain("<main", page, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<script", page, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ApiClient", page, StringComparison.OrdinalIgnoreCase);
