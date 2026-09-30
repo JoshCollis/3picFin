@@ -174,7 +174,7 @@ test('hyphenated backend library GUID offers Open and TV season request independ
     const show = { TmdbId: 7, MediaType: 'tv', Title: 'Series' }, opened = [];
     const app = setup([bundle(source(), source([show])), { MediaType: 'tv', TmdbId: 7,
         LibraryItemId: '01234567-89ab-cdef-0123-456789abcdef', CanRequest: true, Seasons: [2] },
-        { CanRequest: true, CanRequest4k: false, Seasons: [2] }], [], { openItem: (...args) => opened.push(args) });
+        { CanRequest: true, CanRequest4k: false, Seasons: [2], Seasons4k: [2] }], [], { openItem: (...args) => opened.push(args) });
     await app.flush();
     app.el('tv').children[0].descendants().find(n => n.textContent === 'Series').dispatch('click'); await app.flush();
     assert.equal(app.el('details-open').hidden, false);
@@ -187,7 +187,7 @@ test('hyphenated backend library GUID offers Open and TV season request independ
 
 test('fully available movie has a disabled Available action and never opens a request', async () => {
     const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
-    const app = setup([bundle(source([movie]))], [], {}, [{ MediaType: 'movie', TmdbId: 9, MediaStatus: 5, CanRequest: true, CanRequest4k: false, Seasons: [] }]);
+    const app = setup([bundle(source([movie]))], [], {}, [{ MediaType: 'movie', TmdbId: 9, MediaStatus: 5, CanRequest: true, CanRequest4k: false, Seasons: [], Seasons4k: [] }]);
     await app.flush();
     app.el('movies').children[0].descendants().find(n => n.textContent === 'Film').dispatch('click'); await app.flush();
     assert.equal(app.el('details-request').hidden, false);
@@ -200,7 +200,7 @@ test('fully available movie has a disabled Available action and never opens a re
 test('partially available TV offers Request more and still submits selected seasons', async () => {
     const show = { TmdbId: 7, MediaType: 'tv', Title: 'Series' };
     const app = setup([bundle(source(), source([show])),
-        { CanRequest: true, CanRequest4k: false, MediaStatus: 4, Seasons: [2] },
+        { CanRequest: true, CanRequest4k: false, MediaStatus: 4, Seasons: [2], Seasons4k: [2] },
         bundle(source(), source([show]), source([{ Id: 71, Status: 1, Type: 'tv', TmdbId: 7, Is4k: false, Seasons: [2] }]))],
         [{ Id: 71, Status: 1 }]);
     await app.flush();
@@ -389,7 +389,7 @@ test('camelCase DTOs render in the Fin panel', async () => {
 test('movie request is confirmed once with default profile and verified in personal list', async () => {
     const pending = deferred();
     const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
-    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, MediaStatus: 2, Seasons: [] },
+    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, MediaStatus: 1, Seasons: [], Seasons4k: [] },
         bundle(source([movie]), source(), source([{ Id: 91, Status: 1, Type: 'movie', TmdbId: 9, Is4k: false }]))], [pending]);
     await app.flush();
     await requestFromCard(app, 'movies'); await app.flush();
@@ -408,7 +408,7 @@ test('movie request is confirmed once with default profile and verified in perso
 
 test('TV requires explicit seasons, 4K permission, and never retries ambiguous POST', async () => {
     const show = { TmdbId: 7, MediaType: 'tv', Title: 'Series' };
-    const app = setup([bundle(source(), source([show])), { CanRequest: true, CanRequest4k: true, Seasons: [1, 3] },
+    const app = setup([bundle(source(), source([show])), { CanRequest: true, CanRequest4k: true, Seasons: [1, 3], Seasons4k: [1, 3] },
         bundle(source(), source([show]), source())], [new Error('timeout')]);
     await app.flush();
     await requestFromCard(app, 'tv'); await app.flush();
@@ -424,7 +424,7 @@ test('TV requires explicit seasons, 4K permission, and never retries ambiguous P
 test('a duplicate response reconciles matching personal request without claiming new creation', async () => {
     const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
     const duplicate = Object.assign(new Error('Conflict'), { status: 409 });
-    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
+    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [], Seasons4k: [] },
         bundle(source([movie]), source(), source([{ Id: 4, Status: 1, TmdbId: 9, Type: 'movie', Is4k: false }]))], [duplicate]);
     await app.flush(); await requestFromCard(app, 'movies'); await app.flush();
     app.el('request-form').dispatch('submit'); await app.flush();
@@ -436,7 +436,7 @@ test('a duplicate response reconciles matching personal request without claiming
 
 test('title-level requested status does not claim personal ownership', async () => {
     const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
-    const app = setup([bundle(source([movie]))], [], {}, [{ ...movie, MediaStatus: 3, CanRequest: true, CanRequest4k: false, Seasons: [] }]);
+    const app = setup([bundle(source([movie]))], [], {}, [{ ...movie, MediaStatus: 3, CanRequest: true, CanRequest4k: false, Seasons: [], Seasons4k: [] }]);
     await app.flush();
     app.el('movies').children[0].descendants().find(n => n.textContent === 'Film').dispatch('click'); await app.flush();
     assert.match(app.text('details-status'), /Requested · Processing/);
@@ -446,7 +446,7 @@ test('title-level requested status does not claim personal ownership', async () 
 test('409 for another user does not direct this user to a nonexistent personal request', async () => {
     const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
     const duplicate = Object.assign(new Error('Conflict'), { status: 409 });
-    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
+    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [], Seasons4k: [] },
         bundle(source([movie]), source(), source())], [duplicate]);
     await app.flush(); await requestFromCard(app, 'movies');
     app.el('request-form').dispatch('submit'); await app.flush();
@@ -459,7 +459,7 @@ test('old owned request beyond first page is found after 409', async () => {
     const duplicate = Object.assign(new Error('Conflict'), { status: 409 });
     const first = source([], { TotalPages: 4 });
     const fourth = source([{ Id: 4, Status: 1, TmdbId: 9, Type: 'movie', Is4k: false }], { Page: 4, TotalPages: 4 });
-    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
+    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [], Seasons4k: [] },
         bundle(source([movie]), source(), first), bundle(source(), source(), source()),
         bundle(source(), source(), source()), bundle(source(), source(), fourth)], [duplicate]);
     await app.flush(); await requestFromCard(app, 'movies');
@@ -472,7 +472,7 @@ test('old owned request beyond first page is found after 409', async () => {
 test('409 keeps conflict-specific message when read-back fails', async () => {
     const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
     const conflict = Object.assign(new Error('Conflict'), { status: 409 });
-    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
+    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [], Seasons4k: [] },
         new Error('read failed')], [conflict]);
     await app.flush(); await requestFromCard(app, 'movies');
     app.el('request-form').dispatch('submit'); await app.flush();
@@ -481,7 +481,7 @@ test('409 keeps conflict-specific message when read-back fails', async () => {
 });
 
 test('4K-only permission selects its only permitted variant', async () => {
-    const app = setup([bundle(source([{ TmdbId: 8, MediaType: 'movie', Title: '4K' }])), { CanRequest: false, CanRequest4k: true, Seasons: [] }]);
+    const app = setup([bundle(source([{ TmdbId: 8, MediaType: 'movie', Title: '4K' }])), { CanRequest: false, CanRequest4k: true, Seasons: [], Seasons4k: [] }]);
     await app.flush(); await requestFromCard(app, 'movies'); await app.flush();
     assert.equal(app.el('request-4k').checked, true);
     assert.equal(app.el('request-submit').disabled, false);
@@ -491,7 +491,7 @@ test('declined personal movie request does not suppress a new submission', async
     const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
     const declined = { Id: 3, Status: 3, TmdbId: 9, Type: 'movie', Is4k: false };
     const app = setup([bundle(source([movie]), source(), source([declined])),
-        { CanRequest: true, CanRequest4k: false, Seasons: [] },
+        { CanRequest: true, CanRequest4k: false, Seasons: [], Seasons4k: [] },
         bundle(source([movie]), source(), source([declined, { ...declined, Id: 4, Status: 1 }]))], [{ Id: 4, Status: 1 }]);
     await app.flush(); await requestFromCard(app, 'movies'); await app.flush();
     app.el('request-form').dispatch('submit'); await app.flush();
@@ -501,7 +501,7 @@ test('declined personal movie request does not suppress a new submission', async
 
 test('TV creation reconciles returned ID when Seerr trims already requested seasons', async () => {
     const show = { TmdbId: 7, MediaType: 'tv', Title: 'Series' };
-    const app = setup([bundle(source(), source([show])), { CanRequest: true, CanRequest4k: true, Seasons: [1, 2] },
+    const app = setup([bundle(source(), source([show])), { CanRequest: true, CanRequest4k: true, Seasons: [1, 2], Seasons4k: [1, 2] },
         bundle(source(), source([show]), source([{ Id: 71, Status: 2, Type: 'tv', TmdbId: 7, Is4k: true, Seasons: [2] }]))], [{ Id: 71, Status: 2 }]);
     await app.flush(); await requestFromCard(app, 'tv'); await app.flush();
     for (const input of app.el('request-seasons').descendants().filter(n => n.tagName === 'INPUT')) input.checked = true;
@@ -539,7 +539,7 @@ test('variant availability message uses selected standard or 4K status with came
 
 test('successful POST with no returned ID on the first personal page stays unknown', async () => {
     const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
-    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
+    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [], Seasons4k: [] },
         bundle(source([movie]), source(), source([{ Id: 3, Status: 1, TmdbId: 9, Type: 'movie', Is4k: false }]))], [{ Id: 4, Status: 1 }]);
     await app.flush(); await requestFromCard(app, 'movies'); await app.flush();
     app.el('request-form').dispatch('submit'); await app.flush();
@@ -553,7 +553,7 @@ test('201 read-back with matching ID but wrong title or variant never claims suc
         { Id: 91, Status: 1, TmdbId: 10, Type: 'movie', Is4k: false },
         { Id: 91, Status: 1, TmdbId: 9, Type: 'movie', Is4k: true }
     ]) {
-        const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
+        const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [], Seasons4k: [] },
             bundle(source([movie]), source(), source([record]))], [{ Id: 91, Status: 1 }]);
         await app.flush(); await requestFromCard(app, 'movies');
         app.el('request-form').dispatch('submit'); await app.flush();
@@ -565,7 +565,7 @@ test('201 read-back with matching ID but wrong title or variant never claims suc
 test('failed POST with only a declined personal request stays unknown', async () => {
     const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Film' };
     const declined = { Id: 3, Status: 3, TmdbId: 9, Type: 'movie', Is4k: false };
-    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [] },
+    const app = setup([bundle(source([movie])), { CanRequest: true, CanRequest4k: false, Seasons: [], Seasons4k: [] },
         bundle(source([movie]), source(), source([declined]))], [new Error('timeout')]);
     await app.flush(); await requestFromCard(app, 'movies'); await app.flush();
     app.el('request-form').dispatch('submit'); await app.flush();
@@ -576,10 +576,10 @@ test('failed POST with only a declined personal request stays unknown', async ()
 test('missing options fail closed and dialog closure ignores stale detail', async () => {
     const pending = deferred();
     const app = setup([bundle(source([{ TmdbId: 5, MediaType: 'movie', Title: 'Title' }])), pending], [], {},
-        [{ TmdbId: 5, MediaType: 'movie', CanRequest: true, CanRequest4k: false, Seasons: [] }]); await app.flush();
+        [{ TmdbId: 5, MediaType: 'movie', CanRequest: true, CanRequest4k: false, Seasons: [], Seasons4k: [] }]); await app.flush();
     await requestFromCard(app, 'movies');
     app.el('request-cancel').dispatch('click');
-    pending.resolve({ CanRequest: true, CanRequest4k: true, Seasons: [] }); await app.flush();
+    pending.resolve({ CanRequest: true, CanRequest4k: true, Seasons: [], Seasons4k: [] }); await app.flush();
     assert.equal(app.el('request-dialog').open, false);
     assert.equal(app.calls.filter(c => c[0] === 'ajax').length, 0);
 });
@@ -900,4 +900,31 @@ test('movie-heavy Trending has no per-type quota and More to discover deduplicat
     assert.match(app.text('trending'), /Same numeric identity/);
     assert.equal(app.calls.filter(call=>call[0]==='url'&&call[1]==='3picFin/Discovery/Trending').length,1);
     app.cleanup();
+});
+
+
+test('pending and processing movies cannot submit even with stale permission flags', async () => {
+    for (const state of [2, 3]) {
+        const movie = { TmdbId: 9, MediaType: 'movie', Title: 'Avengers: Doomsday' };
+        const app = setup([bundle(source([movie]))], [], {}, [{ ...movie, MediaStatus: state, CanRequest: true, CanRequest4k: false, Seasons: [] }]);
+        await app.flush();
+        app.el('movies').children[0].descendants().find(n => n.className === 'threepic-fin-discovery__title-button').dispatch('click');
+        await app.flush();
+        assert.equal(app.el('details-request').disabled, true);
+        assert.equal(app.calls.filter(c => c[0] === 'ajax').length, 0);
+    }
+});
+
+test('TV switches eligible season sets by variant and drops ineligible checked choices', async () => {
+    const show = { TmdbId: 7, MediaType: 'tv', Title: 'Series' };
+    const app = setup([bundle(source(), source([show])), { CanRequest: true, CanRequest4k: true, MediaStatus: 5, Seasons: [3,4], Seasons4k: [2,4] }]);
+    await app.flush(); await requestFromCard(app, 'tv');
+    let choices = app.el('request-seasons').descendants().filter(n => n.tagName === 'INPUT');
+    assert.deepEqual(choices.map(n => n.value), ['3','4']);
+    choices.forEach(n => n.checked = true);
+    app.el('request-4k').checked = true; app.el('request-4k').dispatch('change');
+    choices = app.el('request-seasons').descendants().filter(n => n.tagName === 'INPUT');
+    assert.deepEqual(choices.map(n => n.value), ['2','4']);
+    assert.deepEqual(choices.filter(n => n.checked).map(n => n.value), ['4']);
+    assert.equal(app.el('request-submit').disabled, false);
 });

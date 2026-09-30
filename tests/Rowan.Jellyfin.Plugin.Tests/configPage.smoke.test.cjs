@@ -40,7 +40,7 @@ function setup(config, folders, options = {}) {
     let persisted = structuredClone(config);
     const ids = ['RowanConfigPage', 'RowanConfigForm', 'RecentlyAddedLibraries', 'HeroLibraries', 'RowanSaveButton',
         'RowanConfigError', 'RowanConfigStatus', 'HomeEnabled', 'CombinedPlaybackRowEnabled', 'DiscoverRowEnabled', 'DiscoverMoviesRowEnabled', 'DiscoverTvRowEnabled', 'CombinedPlaybackHideWatched', 'MyRequestsRowEnabled', 'MyRequestsHideWatched', 'CollectionsRowEnabled', 'LiveTvRowEnabled', 'BecauseYouWatchedRowEnabled', 'BecauseYouWatchedHideWatched', 'HeroTrustedFilesystemEnabled', 'DiscoveryPageEnabled', 'SharedRequestsEnabled', 'DownloadsEnabled', 'CalendarEnabled',
-        'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'ClearSeerrApiKey', 'GlobalSearchEnabled', 'ClearRadarrApiKey', 'ClearSonarrApiKey',
+        'Enable4kRequests', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'ClearSeerrApiKey', 'GlobalSearchEnabled', 'ClearRadarrApiKey', 'ClearSonarrApiKey',
         'NativeHomeRowsEnabled', 'NativeRowContinueWatching', 'NativeRowNextUp', 'NativeRowLatestMovies', 'NativeRowLatestShows', 'NativeRowMyMedia', 'NativeRowContinueWatchingNextUp', 'NativeRowCollections', 'NativeRowBecauseYouWatched', 'NativeRowMyRequests',
         'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey', 'RecentlyAddedAll',
         'RecentlyAddedSelected', 'RecentlyAddedNone'];
@@ -378,7 +378,7 @@ test('save reads persisted configuration back before reporting success', async (
 });
 
 test('Seerr and search controls independently persist and mask credentials', async () => {
-    for (const id of ['SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'GlobalSearchEnabled'])
+    for (const id of ['Enable4kRequests', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'GlobalSearchEnabled'])
         assert.match(html, new RegExp(`id="${id}"`));
     assert.match(html, /id="SeerrApiKey" type="password"/);
     const pending = deferred();
@@ -673,4 +673,19 @@ test('Jellyfin compact library GUIDs load and match hyphenated saved selections'
     assert.deepEqual(Array.from(app.writes[1].HeroLibraryIds), [A]);
     boxes[0].checked = false; await app.save();
     assert.deepEqual(Array.from(app.writes[2].HeroLibraryIds), []);
+});
+
+
+test('4K requests default off for legacy settings and survive save/reload and disabling', async () => {
+    const app = setup({}, []); await app.load();
+    assert.equal(app.elements.Enable4kRequests.checked, false);
+    app.elements.Enable4kRequests.checked = true;
+    await app.save();
+    assert.equal(app.writes.at(-1).Enable4kRequests, true);
+    await app.load();
+    assert.equal(app.elements.Enable4kRequests.checked, true);
+    app.elements.Enable4kRequests.checked = false;
+    await app.save(); await app.load();
+    assert.equal(app.elements.Enable4kRequests.checked, false);
+    assert.equal(app.writes.at(-1).Enable4kRequests, false);
 });

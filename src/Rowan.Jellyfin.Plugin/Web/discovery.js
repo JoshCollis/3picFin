@@ -263,7 +263,7 @@
                         if (ticket === detailsGeneration) { detailsBusy = false; el('details-open').disabled = false; }
                     }
                 } : null;
-                const canNormal = field(result, 'CanRequest') === true && state !== 5 && !(mediaType === 'movie' && available);
+                const canNormal = field(result, 'CanRequest') === true && (mediaType === 'tv' || ![2, 3, 4, 5, 6].includes(state)) && !(mediaType === 'movie' && available);
                 const can4k = field(result, 'CanRequest4k') === true;
                 const hasSeasons = mediaType !== 'tv' || Array.isArray(seasons) && seasons.some(n => Number.isInteger(n) && n > 0 && n <= 1000);
                 const requestable = state !== 6 && hasSeasons && (canNormal || can4k);
@@ -280,9 +280,22 @@
             } finally { if (generation === detailsGeneration) { detailsBusy = false; detailsAbort = null; } }
         }
         const status = value => { el('request-status').textContent = value; };
+        function renderRequestSeasons() {
+            if (selection?.mediaType !== 'tv') return;
+            const selected = new Set(Array.from(el('request-seasons').children).filter(node => node.tagName === 'LABEL' && node.children[0].checked).map(node => Number(node.children[0].value)));
+            const seasons = field(options, el('request-4k').checked ? 'Seasons4k' : 'Seasons');
+            el('request-seasons').replaceChildren(); el('request-seasons').hidden = false;
+            text(el('request-seasons'), 'legend', 'Select missing seasons to request');
+            for (const n of seasons) {
+                const labelNode = document.createElement('label'), checkbox = document.createElement('input');
+                checkbox.type = 'checkbox'; checkbox.value = String(n); checkbox.checked = selected.has(n);
+                labelNode.appendChild(checkbox); text(labelNode, 'span', `Season ${n}`);
+                el('request-seasons').appendChild(labelNode);
+            }
+        }
         function updateRequestStatus() {
             const mediaStatus = field(options, el('request-4k').checked ? 'MediaStatus4k' : 'MediaStatus');
-            const unavailable = field(options, 'MediaStatus') === 6 || mediaStatus === 5 ||
+            const unavailable = field(options, 'MediaStatus') === 6 || (selection.mediaType === 'movie' && [2, 3, 4, 5].includes(mediaStatus)) ||
                 !(el('request-4k').checked ? field(options, 'CanRequest4k') : field(options, 'CanRequest'));
             el('request-submit').disabled = unavailable;
             status(unavailable ? mediaStatus === 5 ? 'This version is reported available. No request can be submitted.' : 'This request option is unavailable.' :
@@ -329,22 +342,17 @@
                 const canRequest = field(result, 'CanRequest'), can4k = field(result, 'CanRequest4k');
                 el('request-4k-wrap').hidden = !can4k;
                 el('request-4k').checked = !canRequest && can4k;
-                const seasons = field(result, 'Seasons');
                 if (mediaType === 'tv') {
-                    const valid = seasons.length <= 100 && seasons.every(n => Number.isInteger(n) && n > 0 && n <= 1000) && new Set(seasons).size === seasons.length;
-                    if (!valid) throw Error('Invalid seasons');
-                    el('request-seasons').hidden = false;
-                    for (const n of seasons) {
-                        const labelNode = document.createElement('label'), checkbox = document.createElement('input');
-                        checkbox.type = 'checkbox'; checkbox.value = String(n);
-                        labelNode.appendChild(checkbox); text(labelNode, 'span', `Season ${n}`);
-                        el('request-seasons').appendChild(labelNode);
+                    for (const key of ['Seasons', 'Seasons4k']) {
+                        const seasons = field(result, key);
+                        if (!Array.isArray(seasons) || seasons.length > 1000 || !seasons.every(n => Number.isInteger(n) && n > 0 && n <= 1000) || new Set(seasons).size !== seasons.length) throw Error('Invalid seasons');
                     }
+                    renderRequestSeasons();
                 }
                 if (field(result, 'MediaStatus') === 6) {
                     status('This title is blocklisted. No request can be submitted.'); return;
                 }
-                if (!canRequest && !can4k || mediaType === 'tv' && !seasons.length) {
+                if (!canRequest && !can4k) {
                     status('Request unavailable for this title or account.'); return;
                 }
                 updateRequestStatus();
@@ -358,7 +366,7 @@
             event.preventDefault();
             if (disposed || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId || !dialog.open || !selection || !options || submitting || locked || el('request-submit').disabled) return;
             const is4k = !el('request-4k-wrap').hidden && el('request-4k').checked;
-            if (field(options, 'MediaStatus') === 6 || field(options, is4k ? 'MediaStatus4k' : 'MediaStatus') === 5) {
+            if (field(options, 'MediaStatus') === 6 || (selection.mediaType === 'movie' && [2, 3, 4, 5].includes(field(options, is4k ? 'MediaStatus4k' : 'MediaStatus')))) {
                 status('This version is unavailable for requests.'); el('request-submit').disabled = true; return;
             }
             if (!(is4k ? field(options, 'CanRequest4k') : field(options, 'CanRequest'))) {
@@ -378,7 +386,7 @@
             } catch (error) { failure = error; }
             try {
                 const fresh = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Discovery', { moviePage: 1, tvPage: 1, requestsPage: 1 }));
-                if (disposed || generation !== requestGeneration) return;
+                if (!currentUser() || generation !== requestGeneration) return;
                 personal = field(fresh, 'Requests');
                 const items = !field(personal, 'Error') && Array.isArray(field(personal, 'Items')) ? field(personal, 'Items') : [];
                 // Seerr may remove already-requested/available TV seasons; the created ID is authoritative.
@@ -409,7 +417,7 @@
                 } else if (failure?.status === 409) status('Seerr reports this title or selection is already tracked or unavailable. No request by you was verified; check Seerr before retrying.');
                 else status('Outcome unknown: could not verify the request. Check My Requests before trying again.');
             } catch (_) {
-                if (!disposed && generation === requestGeneration) status(failure?.status === 409 ?
+                if (currentUser() && generation === requestGeneration) status(failure?.status === 409 ?
                     'Seerr reports this title or selection is already tracked or unavailable. Personal ownership could not be checked; no new request was verified.' :
                     'Outcome unknown: could not verify the request. Check My Requests before trying again.');
             } finally { submitting = false; }
@@ -686,7 +694,7 @@
         on(detailsDialog, 'cancel', () => { invalidateDetails(); detailsTrigger?.focus(); detailsTrigger = null; });
         on(detailsDialog, 'close', () => { invalidateDetails(); detailsTrigger?.focus(); detailsTrigger = null; });
         on(el('details-request'), 'click', () => { if (!detailsItem || detailsBusy || el('details-request').hidden || el('details-request').disabled) return; const item = detailsItem, button = detailsTrigger, context = detailsContext; closeDetails(false); openRequest(item, button, context); });
-        on(el('request-4k'), 'change', () => { if (options && selection && !submitting && !locked) updateRequestStatus(); });
+        on(el('request-4k'), 'change', () => { if (options && selection && !submitting && !locked) { renderRequestSeasons(); updateRequestStatus(); } });
         on(el('request-cancel'), 'click', closeRequest);
         on(el('shared-requests-prev'), 'click', () => { if (sharedPage > 1) sharedRequests(sharedPage - 1); });
         on(el('shared-requests-next'), 'click', () => { if (sharedPage < sharedMax) sharedRequests(sharedPage + 1); });

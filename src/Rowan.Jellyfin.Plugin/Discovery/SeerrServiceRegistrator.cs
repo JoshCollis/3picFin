@@ -17,6 +17,7 @@ public sealed class SeerrServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddTransient(provider => new SeerrClient(
             provider.GetRequiredService<IHttpClientFactory>().CreateClient("Rowan.Seerr"),
             SeerrOptions.FromConfiguration(Plugin.Current?.Configuration ?? new PluginConfiguration()),
-            readCache: provider.GetRequiredService<SeerrReadCache>()));
+            readCache: provider.GetRequiredService<SeerrReadCache>(),
+            fourKEnabled: () => Plugin.Current?.Configuration.Enable4kRequests == true));
     }
 }

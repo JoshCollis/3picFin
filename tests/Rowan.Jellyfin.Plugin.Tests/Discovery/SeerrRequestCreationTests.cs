@@ -36,6 +36,32 @@ public sealed class SeerrRequestCreationTests
     }
 
     [Theory]
+    [InlineData(false, "unknown", 502)]
+    [InlineData(false, "unavailable", 502)]
+    [InlineData(true, "present", 409)]
+    [InlineData(true, "unknown", 502)]
+    public async Task LocalVariantAndUncertainLookupBlockOptionsAndForgedSubmission(bool is4k, string state, int expected)
+    {
+        var posts = 0;
+        using var http = Stub(request =>
+        {
+            if (request.Method == HttpMethod.Post) posts++;
+            return Json(request.RequestUri!.AbsolutePath.Contains("/user/") ? "{\"id\":42,\"permissions\":2}" : "{\"id\":9}");
+        });
+        TitleLibraryResolution Resolve(Guid _, int __) => new(state == "present" ? Guid.NewGuid() : null, state);
+        var controller = new DiscoveryController(new SeerrClient(http, Options()), _ => true,
+            movieResolution: is4k ? null : Resolve, movie4kResolution: is4k ? Resolve : null)
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("Jellyfin-UserId", Alice.ToString())], "test")) } }
+        };
+        var options = Assert.IsType<RequestOptions>(Assert.IsType<OkObjectResult>((await controller.GetRequestOptions("movie", 9)).Result).Value);
+        Assert.False(is4k ? options.CanRequest4k : options.CanRequest);
+        var response = await controller.CreateRequest(Body("{\"mediaType\":\"movie\",\"mediaId\":9,\"is4k\":" + is4k.ToString().ToLowerInvariant() + "}"));
+        Assert.Equal(expected, Assert.IsType<StatusCodeResult>(response.Result).StatusCode);
+        Assert.Equal(0, posts);
+    }
+
+    [Theory]
     [InlineData("movie", false, 5, 0, 409)]
     [InlineData("movie", true, 1, 5, 409)]
     [InlineData("movie", true, 5, 1, 201)]
@@ -52,7 +78,7 @@ public sealed class SeerrRequestCreationTests
             if (request.Method == HttpMethod.Post) return Json("{\"id\":91,\"status\":1}", HttpStatusCode.Created);
             if (paths.Count == 1) return Json("{\"id\":42,\"permissions\":2}");
             Assert.Equal("42", Header(request, "X-API-User"));
-            return Json($"{{\"id\":9,\"mediaInfo\":{{\"status\":{status},\"status4k\":{status4k}}},\"seasons\":[{{\"seasonNumber\":1}}]}}");
+            return Json($"{{\"id\":9,\"mediaInfo\":{{\"status\":{status},\"status4k\":{status4k},\"requests\":[],\"seasons\":[{{\"seasonNumber\":1,\"status\":{(status == 5 ? 5 : 1)},\"status4k\":1}}]}},\"seasons\":[{{\"seasonNumber\":1}}]}}");
         });
         var body = type == "tv" ? $"{{\"mediaType\":\"tv\",\"mediaId\":9,\"seasons\":[1],\"is4k\":{is4k.ToString().ToLowerInvariant()}}}" : $"{{\"mediaType\":\"movie\",\"mediaId\":9,\"is4k\":{is4k.ToString().ToLowerInvariant()}}}";
         var result = await Controller(new SeerrClient(http, Options()), [new Claim("Jellyfin-UserId", Alice.ToString())]).CreateRequest(Body(body), CancellationToken.None);
@@ -253,18 +279,18 @@ public sealed class SeerrRequestCreationTests
     }
 
     [Fact]
-    public async Task MixedPreviouslyRequestedSeasonsAreLeftForSeerrToFilter()
+    public async Task MixedPreviouslyRequestedSeasonsAreRejectedBeforePost()
     {
         var paths = new List<string>();
         using var http = Stub(request =>
         {
             paths.Add(request.RequestUri!.AbsolutePath);
             if (request.Method == HttpMethod.Post) return Json("{\"id\":91,\"status\":1}", HttpStatusCode.Created);
-            return Json(paths.Count == 1 ? "{\"id\":42,\"permissions\":524288}" : "{\"id\":9,\"seasons\":[{\"seasonNumber\":1},{\"seasonNumber\":3}],\"mediaInfo\":{\"requests\":[{\"seasons\":[{\"seasonNumber\":1}]}]}}");
+            return Json(paths.Count == 1 ? "{\"id\":42,\"permissions\":524288}" : "{\"id\":9,\"seasons\":[{\"seasonNumber\":1},{\"seasonNumber\":3}],\"mediaInfo\":{\"status\":2,\"status4k\":1,\"seasons\":[],\"requests\":[{\"status\":1,\"is4k\":false,\"seasons\":[{\"seasonNumber\":1}]}]}}");
         });
         var result = await Controller(new SeerrClient(http, Options()), [new Claim("Jellyfin-UserId", Alice.ToString())]).CreateRequest(Body("{\"mediaType\":\"tv\",\"mediaId\":9,\"seasons\":[1,3]}"), CancellationToken.None);
-        Assert.IsType<CreatedResult>(result.Result);
-        Assert.Equal(3, paths.Count);
+        Assert.Equal(409, Assert.IsType<StatusCodeResult>(result.Result).StatusCode);
+        Assert.Equal(2, paths.Count);
     }
 
     [Fact]
@@ -288,7 +314,7 @@ public sealed class SeerrRequestCreationTests
     {
         ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(claims, claims.Length == 0 ? null : "test")) } }
     };
-    private static SeerrOptions Options() => SeerrOptions.FromConfiguration(new PluginConfiguration { SeerrEnabled = true, SeerrBaseUrl = "https://seerr.example/seerr", SeerrApiKey = "example-secret" })!;
+    private static SeerrOptions Options() => SeerrOptions.FromConfiguration(new PluginConfiguration { SeerrEnabled = true, Enable4kRequests = true, SeerrBaseUrl = "https://seerr.example/seerr", SeerrApiKey = "example-secret" })!;
     private static string? Header(HttpRequestMessage request, string key) => request.Headers.TryGetValues(key, out var values) ? string.Join(",", values) : null;
     private static HttpResponseMessage Json(string text, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = new StringContent(text, Encoding.UTF8, "application/json") };
     private static HttpClient Stub(Func<HttpRequestMessage, HttpResponseMessage> respond) => new(new Handler((request, _) => Task.FromResult(respond(request))));

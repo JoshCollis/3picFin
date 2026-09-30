@@ -189,6 +189,10 @@
 <fieldset>
 <legend>Requests</legend>
 <label class="fin-choice">
+<input id="Enable4kRequests" type="checkbox" />
+<span>Enable 4K requests</span>
+</label>
+<label class="fin-choice">
 <input id="MyRequestsRowEnabled" type="checkbox" />
 <span>Personal available requests</span>
 </label>
@@ -314,7 +318,7 @@
                     page.querySelector('#HeroTrustedFilesystemEnabled').disabled = locked;
                     page.querySelector('#DiscoveryPageEnabled').disabled = locked;
                     page.querySelector('#SharedRequestsEnabled').disabled = locked;
-                    ['SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'GlobalSearchEnabled'].forEach(function (id) {
+                    ['Enable4kRequests', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'GlobalSearchEnabled'].forEach(function (id) {
                         page.querySelector('#' + id).disabled = locked;
                     });
                     ['ClearSeerrApiKey', 'ClearRadarrApiKey', 'ClearSonarrApiKey'].forEach(function (id) {
@@ -434,6 +438,7 @@
                         page.querySelector('#DiscoveryPageEnabled').checked = !!config.DiscoveryPageEnabled;
                         page.querySelector('#SharedRequestsEnabled').checked = config.SharedRequestsEnabled === true;
                         page.querySelector('#SeerrEnabled').checked = config.SeerrEnabled === true;
+                        page.querySelector('#Enable4kRequests').checked = config.Enable4kRequests === true;
                         page.querySelector('#GlobalSearchEnabled').checked = config.GlobalSearchEnabled === true;
                         page.querySelector('#SeerrBaseUrl').value = config.SeerrBaseUrl || '';
                         page.querySelector('#SeerrApiKey').value = '';
@@ -525,6 +530,7 @@
                     const discoveryPageEnabled = page.querySelector('#DiscoveryPageEnabled').checked;
                     const sharedRequestsEnabled = page.querySelector('#SharedRequestsEnabled').checked;
                     const seerr = {
+                        Enable4kRequests: page.querySelector('#Enable4kRequests').checked,
                         SeerrEnabled: page.querySelector('#SeerrEnabled').checked,
                         GlobalSearchEnabled: page.querySelector('#GlobalSearchEnabled').checked,
                         SeerrBaseUrl: page.querySelector('#SeerrBaseUrl').value.trim(),
@@ -574,7 +580,7 @@
                         });
                         config.RecentlyAddedLibraryIds = selectedIds;
                         submitted = Object.fromEntries(Object.keys(config).filter(function (id) {
-                            return ['HomeEnabled', 'NativeHomeRowsEnabled', 'NativeHomeRowKinds', 'CombinedPlaybackRowEnabled', 'DiscoverRowEnabled', 'DiscoverMoviesRowEnabled', 'DiscoverTvRowEnabled', 'CombinedPlaybackHideWatched', 'MyRequestsRowEnabled', 'MyRequestsHideWatched', 'CollectionsRowEnabled', 'LiveTvRowEnabled', 'BecauseYouWatchedRowEnabled', 'BecauseYouWatchedHideWatched', 'HeroTrustedFilesystemEnabled', 'HeroLibraryIds', 'DiscoveryPageEnabled', 'GlobalSearchEnabled', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'SharedRequestsEnabled', 'DownloadsEnabled', 'CalendarEnabled', 'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey', 'RecentlyAddedLibraryIds'].includes(id);
+                            return ['HomeEnabled', 'NativeHomeRowsEnabled', 'NativeHomeRowKinds', 'CombinedPlaybackRowEnabled', 'DiscoverRowEnabled', 'DiscoverMoviesRowEnabled', 'DiscoverTvRowEnabled', 'CombinedPlaybackHideWatched', 'MyRequestsRowEnabled', 'MyRequestsHideWatched', 'CollectionsRowEnabled', 'LiveTvRowEnabled', 'BecauseYouWatchedRowEnabled', 'BecauseYouWatchedHideWatched', 'HeroTrustedFilesystemEnabled', 'HeroLibraryIds', 'DiscoveryPageEnabled', 'GlobalSearchEnabled', 'Enable4kRequests', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'SharedRequestsEnabled', 'DownloadsEnabled', 'CalendarEnabled', 'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey', 'RecentlyAddedLibraryIds'].includes(id);
                         }).map(function (id) { return [id, config[id]]; }));
                         return ApiClient.updatePluginConfiguration(pluginId, config);
                     }).then(function (result) {
@@ -604,6 +610,7 @@
                             (function () { const current = Array.from(heroList.querySelectorAll('input[type="checkbox"]:checked')).map(box => box.value); return current.length !== heroIds.length || current.some((id, index) => id !== heroIds[index]); }()) ||
                             page.querySelector('#DiscoveryPageEnabled').checked !== discoveryPageEnabled ||
                             page.querySelector('#SharedRequestsEnabled').checked !== sharedRequestsEnabled ||
+                            page.querySelector('#Enable4kRequests').checked !== seerr.Enable4kRequests ||
                             page.querySelector('#SeerrEnabled').checked !== seerr.SeerrEnabled ||
                             page.querySelector('#GlobalSearchEnabled').checked !== seerr.GlobalSearchEnabled ||
                             page.querySelector('#SeerrBaseUrl').value.trim() !== seerr.SeerrBaseUrl ||

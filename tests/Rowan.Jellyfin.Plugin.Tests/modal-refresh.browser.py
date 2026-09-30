@@ -9,7 +9,7 @@ root = Path(__file__).resolve().parents[2]
 web = root / 'src/Rowan.Jellyfin.Plugin/Web'
 baseline = os.getenv('MODAL_BASELINE') == '1'
 def asset(name):
-    return subprocess.check_output(['git', 'show', 'e069ff14e601eb22f138df352ce96b5f6929b3d0:src/Rowan.Jellyfin.Plugin/Web/'+name], cwd=root).decode() if baseline else (web/name).read_text()
+    return subprocess.check_output(['git', 'show', os.environ.get('MODAL_BASE_REF','e069ff14e601eb22f138df352ce96b5f6929b3d0')+':src/Rowan.Jellyfin.Plugin/Web/'+name], cwd=root).decode() if baseline else (web/name).read_text()
 theme = Path(os.environ['ELEGANTFIN_CSS_DIR'])
 hashes = {'elegant-source-0.css':'779aa801b912d21089d488ddf5a426fc8c02970ec953566ceee416e0d8bce643',
           'elegant-source-1.css':'525ac149903b4d2b8d55bdab36c1efaf8e27fc635ffa16afe0a0534705026841'}
@@ -37,7 +37,7 @@ with sync_playwright() as p:
               window.calls=[]; window.posts=[]; window.requests=[];
               window.dispose=ThreePicFinDiscovery.mount(document.querySelector('.threepic-fin-discovery'),{
                 getUrl:(r,p)=>'/'+r+(p?'?'+new URLSearchParams(p):''),
-                getJSON:url=> {calls.push(url); if(url.includes('TitleDetails'))return Promise.resolve(detail); if(url.includes('RequestOptions'))return window.optionPending || Promise.resolve({CanRequest:true,CanRequest4k:true,MediaStatus:1,MediaStatus4k:1,Seasons:detail.Seasons}); if(url.includes('Requests'))return Promise.resolve({Items:requests}); return Promise.resolve({Movies:{Items:tv?[]:[item]},Tv:{Items:tv?[item]:[]},Requests:{Items:requests}});},
+                getJSON:url=> {calls.push(url); if(url.includes('TitleDetails'))return Promise.resolve(detail); if(url.includes('RequestOptions'))return window.optionPending || Promise.resolve({CanRequest:true,CanRequest4k:true,MediaStatus:1,MediaStatus4k:1,Seasons:detail.Seasons,Seasons4k:detail.Seasons}); if(url.includes('Requests'))return Promise.resolve({Items:requests}); return Promise.resolve({Movies:{Items:tv?[]:[item]},Tv:{Items:tv?[item]:[]},Requests:{Items:requests}});},
                 ajax:args=> {posts.push(args); return new Promise(resolve=>window.resolvePost=resolve);}
               });
             }''',kind)
