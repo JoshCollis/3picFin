@@ -147,7 +147,7 @@
             const original = field(source, 'Items');
             const rows = original.map(item => ({ ...item }));
             const paint = () => {
-                if (disposed || generation !== (shared ? sharedListGeneration : requestListGeneration) || shared && (host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId)) return;
+                if (!currentUser() || generation !== (shared ? sharedListGeneration : requestListGeneration)) return;
                 render(container, { Items: rows }, empty, true, openRequest, openDetails);
             };
             for (const row of rows) {
@@ -165,7 +165,7 @@
                     const key = `${type}:${id}`;
                     if (!metadata.has(key)) metadata.set(key, ApiClient.getJSON(ApiClient.getUrl('3picFin/TitleDetails', { mediaType: type, mediaId: id }), { signal: metadataAbort.signal }).catch(() => null));
                     const detail = await metadata.get(key);
-                    if (disposed || generation !== (shared ? sharedListGeneration : requestListGeneration) || shared && (host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId)) return;
+                    if (!currentUser() || generation !== (shared ? sharedListGeneration : requestListGeneration)) return;
                     row.Title = field(detail, 'MediaType') === type && field(detail, 'TmdbId') === id && typeof field(detail, 'Title') === 'string' && field(detail, 'Title').trim() ? field(detail, 'Title') : 'Title unavailable';
                     row.PosterPath = row.Title !== 'Title unavailable' ? field(detail, 'PosterPath') : null;
                     paint();
@@ -214,11 +214,12 @@
             el('details-title').textContent = field(item, 'Title') || label(mediaType);
             el('details-meta').textContent = ''; el('details-overview').textContent = '';
             el('details-status').textContent = 'Loading details…';
-            el('details-open').hidden = true; el('details-request').hidden = true; el('details-request').disabled = true;
+            el('details-status').setAttribute('data-in-library', 'false');
+            el('details-open').disabled = false; el('details-open').hidden = true; el('details-request').hidden = true; el('details-request').disabled = true;
             if (!detailsDialog.open) detailsDialog.showModal();
             try {
                 const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/TitleDetails', { mediaType, mediaId }), { signal: detailsAbort.signal });
-                if (disposed || generation !== detailsGeneration || !detailsDialog.open || host.isCurrent && !host.isCurrent()) return;
+                if (!currentUser() || generation !== detailsGeneration || !detailsDialog.open) return;
                 if (field(result, 'MediaType') !== mediaType || field(result, 'TmdbId') !== mediaId) throw Error('Invalid details');
                 detailsItem = { ...item, MediaType: mediaType };
                 const title = field(result, 'Title'), overview = field(result, 'Overview'), poster = field(result, 'PosterPath');
@@ -230,7 +231,14 @@
                 const libraryId = field(result, 'LibraryItemId');
                 const available = typeof libraryId === 'string' && /^(?:[a-fA-F0-9]{32}|[a-fA-F0-9]{8}(?:-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12})$/.test(libraryId);
                 const state = field(result, 'MediaStatus');
-                el('details-status').textContent = available ? typeof host.openItem === 'function' ? 'Available in your library' : 'Available in your library · opening unavailable here' : ({ 1: 'Not requested', 2: 'Requested · Pending', 3: 'Requested · Processing', 4: 'Partially available', 5: 'Available in Seerr · not in your library', 6: 'Blocklisted' })[state] || 'Request status unknown';
+                const membership = available ? 'In your library' : ({
+                    absent: 'Not in your accessible library', unavailable: 'Library lookup unavailable',
+                    unknown: 'Library status unknown'
+                })[field(result, 'LibraryStatus')] || 'Library status unknown';
+                const requestState = ({ 1: 'Not requested', 2: 'Requested · Pending', 3: 'Requested · Processing',
+                    4: 'Partially available in Seerr', 5: 'Available in Seerr', 6: 'Blocklisted' })[state] || 'Request status unknown';
+                el('details-status').textContent = `${membership} · ${requestState}`;
+                el('details-status').setAttribute('data-in-library', String(available));
                 if (Number.isInteger(field(item, 'Id'))) el('details-status').textContent += ` · Request: ${requestStatus(field(item, 'Status'))}`;
                 if (Number.isInteger(field(item, 'Id'))) {
                     const requester = field(item, 'RequesterDisplayName');
@@ -240,11 +248,12 @@
                 // Only this authenticated, user-visible server match can be opened. Never infer it from the catalog.
                 el('details-open').hidden = !available || typeof host.openItem !== 'function';
                 el('details-open').onclick = available && typeof host.openItem === 'function' ? async () => {
-                    if (disposed || field(detailsItem, 'TmdbId') !== mediaId || detailsBusy || !detailsDialog.open) return;
+                    if (!currentUser() || field(detailsItem, 'TmdbId') !== mediaId || detailsBusy || !detailsDialog.open) return;
                     const ticket = detailsGeneration;
                     detailsBusy = true; el('details-open').disabled = true;
+                    detailsAbort = new AbortController();
                     try {
-                        const opened = await host.openItem({ mediaType, mediaId, libraryItemId: libraryId });
+                        const opened = await host.openItem({ mediaType, mediaId, libraryItemId: libraryId }, { signal: detailsAbort.signal });
                         if (disposed || ticket !== detailsGeneration || !detailsDialog.open) return;
                         if (opened === true) closeDetails(false);
                         else el('details-status').textContent = 'Library item changed or unavailable. Reopen details to check again.';
@@ -265,7 +274,7 @@
                     !requestable ? 'Request unavailable' : mediaType === 'tv' && state === 4 ? 'Request more' :
                     mediaType === 'tv' ? 'Request seasons' : canNormal ? 'Request' : 'Request 4K';
             } catch (_) {
-                if (disposed || generation !== detailsGeneration || !detailsDialog.open || host.isCurrent && !host.isCurrent()) return;
+                if (!currentUser() || generation !== detailsGeneration || !detailsDialog.open) return;
                 el('details-status').textContent = 'Details unavailable right now. Request status unknown.';
                 el('details-open').hidden = true; el('details-request').hidden = true;
             } finally { if (generation === detailsGeneration) { detailsBusy = false; detailsAbort = null; } }
@@ -548,12 +557,14 @@
         async function search(page) {
             const generation = ++searchGeneration;
             searchPage = page;
+            el('search-heading').hidden = true;
             message(el('search-results'), 'Loading search results…');
             pager('search', page, 1);
             try {
                 const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Search', { query: searchQuery, page }));
                 if (!currentUser() || generation !== searchGeneration) return;
                 render(el('search-results'), result, 'Search results', false, openRequest, openDetails);
+                el('search-heading').hidden = !el('search-results').querySelector('article');
                 searchMax = field(result, 'Error') || !Array.isArray(field(result, 'Items')) ? 1 : maxPages(result);
                 pager('search', page, searchMax);
             } catch (_) {
@@ -681,10 +692,15 @@
         on(el('shared-requests-next'), 'click', () => { if (sharedPage < sharedMax) sharedRequests(sharedPage + 1); });
         on(dialog, 'cancel', event => { if (submitting) event.preventDefault(); else { ++requestGeneration; trigger?.focus(); selection = null; options = null; } });
         on(dialog, 'close', () => { if (!submitting) { ++requestGeneration; trigger?.focus(); trigger = null; selection = null; options = null; } });
+        function clearSearch() {
+            ++searchGeneration; searchQuery = ''; searchPage = searchMax = 1;
+            el('search-heading').hidden = true; el('search-results').replaceChildren(); pager('search', 1, 1);
+        }
+        on(el('search'), 'input', () => { if (!el('search').value.trim()) clearSearch(); });
         on(el('search-form'), 'submit', e => {
             e.preventDefault();
             const query = el('search').value.trim();
-            if (!query) { ++searchGeneration; searchQuery = ''; searchPage = searchMax = 1; el('search-results').replaceChildren(); pager('search', 1, 1); return; }
+            if (!query) { clearSearch(); return; }
             if (query.length > 200) return;
             searchQuery = query; search(1);
         });
@@ -712,6 +728,7 @@
         const cleanup = () => {
             if (disposed) return;
             disposed = true; catalogAbort.abort(); catalogSources.clear(); metadataAbort.abort(); metadata.clear(); ++requestListGeneration; ++sharedListGeneration; closeDetails(false); stopDownloads(); stopCalendar(); ++searchGeneration; ++discoveryGeneration; ++requestGeneration; ++sharedGeneration;
+            el('search-heading').hidden = true;
             for (const name of ['movies', 'tv', 'requests', 'recommendations', 'trending', 'upcoming-movies', 'upcoming-tv', 'shared-requests', 'search-results', 'downloads-radarr', 'downloads-sonarr', 'calendar-radarr', 'calendar-sonarr']) el(name).replaceChildren();
             el('shared-requests').closest('section').hidden = true;
             el('calendar-panel').hidden = true;

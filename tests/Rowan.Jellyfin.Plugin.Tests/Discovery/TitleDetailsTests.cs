@@ -60,7 +60,22 @@ public sealed class TitleDetailsTests
     }
 
     [Fact]
-    public void LibraryResolutionRequiresUniqueVisibleTypedTmdbMatchAndConsistentHint()
+    public async Task LibraryLookupFailureRetainsDetailsButNeverClaimsAbsenceOrLeaksHint()
+    {
+        using var http = new HttpClient(new Handler(req => Json(req.RequestUri!.AbsolutePath.Contains("/user/jellyfin/")
+            ? "{\"id\":42,\"permissions\":32}"
+            : "{\"id\":9,\"title\":\"Fixture\",\"mediaInfo\":{\"status\":5}}")));
+        var controller = Controller(Client(http), Alice, (_, _, _, _) => throw new InvalidOperationException("private diagnostic"));
+        var response = Assert.IsType<OkObjectResult>((await controller.GetTitleDetails("movie", 9, CancellationToken.None)).Result);
+        var value = Assert.IsType<TitleDetails>(response.Value);
+        Assert.Null(value.LibraryItemId);
+        Assert.Equal("unavailable", value.LibraryStatus);
+        Assert.Equal(5, value.MediaStatus);
+        Assert.DoesNotContain("private diagnostic", JsonSerializer.Serialize(value));
+    }
+
+    [Fact]
+    public void LibraryResolutionSelectsDeterministicVisibleTypedTmdbMatchDespiteStaleHint()
     {
         var own = new TitleLibraryCandidate(Item, "movie", "9", true);
         var foreign = new TitleLibraryCandidate(Guid.NewGuid(), "movie", "9", false);
@@ -70,8 +85,8 @@ public sealed class TitleDetailsTests
         Assert.Null(TitleLibraryPolicy.Resolve([foreign], "movie", 9, foreign.Id));
         Assert.Null(TitleLibraryPolicy.Resolve([own], "tv", 9, Item));
         Assert.Null(TitleLibraryPolicy.Resolve([own], "movie", 10, Item));
-        Assert.Null(TitleLibraryPolicy.Resolve([own], "movie", 9, foreign.Id));
-        Assert.Null(TitleLibraryPolicy.Resolve([own, own with { Id = Guid.NewGuid() }], "movie", 9, null));
+        Assert.Equal(Item, TitleLibraryPolicy.Resolve([own], "movie", 9, foreign.Id));
+        Assert.Equal(Item, TitleLibraryPolicy.Resolve([own, own with { Id = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff") }], "movie", 9, null));
     }
 
     [Fact]
@@ -121,7 +136,7 @@ public sealed class TitleDetailsTests
     private static SeerrClient Client(HttpClient http) => new(http, SeerrOptions.FromConfiguration(new PluginConfiguration { SeerrEnabled = true, SeerrBaseUrl = "https://seerr.example/seerr", SeerrApiKey = "secret" }));
     private static TitleDetailsController Controller(SeerrClient client, Guid user, Func<Guid, string, int, Guid?, Guid?> resolve)
     {
-        var controller = new TitleDetailsController(client, id => id == user, resolve);
+        var controller = new TitleDetailsController(client, id => id == user, (id, type, tmdb, hint) => { var match = resolve(id, type, tmdb, hint); return new(match, match is null ? "unknown" : "present"); });
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(user == Guid.Empty ? [] : [new Claim("Jellyfin-UserId", user.ToString())], "test")) } };
         return controller;
     }

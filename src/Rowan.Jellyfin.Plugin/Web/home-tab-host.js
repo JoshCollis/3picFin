@@ -317,22 +317,22 @@
             document.head.appendChild(hostStyles);
             pane.setAttribute('data-threepic-fin-view', 'home');
             try {
-                const active = () => current?.panel === panel && current.userId === userId &&
+                const currentMount = () => current?.panel === panel && current.userId === userId &&
                     apiClient.getCurrentUserId?.() === userId &&
                     document.documentElement?.contains(pane) === true &&
-                    global.location?.hash?.split('?')[0] === '#/home' &&
-                    pane.getAttribute('data-threepic-fin-view') === 'discovery';
+                    global.location?.hash?.split('?')[0] === '#/home';
+                const active = () => currentMount() && pane.getAttribute('data-threepic-fin-view') === 'discovery';
                 // Jellyfin-web 12.1 appRouter.js exposes Emby.Page.showItem(item).
                 // Its object branch routes using Id, Type and ServerId without a second async item lookup.
-                const openItem = async ({ mediaType, mediaId, libraryItemId } = {}) => {
-                    if (!active() || !['movie', 'tv'].includes(mediaType) || !Number.isInteger(mediaId) || mediaId <= 0 ||
+                const openItem = async ({ mediaType, mediaId, libraryItemId } = {}, { signal } = {}) => {
+                    if (signal?.aborted || !active() || !['movie', 'tv'].includes(mediaType) || !Number.isInteger(mediaId) || mediaId <= 0 ||
                         !guid(libraryItemId) || typeof global.Emby?.Page?.showItem !== 'function') return false;
                     const identity = userId, route = global.location.hash, ticket = generation;
                     let fresh;
-                    try { fresh = await apiClient.getJSON(apiClient.getUrl('3picFin/TitleDetails', { mediaType, mediaId })); }
+                    try { fresh = await apiClient.getJSON(apiClient.getUrl('3picFin/TitleDetails', { mediaType, mediaId }), { signal }); }
                     catch (_) { return false; }
                     const id = field(fresh, 'LibraryItemId');
-                    if (ticket !== generation || !active() || identity !== apiClient.getCurrentUserId() ||
+                    if (signal?.aborted || ticket !== generation || !active() || identity !== apiClient.getCurrentUserId() ||
                         route !== global.location.hash || field(fresh, 'MediaType') !== mediaType ||
                         field(fresh, 'TmdbId') !== mediaId || !guid(id) ||
                         id.replaceAll('-', '').toLowerCase() !== libraryItemId.replaceAll('-', '').toLowerCase()) return false;
@@ -343,7 +343,7 @@
                 };
                 current = { pane, userId, apiClient, panel, stylesheet, hostStyles, sections, syncNav,
                     heroEnabled, heroStarted: false, heroTicket: 0, rowsEnabled, rowKinds, rowsTicket: 0 };
-                current.cleanup = discovery.mount(panel, apiClient, { deferInitialLoad: true, openItem });
+                current.cleanup = discovery.mount(panel, apiClient, { deferInitialLoad: true, openItem, userId, isCurrent: currentMount });
                 if (global.location?.hash === '#/home?fin=1') select('discovery');
                 syncNav();
                 if (!current.nav && !global.__threePicFinGlobalNav) { dispose(); return false; }

@@ -157,3 +157,10 @@
 .threepic-fin-discovery__search-controls { width: 100%; }
 .threepic-fin-discovery #threepic-fin-search { width: 100%; font-size: 1rem; }
 .threepic-fin-discovery__details #threepic-fin-details-overview { max-height: 15rem; overflow-y: auto; }
+
+.threepic-fin-discovery #threepic-fin-details-status[data-in-library="true"] {
+    font-weight: 600;
+    border-inline-start: .25rem solid var(--accentColor, #7db7ff);
+    padding-inline-start: .75rem;
+}
+.threepic-fin-discovery__row-heading:has(#threepic-fin-search-heading[hidden]) { display: none; }

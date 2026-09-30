@@ -1,6 +1,5 @@
-<div class="threepic-fin-discovery" aria-labelledby="threepic-fin-discovery-title">
+<div class="threepic-fin-discovery" role="region" aria-label="3pic Fin">
     <section class="threepic-fin-discovery__content">
-        <h2 id="threepic-fin-discovery-title">3pic Fin</h2>
         <div class="threepic-fin-discovery__tabs" role="tablist" aria-label="3pic Fin views">
             <button id="threepic-fin-discover-tab" role="tab" type="button" aria-controls="threepic-fin-discover-panel" aria-selected="true" tabindex="0">Discover</button>
             <button id="threepic-fin-downloads-tab" role="tab" type="button" aria-controls="threepic-fin-downloads-panel" aria-selected="false" tabindex="-1">Downloads</button>
@@ -14,7 +13,7 @@
                     <button type="submit">Search</button>
                 </div>
             </form>
-            <section aria-label="Search results"><h3>Search results</h3><div id="threepic-fin-search-results" class="threepic-fin-discovery__cards" aria-live="polite"></div>
+            <section aria-label="Search results"><h3 id="threepic-fin-search-heading" hidden>Search results</h3><div id="threepic-fin-search-results" class="threepic-fin-discovery__cards" aria-live="polite"></div>
                 <div class="threepic-fin-discovery__pager"><button id="threepic-fin-search-prev" type="button" aria-label="Previous search results page" disabled>Previous</button><span id="threepic-fin-search-page" aria-live="polite"></span><button id="threepic-fin-search-next" type="button" aria-label="Next search results page" disabled>Next</button></div>
             </section>
             <section aria-label="Trending"><h3>Trending</h3><div id="threepic-fin-trending" class="threepic-fin-discovery__cards" aria-live="polite"></div>
@@ -63,7 +62,7 @@
             <div class="threepic-fin-discovery__details-heading"><h3 id="threepic-fin-details-title"></h3><p id="threepic-fin-details-meta"></p></div>
             <p id="threepic-fin-details-overview" tabindex="0" aria-label="Synopsis"></p>
             <p id="threepic-fin-details-status" role="status" aria-live="polite"></p>
-            <div class="threepic-fin-discovery__actions"><button id="threepic-fin-details-open" type="button" hidden>Open in Jellyfin</button><button id="threepic-fin-details-request" type="button" hidden>Request</button></div>
+            <div class="threepic-fin-discovery__actions"><button id="threepic-fin-details-open" type="button" hidden>View in library</button><button id="threepic-fin-details-request" type="button" hidden>Request</button></div>
         </dialog>
         <dialog id="threepic-fin-request-dialog" class="threepic-fin-discovery__dialog" aria-labelledby="threepic-fin-request-title" aria-describedby="threepic-fin-request-status">
             <form id="threepic-fin-request-form">
