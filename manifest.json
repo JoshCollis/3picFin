@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.8.6",
+        "changelog": "Polish the still-image hero with a calmer responsive title and an aligned slide counter, pagination, progress and navigation cluster",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v0.1.8.6/3pic-fin_0.1.8.6.zip",
+        "checksum": "4545a748deaf20d3578fd5a7d3be5439",
+        "timestamp": "2026-09-30T08:35:22Z"
+      },
+      {
         "version": "0.1.8.5",
         "changelog": "Polish the still-image hero with a calmer responsive title and an aligned slide counter, pagination, progress and navigation cluster",
         "targetAbi": "12.1.0.0",
