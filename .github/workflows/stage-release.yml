@@ -1,11 +1,8 @@
-name: Publish tagged Jellyfin catalog
+name: Publish Jellyfin catalog
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Existing tag vN.N.N.N at current default-branch HEAD'
-        required: true
-        type: string
 permissions:
   contents: read
 concurrency:
@@ -22,21 +19,17 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Verify tag against current default branch via API
+      - name: Verify current main branch via API
         env:
-          TAG: ${{ inputs.tag }}
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
-          git show-ref --verify --quiet "refs/tags/$TAG" || exit 1
           branch=$(gh api "repos/$GITHUB_REPOSITORY" --jq .default_branch)
+          test "$branch" = main
           default_sha=$(gh api "repos/$GITHUB_REPOSITORY/branches/$branch" --jq .commit.sha)
-          test "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$default_sha"
           test "$(git rev-parse HEAD)" = "$default_sha"
           test -z "$(git status --porcelain)"
-          printf 'VERSION=%s\nTAG=%s\n' "${TAG#v}" "$TAG" >> "$GITHUB_ENV"
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
@@ -54,7 +47,9 @@ jobs:
             fetch --no-tags origin refs/heads/catalog:refs/remotes/origin/catalog
           git show origin/catalog:manifest.json > catalog-input.json
           python3 -c 'import json,sys; sys.path.insert(0,"scripts"); from package_plugin import validate_catalog; validate_catalog(json.load(open("catalog-input.json")))'
-      - name: Test and package tagged commit
+          version=$(python3 scripts/next_release.py catalog-input.json)
+          printf 'VERSION=%s\nTAG=v%s\n' "$version" "$version" >> "$GITHUB_ENV"
+      - name: Test and package main commit
         shell: bash
         run: |
           set -euo pipefail
@@ -62,13 +57,13 @@ jobs:
           dotnet test RowanJellyfin.slnx -c Release --no-restore
           dotnet build RowanJellyfin.slnx -c Release --no-restore -p:Version="$VERSION"
           node --test tests/Rowan.Jellyfin.Plugin.Tests/*.test.cjs
-          python3 -m unittest discover -s tests -p 'test_package_plugin.py'
+          python3 -m unittest discover -s tests -p 'test_*.py'
           python3 scripts/package_plugin.py package \
             --dll src/Rowan.Jellyfin.Plugin/bin/Release/net10.0/Rowan.Jellyfin.Plugin.dll \
             --manifest catalog-input.json --output dist --version "$VERSION" \
             --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip" \
             --epoch "$(git show -s --format=%ct HEAD)" \
-            --changelog "Remove the overlapping More to discover rail and place Trending after My Requests and All Requests"
+            --changelog "$(git log -1 --format=%s)"
           python3 scripts/package_plugin.py validate --package "dist/3pic-fin_$VERSION.zip" \
             --manifest dist/manifest.json --version "$VERSION" \
             --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip"
@@ -76,6 +71,20 @@ jobs:
             src/Rowan.Jellyfin.Plugin/bin/Release/net10.0/Rowan.Jellyfin.Plugin.dll \
             "dist/3pic-fin_$VERSION.zip" "$VERSION"
           (cd dist && sha256sum -c SHA256SUMS)
+      - name: Create version tag after successful verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)"
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            test "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$(git rev-parse HEAD)"
+          else
+            git tag "$TAG"
+            git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
+              push origin "refs/tags/$TAG"
+          fi
       - name: Create or verify draft release and downloaded ZIP
         env:
           GH_TOKEN: ${{ github.token }}
@@ -85,7 +94,7 @@ jobs:
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" "dist/3pic-fin_$VERSION.zip" dist/SHA256SUMS \
               --verify-tag --draft --title "3pic Fin $VERSION" \
-              --notes 'Discover now places Search results, My Requests, All Requests (when enabled), then Trending before the Popular and Upcoming rails; the overlapping More to discover rail is removed. Installable on Jellyfin 12.1 with File Transformation 3.0.1 or compatible for automatic Home and Search integration. Configure Seerr, Search, personal rows and trusted hero independently in the administrator page. Verify your own web/theme and household policies before replacing other UI plugins.'
+              --generate-notes
           fi
           gh release view "$TAG" --json isDraft,assets | jq -e --arg version "$VERSION" \
             '.isDraft and ([.assets[].name] | sort == (["3pic-fin_" + $version + ".zip", "SHA256SUMS"] | sort))'

@@ -8,7 +8,7 @@ const fragment = fs.readFileSync(path.join(base, 'discovery.html'), 'utf8');
 const css = fs.readFileSync(path.join(base, 'discovery.css'), 'utf8');
 const script = () => fs.readFileSync(path.join(base, 'discovery.js'), 'utf8');
 class Element {
-    constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.parentNode = null; this.attrs = {}; this.handlers = {}; this.observers = new Set(); this.textContent = ''; this.value = ''; this.disabled = false; this.hidden = false; this.checked = false; this.clientWidth = 300; this.scrollWidth = 300; this.scrollLeft = 0; }
+    constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.parentNode = null; this.attrs = {}; this.handlers = {}; this.observers = new Set(); this.textContent = ''; this.value = ''; this.style = {}; this.disabled = false; this.hidden = false; this.checked = false; this.clientWidth = 300; this.scrollWidth = 300; this.scrollLeft = 0; }
     setAttribute(key, value) { this.attrs[key] = String(value); }
     getAttribute(key) { return this.attrs[key] ?? null; }
     addEventListener(key, fn) { (this.handlers[key] ??= []).push(fn); }
@@ -30,12 +30,11 @@ class Element {
 function deferred() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 async function flush() { for (let i = 0; i < 6; i++) await new Promise(resolve => setImmediate(resolve)); }
 function setup(responses = [], posts = [], host = {}, details = [], shared = [], trending = []) {
-    const ids = ['threepic-fin-search-heading', 'threepic-fin-trending', 'threepic-fin-upcoming-movies', 'threepic-fin-upcoming-tv', 'threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-discover-tab', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-art', 'threepic-fin-request-meta', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests', 'trending', 'upcoming-movies', 'upcoming-tv'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
+    const ids = ['threepic-fin-search-heading', 'threepic-fin-trending', 'threepic-fin-upcoming-movies', 'threepic-fin-upcoming-tv', 'threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-close', 'threepic-fin-calendar-filter', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-close', 'threepic-fin-downloads-refresh', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-art', 'threepic-fin-request-meta', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests', 'trending', 'upcoming-movies', 'upcoming-tv'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
     for (const id of ids) if (id !== 'threepic-fin-shared-requests-load') assert.match(fragment, new RegExp(`id="${id}"`));
     const nodes = Object.fromEntries(ids.map(id => [id, new Element()]));
     const root = new Element();
-    const tabs = new Element();
-    root.querySelector = selector => selector === '.threepic-fin-discovery__tabs' ? tabs : nodes[selector.slice(1)] || null;
+    root.querySelector = selector => nodes[selector.slice(1)] || null;
     // Mirror the fragment's rail section/heading relationship instead of
     // handing every ID a disconnected placeholder node.
     const rails = ['trending', 'upcoming-movies', 'upcoming-tv', 'requests', 'shared-requests', 'search-results', 'movies', 'tv'];
@@ -247,7 +246,7 @@ test('enabled All Requests loads on activation as a separate paginated rail with
     assert.match(app.text('requests'), /No Requests/);
     assert.match(fragment, /aria-label="All Requests"/);
     assert.doesNotMatch(fragment, /Show household requests|Household Requests|shared-requests-load/);
-    assert.match(fragment, /<h3>Active Downloads<\/h3>/);
+    assert.match(fragment, /<h3 id="threepic-fin-downloads-title">Active Downloads<\/h3>/);
     assert.doesNotMatch(css, /\.threepic-fin-discovery\s*\{[^}]*background\s*:/);
 });
 
@@ -271,10 +270,13 @@ test('disabled or unauthorized All Requests stays hidden and cannot leak a stale
     assert.equal(switching.el('shared-requests').children.length, 1, 'only pre-response loading placeholder remains');
 });
 
-test('fragment remains host-owned and Calendar is a keyboard accessible nested view', () => {
+test('fragment remains host-owned with accessible activity dialogs and icon search', () => {
     assert.doesNotMatch(fragment, /<(script|link|main)\b/i);
     assert.match(fragment, /id="threepic-fin-calendar-tab"[^>]*aria-controls="threepic-fin-calendar-panel"/);
-    assert.match(fragment, /id="threepic-fin-calendar-panel"[^>]*hidden/);
+    assert.match(fragment, /<dialog id="threepic-fin-calendar-panel"[^>]*aria-labelledby="threepic-fin-calendar-title"/);
+    assert.match(fragment, /<dialog id="threepic-fin-downloads-panel"[^>]*aria-labelledby="threepic-fin-downloads-title"/);
+    assert.match(fragment, /type="submit"[^>]*aria-label="Search"[^>]*><svg/);
+    assert.doesNotMatch(fragment, /role="tablist"|role="tabpanel"/);
     assert.doesNotMatch(fragment, /More to discover|threepic-fin-recommendations/);
     assert.doesNotMatch(fragment, /<h3>Recommendations<\/h3>/);
     assert.match(css, /prefers-reduced-motion/);
@@ -358,12 +360,12 @@ test('search failures are distinct and empty search does not make a request', as
     assert.match(app.text('search-results'), /unavailable/i);
     assert.doesNotMatch(app.text('search-results'), /private upstream detail/);
 });
-test('one inner Fin view contains requests and Trending with nested Calendar', () => {
+test('one Fin page contains requests and Trending with activity controls above search', () => {
     assert.match(fragment, /id="threepic-fin-discover-panel"[\s\S]*id="threepic-fin-requests"/);
     assert.match(fragment, /id="threepic-fin-discover-panel"[\s\S]*id="threepic-fin-trending"/);
     assert.doesNotMatch(fragment, /id="threepic-fin-requests-panel"/);
     assert.doesNotMatch(fragment, /id="threepic-fin-my-requests"/);
-    assert.match(fragment, /3pic Fin views[\s\S]*threepic-fin-calendar-tab/);
+    assert.match(fragment, /threepic-fin-downloads-tab[\s\S]*threepic-fin-calendar-tab[\s\S]*threepic-fin-search-form/);
 });
 test('movie, TV and request pages advance independently without changing other source pages', async () => {
     const app = setup([bundle(source([{ Title: 'First movie', MediaType: 'movie', TmdbId: 1 }], { TotalPages: 3 }), source([{ Title: 'First TV', MediaType: 'tv', TmdbId: 2 }], { TotalPages: 1 }), source([{ Id: 3, Status: 2, Type: 'movie' }], { TotalPages: 2 })),
@@ -606,8 +608,8 @@ test('Downloads is a separate lazy shared view with title-wide status and safe d
     await app.flush();
     assert.deepEqual(app.calls.filter(c => c[0] === 'url').map(c => c[1]), ['3picFin/Discovery', '3picFin/Discovery/Trending', '3picFin/Discovery/UpcomingMovies', '3picFin/Discovery/UpcomingTV']);
     app.el('downloads-tab').dispatch('click'); await app.flush();
-    assert.equal(app.el('discover-panel').hidden, true);
-    assert.equal(app.el('downloads-panel').hidden, false);
+    assert.equal(app.el('discover-panel').hidden, false);
+    assert.equal(app.el('downloads-panel').open, true);
     assert.match(app.calls.find(c => c[0] === 'getJSON' && c[1].includes('Downloads'))[1], /\/jellyfin\/3picFin\/Downloads$/);
     assert.match(app.text('downloads-radarr'), /<img src=x>.*Downloading.*26%/);
     assert.match(app.text('downloads-sonarr'), /Series.*Queued.*Partial/i);
@@ -615,8 +617,9 @@ test('Downloads is a separate lazy shared view with title-wide status and safe d
     assert.doesNotMatch(fragment, /Radarr<|Sonarr<|default server and profile|not personalized/i);
     assert.doesNotMatch(app.text('requests'), /Series|<img/);
     assert.equal(app.el('downloads-radarr').descendants().some(n => Object.hasOwn(n, 'innerHTML')), false);
-    app.el('discover-tab').dispatch('click');
+    app.el('downloads-close').dispatch('click');
     assert.equal(app.el('discover-panel').hidden, false);
+    assert.equal(app.el('downloads-panel').open, false);
 });
 
 test('Downloads sources handle empty and errors independently without leaking upstream details', async () => {
@@ -628,6 +631,17 @@ test('Downloads sources handle empty and errors independently without leaking up
     assert.match(app.text('downloads-sonarr'), /unavailable/i);
     assert.doesNotMatch(app.text('downloads-sonarr'), /private|path|mkv/);
 });
+test('Downloads refresh replaces status and ignores an in-flight older response', async () => {
+    const stale = deferred();
+    const app = setup([bundle(), stale, { Radarr: source([{ Title: 'Updated', Progress: .75 }]), Sonarr: source() }]);
+    await app.flush(); app.el('downloads-tab').dispatch('click');
+    app.el('downloads-refresh').dispatch('click'); await app.flush();
+    assert.match(app.text('downloads-radarr'), /Updated.*75%/);
+    assert.equal(app.el('downloads-radarr').descendants().find(n => n.className === 'threepic-fin-discovery__progress')?.children[0].style.width, '75%');
+    assert.equal(app.calls.filter(c => c[0] === 'getJSON')[1][2].signal.aborted, true);
+    stale.resolve({ Radarr: source([{ Title: 'Stale' }]), Sonarr: source() }); await app.flush();
+    assert.doesNotMatch(app.text('downloads-radarr'), /Stale/);
+});
 
 test('404 disables Downloads without affecting Discover; other failures remain retryable', async () => {
     const disabled = Object.assign(new Error('disabled'), { status: 404 });
@@ -635,12 +649,12 @@ test('404 disables Downloads without affecting Discover; other failures remain r
     app.el('downloads-tab').dispatch('click'); await app.flush();
     assert.equal(app.el('downloads-tab').hidden, true);
     assert.equal(app.el('discover-panel').hidden, false);
-    assert.equal(app.el('downloads-panel').hidden, true);
+    assert.equal(app.el('downloads-panel').open, false);
     assert.match(app.text('requests'), /No Requests/);
     const retry = setup([bundle(), new Error('private'), { Radarr: source(), Sonarr: source() }]); await retry.flush();
     retry.el('downloads-tab').dispatch('click'); await retry.flush();
     assert.match(retry.text('downloads-radarr'), /unavailable/i);
-    retry.el('discover-tab').dispatch('click'); retry.el('downloads-tab').dispatch('click'); await retry.flush();
+    retry.el('downloads-close').dispatch('click'); retry.el('downloads-tab').dispatch('click'); await retry.flush();
     assert.match(retry.text('downloads-radarr'), /No .*downloads/i);
 });
 
@@ -687,7 +701,7 @@ test('leaving Downloads or unmounting aborts and ignores stale responses', async
     const first = deferred(), second = deferred(); const app = setup([bundle(), first, second]); await app.flush();
     app.el('downloads-tab').dispatch('click');
     const signal = app.calls.filter(c => c[0] === 'getJSON')[1];
-    app.el('discover-tab').dispatch('click');
+    app.el('downloads-close').dispatch('click');
     assert.equal(signal[2]?.signal?.aborted, true);
     app.el('downloads-tab').dispatch('click');
     first.resolve({ Radarr: source([{ Title: 'Stale' }]), Sonarr: source() }); await app.flush();
@@ -709,11 +723,10 @@ test('Calendar loads lazily with a half-open 31-day UTC window and independent s
     assert.ok(request);
     assert.equal((Date.parse(request[2].end) - Date.parse(request[2].start)) / 86400000, 31);
     assert.match(request[2].start, /^\d{4}-\d\d-\d\d$/);
-    assert.equal(app.el('discover-panel').hidden, true);
-    assert.equal(app.el('calendar-panel').hidden, false);
-    assert.equal(app.el('calendar-tab').getAttribute('aria-selected'), 'true');
-    assert.match(app.text('calendar-radarr'), /Movie.*Digital.*title-wide/i);
-    assert.match(app.text('calendar-sonarr'), /Show.*S02E03.*Pilot.*Partial/i);
+    assert.equal(app.el('discover-panel').hidden, false);
+    assert.equal(app.el('calendar-panel').open, true);
+    assert.match(app.text('calendar-radarr'), /Digital.*Movie.*title-wide/i);
+    assert.match(app.text('calendar-sonarr'), /Episode.*Show.*S02E03.*Pilot.*Partial/i);
     assert.doesNotMatch(app.text('requests'), /Pilot/);
 });
 
@@ -729,6 +742,19 @@ test('Calendar navigation advances bounded windows and suppresses stale results'
     fresh.resolve({ Radarr: source([{ Title: 'Fresh', Date: '2026-10-01T00:00:00Z', EventType: 'Cinema' }]), Sonarr: source() }); await app.flush();
     assert.match(app.text('calendar-radarr'), /Fresh/);
     assert.doesNotMatch(app.text('calendar-radarr'), /Old/);
+});
+test('Calendar release filter repaints cached events without refetching', async () => {
+    const app = setup([bundle(), { Radarr: source([
+        { Title: 'Digital film', EventType: 'Digital' },
+        { Title: 'Physical film', EventType: 'Physical' }
+    ]), Sonarr: source([{ Title: 'Episode show', EventType: 'Episode' }]) }]);
+    await app.flush(); app.el('calendar-tab').dispatch('click'); await app.flush();
+    app.el('calendar-filter').value = 'Physical'; app.el('calendar-filter').dispatch('change');
+    assert.match(app.text('calendar-radarr'), /Physical film/);
+    assert.doesNotMatch(app.text('calendar-radarr') + app.text('calendar-sonarr'), /Digital film|Episode show/);
+    app.el('calendar-filter').value = 'Episode'; app.el('calendar-filter').dispatch('change');
+    assert.match(app.text('calendar-sonarr'), /Episode show/);
+    assert.equal(app.calls.filter(c => c[0] === 'getJSON').length, 2);
 });
 
 test('Calendar holds navigation during a pending read and releases it after failure', async () => {
@@ -752,7 +778,7 @@ test('Calendar abort on view exit releases navigation for reentry without stale 
     const old = deferred(), fresh = deferred();
     const app = setup([bundle(), old, fresh]); await app.flush();
     app.el('calendar-tab').dispatch('click');
-    app.el('discover-tab').dispatch('click');
+    app.el('calendar-close').dispatch('click');
     assert.equal(app.calls.filter(c => c[0] === 'getJSON')[1][2].signal.aborted, true);
     app.el('calendar-tab').dispatch('click');
     assert.equal(app.el('calendar-next').disabled, true);
@@ -764,12 +790,12 @@ test('Calendar abort on view exit releases navigation for reentry without stale 
     assert.equal(app.el('calendar-next').disabled, false);
 });
 
-test('Calendar 404 hides only its tab and returns to Discover', async () => {
+test('Calendar 404 hides only its control and closes the dialog', async () => {
     const disabled = Object.assign(new Error('disabled'), { status: 404 });
     const app = setup([bundle(), disabled]); await app.flush();
     app.el('calendar-tab').dispatch('click'); await app.flush();
     assert.equal(app.el('calendar-tab').hidden, true);
-    assert.equal(app.el('calendar-panel').hidden, true);
+    assert.equal(app.el('calendar-panel').open, false);
     assert.equal(app.el('discover-panel').hidden, false);
     assert.equal(app.el('downloads-tab').hidden, false);
     app.el('calendar-tab').dispatch('click');
@@ -779,8 +805,8 @@ test('Calendar 404 hides only its tab and returns to Discover', async () => {
 test('Calendar renders camelCase source and event DTOs', async () => {
     const app = setup([bundle(), { radarr: { items: [{ title: 'Camel film', titleId: 51, eventType: 'Digital', date: '2026-09-28T00:00:00Z' }], error: null }, sonarr: { items: [{ title: 'Camel show', titleId: 52, eventType: 'Episode', seasonNumber: 1, episodeNumber: 2, episodeTitle: 'Pilot', date: '2026-09-29T00:00:00Z' }], partial: true } }]);
     await app.flush(); app.el('calendar-tab').dispatch('click'); await app.flush();
-    assert.match(app.text('calendar-radarr'), /Camel film.*Digital/);
-    assert.match(app.text('calendar-sonarr'), /Camel show.*S01E02.*Pilot.*Partial/i);
+    assert.match(app.text('calendar-radarr'), /Digital.*Camel film/);
+    assert.match(app.text('calendar-sonarr'), /Episode.*Camel show.*S01E02.*Pilot.*Partial/i);
 });
 
 test('Calendar isolates disabled, errors, partial, empty and suspicious metadata', async () => {

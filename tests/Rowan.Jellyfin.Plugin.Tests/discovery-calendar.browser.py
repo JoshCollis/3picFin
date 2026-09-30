@@ -30,10 +30,13 @@ with sync_playwright() as p:
         page.locator('#threepic-fin-calendar-tab').focus()
         page.keyboard.press('Enter')
         assert page.locator('#threepic-fin-calendar-panel').is_visible()
-        assert not page.locator('#threepic-fin-discover-panel').is_visible()
+        assert page.locator('#threepic-fin-discover-panel').is_visible()
         assert page.locator('#threepic-fin-calendar-radarr h4').all_text_contents() == ['Movie · TMDb #42']
         assert 'S01E03 · Pilot' in page.locator('#threepic-fin-calendar-sonarr').inner_text()
         assert 'Partial results' in page.locator('#threepic-fin-calendar-sonarr').inner_text()
+        assert page.evaluate('calendarCalls.length') == 1
+        page.locator('#threepic-fin-calendar-filter').select_option('Digital')
+        assert 'No TV matching releases' in page.locator('#threepic-fin-calendar-sonarr').inner_text()
         assert page.evaluate('calendarCalls.length') == 1
         assert '/jellyfin/3picFin/Calendar?start=' in page.evaluate('calendarCalls[0]')
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
@@ -41,7 +44,8 @@ with sync_playwright() as p:
         assert box is not None and box['height'] >= 44
         page.locator('#threepic-fin-calendar-next').click()
         assert page.evaluate('calendarCalls.length') == 2
-        page.locator('#threepic-fin-discover-tab').click()
+        page.locator('#threepic-fin-calendar-close').click()
+        assert not page.locator('#threepic-fin-calendar-panel').is_visible()
         assert page.locator('#threepic-fin-discover-panel').is_visible()
         page.evaluate('dispose()')
         page.close()

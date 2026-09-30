@@ -1,16 +1,15 @@
 <div class="threepic-fin-discovery" role="region" aria-label="3pic Fin">
     <section class="threepic-fin-discovery__content">
-        <div class="threepic-fin-discovery__tabs" role="tablist" aria-label="3pic Fin views">
-            <button id="threepic-fin-discover-tab" role="tab" type="button" aria-controls="threepic-fin-discover-panel" aria-selected="true" tabindex="0">Discover</button>
-            <button id="threepic-fin-downloads-tab" role="tab" type="button" aria-controls="threepic-fin-downloads-panel" aria-selected="false" tabindex="-1">Downloads</button>
-            <button id="threepic-fin-calendar-tab" role="tab" type="button" aria-controls="threepic-fin-calendar-panel" aria-selected="false" tabindex="-1">Calendar</button>
-        </div>
-        <div id="threepic-fin-discover-panel" role="tabpanel" aria-labelledby="threepic-fin-discover-tab">
+        <div id="threepic-fin-discover-panel">
+            <div class="threepic-fin-discovery__utilities" aria-label="3pic Fin tools">
+                <button id="threepic-fin-downloads-tab" type="button" aria-label="Active downloads" title="Active downloads" aria-haspopup="dialog" aria-controls="threepic-fin-downloads-panel"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3"/></svg></button>
+                <button id="threepic-fin-calendar-tab" type="button" aria-label="Release calendar" title="Release calendar" aria-haspopup="dialog" aria-controls="threepic-fin-calendar-panel"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 4h3m-3 3h3"/></svg></button>
+            </div>
             <form id="threepic-fin-search-form" role="search">
                 <label for="threepic-fin-search">Search movies and TV</label>
                 <div class="threepic-fin-discovery__search-controls">
                     <input id="threepic-fin-search" type="search" maxlength="200" autocomplete="off">
-                    <button type="submit">Search</button>
+                    <button type="submit" class="threepic-fin-discovery__search-button" aria-label="Search" title="Search"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg></button>
                 </div>
             </form>
             <section aria-label="Search results"><h3 id="threepic-fin-search-heading" hidden>Search results</h3><div id="threepic-fin-search-results" class="threepic-fin-discovery__cards" aria-live="polite"></div>
@@ -39,14 +38,15 @@
                 <div class="threepic-fin-discovery__pager" aria-label="Upcoming TV pages"><button id="threepic-fin-upcoming-tv-prev" type="button" aria-label="Previous Upcoming TV page" disabled>Previous</button><span id="threepic-fin-upcoming-tv-page" aria-live="polite"></span><button id="threepic-fin-upcoming-tv-next" type="button" aria-label="Next Upcoming TV page" disabled>Next</button></div>
             </section>
         </div>
-        <div id="threepic-fin-downloads-panel" role="tabpanel" aria-labelledby="threepic-fin-downloads-tab" hidden>
-            <h3>Active Downloads</h3>
+        <dialog id="threepic-fin-downloads-panel" class="threepic-fin-discovery__dialog threepic-fin-discovery__activity" aria-labelledby="threepic-fin-downloads-title">
+            <div class="threepic-fin-discovery__activity-header"><div><span class="threepic-fin-discovery__eyebrow">3PIC FIN · ACTIVITY</span><h3 id="threepic-fin-downloads-title">Active Downloads</h3><p>Movies and shows on their way.</p></div><button id="threepic-fin-downloads-close" class="threepic-fin-discovery__icon-button" type="button" aria-label="Close downloads">×</button></div>
+            <div class="threepic-fin-discovery__activity-actions"><button id="threepic-fin-downloads-refresh" type="button">↻ &nbsp; Refresh status</button></div>
             <section aria-label="Movie downloads"><h3>Movies</h3><div id="threepic-fin-downloads-radarr" class="threepic-fin-discovery__downloads" aria-live="polite"></div></section>
             <section aria-label="TV downloads"><h3>TV</h3><div id="threepic-fin-downloads-sonarr" class="threepic-fin-discovery__downloads" aria-live="polite"></div></section>
-        </div>
-        <div id="threepic-fin-calendar-panel" role="tabpanel" aria-labelledby="threepic-fin-calendar-tab" hidden>
-            <h3>Shared Calendar</h3>
-
+        </dialog>
+        <dialog id="threepic-fin-calendar-panel" class="threepic-fin-discovery__dialog threepic-fin-discovery__activity" aria-labelledby="threepic-fin-calendar-title">
+            <div class="threepic-fin-discovery__activity-header"><div><span class="threepic-fin-discovery__eyebrow">3PIC FIN · UPCOMING</span><h3 id="threepic-fin-calendar-title">Release Calendar</h3><p>What’s coming up across movies and TV.</p></div><button id="threepic-fin-calendar-close" class="threepic-fin-discovery__icon-button" type="button" aria-label="Close calendar">×</button></div>
+            <label class="threepic-fin-discovery__filter" for="threepic-fin-calendar-filter">Show <select id="threepic-fin-calendar-filter"><option value="all">All releases</option><option value="Cinema">Cinema releases</option><option value="Digital">Digital releases</option><option value="Physical">Physical releases</option><option value="Episode">TV episodes</option></select></label>
             <div class="threepic-fin-discovery__pager" aria-label="Calendar windows">
                 <button id="threepic-fin-calendar-prev" type="button" aria-label="Previous 31 days">Previous</button>
                 <span id="threepic-fin-calendar-window" aria-live="polite"></span>
@@ -54,7 +54,7 @@
             </div>
             <section aria-label="Movie calendar"><h3>Movies</h3><div id="threepic-fin-calendar-radarr" class="threepic-fin-discovery__calendar" aria-live="polite"></div></section>
             <section aria-label="TV calendar"><h3>TV</h3><div id="threepic-fin-calendar-sonarr" class="threepic-fin-discovery__calendar" aria-live="polite"></div></section>
-        </div>
+        </dialog>
         <dialog id="threepic-fin-details-dialog" class="threepic-fin-discovery__dialog threepic-fin-discovery__details" aria-labelledby="threepic-fin-details-title" aria-describedby="threepic-fin-details-status">
             <button id="threepic-fin-details-close" class="threepic-fin-discovery__details-close" type="button" aria-label="Close details">×</button>
             <div id="threepic-fin-details-body"></div>
