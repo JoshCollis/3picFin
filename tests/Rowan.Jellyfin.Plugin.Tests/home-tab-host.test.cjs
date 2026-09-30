@@ -373,6 +373,13 @@ test('host rechecks title before native item navigation and rejects stale user, 
     result = Promise.resolve({ MediaType: 'movie', TmdbId: 9, LibraryItemId: guid });
     assert.equal(await callback({ mediaType: 'movie', mediaId: 9, libraryItemId: guid }), true);
     assert.equal(shown[0].Id, guid); assert.equal(shown[0].Type, 'Movie'); assert.equal(shown[0].ServerId, 'server-a');
+    const cancellation = new AbortController();
+    let finishNavigation;
+    result = new Promise(resolve => finishNavigation = resolve);
+    const cancelled = callback({ mediaType: 'movie', mediaId: 9, libraryItemId: guid }, { signal: cancellation.signal });
+    cancellation.abort();
+    finishNavigation({ MediaType: 'movie', TmdbId: 9, LibraryItemId: guid });
+    assert.equal(await cancelled, false); assert.equal(shown.length, 1);
     result = Promise.resolve({ MediaType: 'movie', TmdbId: 9, LibraryItemId: 'fedcba98-7654-3210-fedc-ba9876543210' });
     assert.equal(await callback({ mediaType: 'movie', mediaId: 9, libraryItemId: guid }), false);
     hash = '#/favorites'; assert.equal(await callback({ mediaType: 'movie', mediaId: 9, libraryItemId: guid }), false);
