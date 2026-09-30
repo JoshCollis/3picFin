@@ -126,7 +126,7 @@ public sealed class DiscoveryController : ControllerBase
     [ActivatorUtilitiesConstructor]
     public DiscoveryController(SeerrClient client, IUserManager users, ILibraryManager libraries) : this(client, id => users.GetUserById(id) is not null,
         () => Plugin.Current?.Configuration.SharedRequestsEnabled == true,
-        (id, tmdb) => TitleDetailsController.ResolveLibrary(users, libraries, id, "movie", tmdb, null).HasValue) { }
+        (id, tmdb) => TitleDetailsController.ResolveLibrary(users, libraries, id, "movie", tmdb, null).ItemId.HasValue) { }
 
     /// <summary>Allows isolated controller tests without a live Jellyfin database.</summary>
     public DiscoveryController(SeerrClient client, Func<Guid, bool> userExists, Func<bool>? sharedEnabled = null, Func<Guid, int, bool>? movieAvailable = null)
