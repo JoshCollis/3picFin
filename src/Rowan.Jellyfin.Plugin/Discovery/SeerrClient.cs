@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -27,7 +28,10 @@ public enum SeerrFailure
 public sealed record CreateSeerrRequest(string MediaType, int MediaId, int[]? Seasons, bool Is4k);
 public sealed record CreatedSeerrRequest(int Id, int Status);
 public sealed record SeerrCreateResult(CreatedSeerrRequest? Value, SeerrFailure? Failure);
-public sealed record RequestOptions(bool CanRequest, bool CanRequest4k, int? MediaStatus, int? MediaStatus4k, int[] Seasons);
+public sealed record RequestOptions(bool CanRequest, bool CanRequest4k, int? MediaStatus, int? MediaStatus4k, int[] Seasons)
+{
+    public int[] Seasons4k { get; init; } = [];
+}
 public sealed record RequestOptionsResult(RequestOptions? Value, SeerrFailure? Failure);
 
 /// <summary>Only sanitized data or a typed failure; never an upstream exception or response body on failure.</summary>
@@ -66,11 +70,14 @@ public sealed class SeerrClient
     private readonly TimeSpan _timeout;
     private readonly SeerrReadCache _readCache;
     private readonly string _cacheScope;
+    private readonly Func<bool> _fourKEnabled;
+    private static readonly SemaphoreSlim[] WriteSlots = System.Linq.Enumerable.Range(0, 64).Select(_ => new SemaphoreSlim(1, 1)).ToArray();
 
-    public SeerrClient(HttpClient http, SeerrOptions? options, TimeSpan? timeout = null, SeerrReadCache? readCache = null)
+    public SeerrClient(HttpClient http, SeerrOptions? options, TimeSpan? timeout = null, SeerrReadCache? readCache = null, Func<bool>? fourKEnabled = null)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _options = options;
+        _fourKEnabled = fourKEnabled ?? (() => options?.Enable4kRequests == true);
         _timeout = timeout is { } requested && requested > TimeSpan.Zero && requested < RequestTimeout ? requested : RequestTimeout;
         _readCache = readCache ?? new SeerrReadCache();
         // Isolate config changes without retaining raw API credentials in cache keys.
@@ -135,11 +142,10 @@ public sealed class SeerrClient
             if (info.ValueKind == JsonValueKind.Object && info.TryGetProperty("jellyfinMediaId", out var hinted) && hinted.ValueKind == JsonValueKind.String &&
                 (Guid.TryParseExact(hinted.GetString(), "D", out var parsed) || Guid.TryParseExact(hinted.GetString(), "N", out parsed)) && parsed != Guid.Empty)
                 hint = parsed;
-            int? status4k = info.ValueKind == JsonValueKind.Object && info.TryGetProperty("status4k", out var state4k) &&
-                state4k.ValueKind == JsonValueKind.Number && state4k.TryGetInt32(out var value4k) && value4k is >= 0 and <= 100 ? value4k : null;
-            var normal = status is not (5 or 6) && (permissions & (2 | 32 | (type == "movie" ? 262144 : 524288))) != 0;
-            var fourK = status != 6 && status4k != 5 && (permissions & (2 | 1024 | (type == "movie" ? 2048 : 4096))) != 0;
-            return new(new(title, Text(root, "overview", 500), poster, type, mediaId, status, null, normal, fourK, seasons.ToArray(), date), hint, null);
+            var eligibility = RequestEligibility.Evaluate(root, type);
+            var normal = eligibility.Normal && (permissions & (2 | 32 | (type == "movie" ? 262144 : 524288))) != 0;
+            var fourK = _fourKEnabled() && eligibility.FourK && (permissions & (2 | 1024 | (type == "movie" ? 2048 : 4096))) != 0;
+            return new(new(title, Text(root, "overview", MaxResponseBytes), poster, type, mediaId, status, null, normal, fourK, seasons.ToArray(), date), hint, null);
         }
         catch (OperationCanceledException) when (!callerToken.IsCancellationRequested) { return new(null, null, SeerrFailure.UpstreamUnavailable); }
         catch (HttpRequestException) { return new(null, null, SeerrFailure.UpstreamUnavailable); }
@@ -174,36 +180,11 @@ public sealed class SeerrClient
             var root = json.RootElement;
             if (!root.TryGetProperty("id", out var detailId) || !detailId.TryGetInt32(out var actualId) || actualId != mediaId)
                 return new(null, SeerrFailure.UpstreamUnavailable);
-            var seasons = new System.Collections.Generic.List<int>();
-            if (type == "tv")
-            {
-                if (!root.TryGetProperty("seasons", out var array) || array.ValueKind != JsonValueKind.Array || array.GetArrayLength() > 1000)
-                    return new(null, SeerrFailure.UpstreamUnavailable);
-                var seen = new System.Collections.Generic.HashSet<int>();
-                foreach (var season in array.EnumerateArray())
-                {
-                    if (season.ValueKind != JsonValueKind.Object || !season.TryGetProperty("seasonNumber", out var number) ||
-                        !number.TryGetInt32(out var value) || value < 0 || value > 1000 || !seen.Add(value))
-                        return new(null, SeerrFailure.UpstreamUnavailable);
-                    if (value > 0) seasons.Add(value);
-                }
-            }
-            int? status = null, status4k = null;
-            if (root.TryGetProperty("mediaInfo", out var info) && info.ValueKind == JsonValueKind.Object)
-            {
-                if (info.TryGetProperty("status", out var state) && state.TryGetInt32(out var mediaStatus) && mediaStatus >= 0 && mediaStatus <= 100)
-                    status = mediaStatus;
-                if (info.TryGetProperty("status4k", out var state4k) && state4k.TryGetInt32(out var mediaStatus4k) && mediaStatus4k >= 0 && mediaStatus4k <= 100)
-                    status4k = mediaStatus4k;
-            }
-            // Seerr v3.4.1 rejects both variants when the standard media status is BLOCKLISTED.
-            if (status == 6) normal = fourK = false;
-            else
-            {
-                if (status == 5) normal = false;
-                if (status4k == 5) fourK = false;
-            }
-            return new(new(normal, fourK, status, status4k, seasons.ToArray()), null);
+            var eligibility = RequestEligibility.Evaluate(root, type);
+            normal &= eligibility.Normal;
+            fourK &= _fourKEnabled() && eligibility.FourK;
+            return new(new(normal, fourK, eligibility.Status, eligibility.Status4k, normal ? eligibility.Seasons : [])
+                { Seasons4k = fourK ? eligibility.Seasons4k : [] }, null);
         }
         catch (OperationCanceledException) when (!callerToken.IsCancellationRequested) { return new(null, SeerrFailure.UpstreamUnavailable); }
         catch (HttpRequestException) { return new(null, SeerrFailure.UpstreamUnavailable); }
@@ -290,19 +271,23 @@ public sealed class SeerrClient
     }
 
     /// <summary>Rebind and check mapped permissions on every write. Never accepts a Seerr user ID or destination.</summary>
-    public async Task<SeerrCreateResult> CreateRequestAsync(Guid validatedJellyfinUserId, CreateSeerrRequest selection, CancellationToken cancellationToken)
+    public async Task<SeerrCreateResult> CreateRequestAsync(Guid validatedJellyfinUserId, CreateSeerrRequest selection, CancellationToken cancellationToken, Func<SeerrFailure?>? localEligibility = null)
     {
-        // Invalidate before starting (including concurrent reads) and again after the caller's POST.
+        // Serialize this title across mapped users/variants within the plugin process.
+        // Seerr remains authoritative for requests arriving through other clients.
+        var slot = WriteSlots[(selection.MediaId & int.MaxValue) % WriteSlots.Length];
+        await slot.WaitAsync(cancellationToken).ConfigureAwait(false);
         _readCache.Invalidate(validatedJellyfinUserId);
-        try { return await CreateRequestCoreAsync(validatedJellyfinUserId, selection, cancellationToken).ConfigureAwait(false); }
-        finally { _readCache.Invalidate(validatedJellyfinUserId); }
+        try { return await CreateRequestCoreAsync(validatedJellyfinUserId, selection, cancellationToken, localEligibility).ConfigureAwait(false); }
+        finally { _readCache.Invalidate(validatedJellyfinUserId); slot.Release(); }
     }
 
-    private async Task<SeerrCreateResult> CreateRequestCoreAsync(Guid validatedJellyfinUserId, CreateSeerrRequest selection, CancellationToken cancellationToken)
+    private async Task<SeerrCreateResult> CreateRequestCoreAsync(Guid validatedJellyfinUserId, CreateSeerrRequest selection, CancellationToken cancellationToken, Func<SeerrFailure?>? localEligibility = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (_options is null) return new(null, SeerrFailure.Disabled);
         if (validatedJellyfinUserId == Guid.Empty) return new(null, SeerrFailure.UserNotMapped);
+        if (selection.Is4k && !_fourKEnabled()) return new(null, SeerrFailure.PermissionDenied);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(_timeout);
         try
@@ -341,28 +326,23 @@ public sealed class SeerrClient
             if (detailRoot.ValueKind != JsonValueKind.Object || !detailRoot.TryGetProperty("id", out var detailId) ||
                 !detailId.TryGetInt32(out var actualId) || actualId != selection.MediaId)
                 return new(null, SeerrFailure.UpstreamUnavailable);
-            var info = detailRoot.TryGetProperty("mediaInfo", out var mediaInfo) && mediaInfo.ValueKind == JsonValueKind.Object ? mediaInfo : default;
-            int? MediaStatus(string key) => info.ValueKind == JsonValueKind.Object && info.TryGetProperty(key, out var field) &&
-                field.ValueKind == JsonValueKind.Number && field.TryGetInt32(out var value) && value is >= 0 and <= 100 ? value : null;
-            if (MediaStatus("status") == 6 || MediaStatus(selection.Is4k ? "status4k" : "status") == 5)
+            var eligibility = RequestEligibility.Evaluate(detailRoot, selection.MediaType);
+            if (selection.MediaType == "tv" && selection.Seasons is not null &&
+                Array.Exists(selection.Seasons, n => !detailRoot.GetProperty("seasons").EnumerateArray().Any(s => s.GetProperty("seasonNumber").GetInt32() == n)))
+                return new(null, SeerrFailure.InvalidSeason);
+            if (!(selection.Is4k ? eligibility.FourK : eligibility.Normal))
                 return new(null, SeerrFailure.AlreadyRequested);
-
             if (selection.MediaType == "tv")
             {
-                if (!detailRoot.TryGetProperty("seasons", out var seasons) || seasons.ValueKind != JsonValueKind.Array || seasons.GetArrayLength() > 1000)
-                    return new(null, SeerrFailure.UpstreamUnavailable);
-                var available = new System.Collections.Generic.HashSet<int>();
-                foreach (var season in seasons.EnumerateArray())
-                {
-                    if (season.ValueKind != JsonValueKind.Object || !season.TryGetProperty("seasonNumber", out var number) ||
-                        !number.TryGetInt32(out var id) || id < 0 || id > 1000 || !available.Add(id))
-                        return new(null, SeerrFailure.UpstreamUnavailable);
-                }
-                // Do not silently drop invalid choices. Seerr itself removes already-requested/available
-                // seasons by 4K variant and returns 202 when none remain (including concurrent changes).
-                if (selection.Seasons is null || Array.Exists(selection.Seasons, season => !available.Contains(season)))
-                    return new(null, SeerrFailure.InvalidSeason);
+                var eligible = selection.Is4k ? eligibility.Seasons4k : eligibility.Seasons;
+                if (selection.Seasons is null || selection.Seasons.Length == 0 ||
+                    selection.Seasons.Distinct().Count() != selection.Seasons.Length ||
+                    Array.Exists(selection.Seasons, season => !eligible.Contains(season)))
+                    return new(null, SeerrFailure.AlreadyRequested);
             }
+            if (localEligibility?.Invoke() is { } localFailure) return new(null, localFailure);
+            // Recheck live configuration after awaited reads; disabling 4K invalidates open forms.
+            if (selection.Is4k && !_fourKEnabled()) return new(null, SeerrFailure.PermissionDenied);
 
             using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(_options.BaseUri, "api/v1/request"));
             request.Headers.TryAddWithoutValidation("X-Api-Key", _options.ApiKey);

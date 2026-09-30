@@ -58,6 +58,31 @@ public sealed class TitleLibraryAccessTests
         Assert.Equal(f.Movie.Id, f.Resolve(duplicate.Id).ItemId);
     }
 
+    [Fact]
+    public void VariantFilterPreservesMissingUpgradeAndRevalidatesChangedMetadata()
+    {
+        var f = new Fixture();
+        Assert.Equal("absent", f.Resolve(variant: _ => false).Status);
+        Assert.Equal(f.Movie.Id, f.Resolve(variant: _ => true).ItemId);
+        var reads = 0;
+        Assert.Null(f.Resolve(variant: _ => ++reads == 1).ItemId);
+        Assert.Throws<TargetInvocationException>(() => f.Resolve(variant: _ => throw new InvalidOperationException("Unknown video metadata")));
+    }
+
+    [Theory]
+    [InlineData(1920, false)]
+    [InlineData(2000, false)]
+    [InlineData(2048, true)]
+    [InlineData(3840, true)]
+    [InlineData(4096, true)]
+    public void Local4kUsesVideoStreamWidth(int width, bool expected)
+    {
+        var media = Proxy<IMediaSourceManager>((method, _) => method.Name == "GetMediaStreams" ?
+            new List<MediaBrowser.Model.Entities.MediaStream> { new() { Type = MediaBrowser.Model.Entities.MediaStreamType.Video, Width = width } } : throw new NotSupportedException());
+        var actual = typeof(TitleDetailsController).GetMethod("Is4kMovie", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [media, new Movie()]);
+        Assert.Equal(expected, actual);
+    }
+
     private sealed class Fixture
     {
         public User? Current = new("synthetic", "fixture", "fixture");
@@ -92,9 +117,9 @@ public sealed class TitleLibraryAccessTests
             Query = query; AfterQuery?.Invoke();
             return new QueryResult<BaseItem> { Items = Results };
         }
-        public TitleLibraryResolution Resolve(Guid? hint = null) => (TitleLibraryResolution)typeof(TitleDetailsController)
+        public TitleLibraryResolution Resolve(Guid? hint = null, Func<BaseItem, bool>? variant = null) => (TitleLibraryResolution)typeof(TitleDetailsController)
             .GetMethod("ResolveLibrary", BindingFlags.NonPublic | BindingFlags.Static)!
-            .Invoke(null, [_users, _libraries, _user, "movie", 181812, hint])!;
+            .Invoke(null, [_users, _libraries, _user, "movie", 181812, hint, variant])!;
     }
     private sealed class VisibleRoot : UserRootFolder
     {
