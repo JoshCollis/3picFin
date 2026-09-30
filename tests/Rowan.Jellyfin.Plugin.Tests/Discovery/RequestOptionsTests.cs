@@ -26,7 +26,7 @@ public sealed class RequestOptionsTests
             if (calls == 1) return Json("{\"id\":42,\"permissions\":524288}");
             Assert.Equal("42", string.Join(",", req.Headers.GetValues("X-API-User")));
             Assert.EndsWith("/api/v1/tv/9", req.RequestUri!.AbsolutePath);
-            return Json("{\"id\":9,\"seasons\":[{\"seasonNumber\":0},{\"seasonNumber\":1},{\"seasonNumber\":3}],\"mediaInfo\":{\"status\":4},\"apiKey\":\"secret\"}");
+            return Json("{\"id\":9,\"seasons\":[{\"seasonNumber\":0},{\"seasonNumber\":1},{\"seasonNumber\":2},{\"seasonNumber\":3}],\"mediaInfo\":{\"status\":4,\"status4k\":1,\"seasons\":[{\"seasonNumber\":2,\"status\":5,\"status4k\":1}],\"requests\":[]},\"apiKey\":\"secret\"}");
         }));
         var result = Assert.IsType<OkObjectResult>((await Controller(http).GetRequestOptions("tv", 9)).Result);
         var value = Assert.IsType<RequestOptions>(result.Value);
@@ -45,7 +45,7 @@ public sealed class RequestOptionsTests
             var calls = 0;
             using var http = new HttpClient(new Handler(_ => Json(++calls == 1
                 ? "{\"id\":42,\"permissions\":3106}"
-                : $"{{\"id\":9,\"mediaInfo\":{{\"status\":{status},\"status4k\":5}}}}")));
+                : $"{{\"id\":9,\"mediaInfo\":{{\"status\":{status},\"status4k\":5,\"requests\":[]}}}}")));
             var result = Assert.IsType<OkObjectResult>((await Controller(http).GetRequestOptions("movie", 9)).Result);
             var value = Assert.IsType<RequestOptions>(result.Value);
             Assert.Equal(status, value.MediaStatus);
