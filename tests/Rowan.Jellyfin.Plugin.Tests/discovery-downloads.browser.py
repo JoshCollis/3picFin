@@ -38,6 +38,8 @@ with sync_playwright() as p:
         box = page.locator('#threepic-fin-downloads-tab').bounding_box()
         assert box is not None and box['height'] >= 44
         page.locator('#threepic-fin-downloads-refresh').click()
+        assert 'Updated just now' in page.locator('#threepic-fin-downloads-status').inner_text()
+        assert page.locator('#threepic-fin-downloads-refresh').get_attribute('aria-busy') is None
         assert page.locator('#threepic-fin-downloads-radarr .threepic-fin-discovery__progress').is_visible()
         page.keyboard.press('Escape')
         assert not page.locator('#threepic-fin-downloads-panel').is_visible()
