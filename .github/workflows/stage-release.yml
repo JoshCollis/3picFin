@@ -68,7 +68,7 @@ jobs:
             --manifest catalog-input.json --output dist --version "$VERSION" \
             --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip" \
             --epoch "$(git show -s --format=%ct HEAD)" \
-            --changelog "Polish the still-image hero with a calmer responsive title and an aligned slide counter, pagination, progress and navigation cluster"
+            --changelog "Remove the overlapping More to discover rail and place Trending after My Requests and All Requests"
           python3 scripts/package_plugin.py validate --package "dist/3pic-fin_$VERSION.zip" \
             --manifest dist/manifest.json --version "$VERSION" \
             --source-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/3pic-fin_$VERSION.zip"
@@ -85,7 +85,7 @@ jobs:
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" "dist/3pic-fin_$VERSION.zip" dist/SHA256SUMS \
               --verify-tag --draft --title "3pic Fin $VERSION" \
-              --notes 'Installable on Jellyfin 12.1 with File Transformation 3.0.1 or compatible for automatic Home and Search integration. Home and Discovery are enabled on new installs; configure Seerr, Search, personal rows and trusted hero independently in the administrator page. Verify your own web/theme and household policies before replacing other UI plugins.'
+              --notes 'Discover now places Search results, My Requests, All Requests (when enabled), then Trending before the Popular and Upcoming rails; the overlapping More to discover rail is removed. Installable on Jellyfin 12.1 with File Transformation 3.0.1 or compatible for automatic Home and Search integration. Configure Seerr, Search, personal rows and trusted hero independently in the administrator page. Verify your own web/theme and household policies before replacing other UI plugins.'
           fi
           gh release view "$TAG" --json isDraft,assets | jq -e --arg version "$VERSION" \
             '.isDraft and ([.assets[].name] | sort == (["3pic-fin_" + $version + ".zip", "SHA256SUMS"] | sort))'

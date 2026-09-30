@@ -91,7 +91,7 @@ with sync_playwright() as p:
         page.locator('#threepic-fin-search-results .threepic-fin-discovery__card').get_by_role('button', name='Series', exact=True).click()
         expect(modal).to_contain_text('Series')
         page.locator('#threepic-fin-details-close').click()
-        page.locator('#threepic-fin-recommendations .threepic-fin-discovery__card').first.get_by_role('button', name='Film', exact=True).click()
+        page.locator('#threepic-fin-movies .threepic-fin-discovery__card').first.get_by_role('button', name='Film', exact=True).click()
         expect(modal).to_contain_text('Film')
         page.locator('#threepic-fin-details-close').click()
         page.evaluate("""() => { window.pending = new Promise(resolve => window.resolveOld = resolve); }""")
