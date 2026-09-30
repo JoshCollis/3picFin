@@ -10,6 +10,7 @@ const script = () => fs.readFileSync(path.join(base, 'discovery.js'), 'utf8');
 class Element {
     constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.parentNode = null; this.attrs = {}; this.handlers = {}; this.observers = new Set(); this.textContent = ''; this.value = ''; this.style = {}; this.disabled = false; this.hidden = false; this.checked = false; this.clientWidth = 300; this.scrollWidth = 300; this.scrollLeft = 0; }
     setAttribute(key, value) { this.attrs[key] = String(value); }
+    removeAttribute(key) { delete this.attrs[key]; }
     getAttribute(key) { return this.attrs[key] ?? null; }
     addEventListener(key, fn) { (this.handlers[key] ??= []).push(fn); }
     removeEventListener(key, fn) { this.handlers[key] = (this.handlers[key] || []).filter(x => x !== fn); }
@@ -30,7 +31,7 @@ class Element {
 function deferred() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 async function flush() { for (let i = 0; i < 6; i++) await new Promise(resolve => setImmediate(resolve)); }
 function setup(responses = [], posts = [], host = {}, details = [], shared = [], trending = []) {
-    const ids = ['threepic-fin-search-heading', 'threepic-fin-trending', 'threepic-fin-upcoming-movies', 'threepic-fin-upcoming-tv', 'threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-close', 'threepic-fin-calendar-filter', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-close', 'threepic-fin-downloads-refresh', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-art', 'threepic-fin-request-meta', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests', 'trending', 'upcoming-movies', 'upcoming-tv'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
+    const ids = ['threepic-fin-search-heading', 'threepic-fin-trending', 'threepic-fin-upcoming-movies', 'threepic-fin-upcoming-tv', 'threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-close', 'threepic-fin-calendar-filter', 'threepic-fin-calendar-filter-wrap', 'threepic-fin-calendar-movies', 'threepic-fin-calendar-tv', 'threepic-fin-calendar-movies-section', 'threepic-fin-calendar-tv-section', 'threepic-fin-calendar-date', 'threepic-fin-calendar-today', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-close', 'threepic-fin-downloads-refresh', 'threepic-fin-downloads-status', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-art', 'threepic-fin-request-meta', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests', 'trending', 'upcoming-movies', 'upcoming-tv'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
     for (const id of ids) if (id !== 'threepic-fin-shared-requests-load') assert.match(fragment, new RegExp(`id="${id}"`));
     const nodes = Object.fromEntries(ids.map(id => [id, new Element()]));
     const root = new Element();
@@ -277,6 +278,8 @@ test('fragment remains host-owned with accessible activity dialogs and icon sear
     assert.match(fragment, /<dialog id="threepic-fin-downloads-panel"[^>]*aria-labelledby="threepic-fin-downloads-title"/);
     assert.match(fragment, /type="submit"[^>]*aria-label="Search"[^>]*><svg/);
     assert.doesNotMatch(fragment, /role="tablist"|role="tabpanel"/);
+    assert.doesNotMatch(fragment, /threepic-fin-discovery__eyebrow|Movies and shows on their way|What’s coming up across movies and TV/);
+    assert.match(fragment, /id="threepic-fin-downloads-refresh"[^>]*aria-label="Refresh downloads"[^>]*><svg/);
     assert.doesNotMatch(fragment, /More to discover|threepic-fin-recommendations/);
     assert.doesNotMatch(fragment, /<h3>Recommendations<\/h3>/);
     assert.match(css, /prefers-reduced-motion/);
@@ -635,7 +638,11 @@ test('Downloads refresh replaces status and ignores an in-flight older response'
     const stale = deferred();
     const app = setup([bundle(), stale, { Radarr: source([{ Title: 'Updated', Progress: .75 }]), Sonarr: source() }]);
     await app.flush(); app.el('downloads-tab').dispatch('click');
+    assert.equal(app.el('downloads-refresh').getAttribute('aria-busy'), 'true');
+    assert.match(app.text('downloads-status'), /Updating/);
     app.el('downloads-refresh').dispatch('click'); await app.flush();
+    assert.equal(app.el('downloads-refresh').getAttribute('aria-busy'), null);
+    assert.match(app.text('downloads-status'), /Updated just now/);
     assert.match(app.text('downloads-radarr'), /Updated.*75%/);
     assert.equal(app.el('downloads-radarr').descendants().find(n => n.className === 'threepic-fin-discovery__progress')?.children[0].style.width, '75%');
     assert.equal(app.calls.filter(c => c[0] === 'getJSON')[1][2].signal.aborted, true);
@@ -725,8 +732,15 @@ test('Calendar loads lazily with a half-open 31-day UTC window and independent s
     assert.match(request[2].start, /^\d{4}-\d\d-\d\d$/);
     assert.equal(app.el('discover-panel').hidden, false);
     assert.equal(app.el('calendar-panel').open, true);
-    assert.match(app.text('calendar-radarr'), /Digital.*Movie.*title-wide/i);
+    assert.match(app.text('calendar-radarr'), /Digital.*Movie.*Movie release/i);
     assert.match(app.text('calendar-sonarr'), /Episode.*Show.*S02E03.*Pilot.*Partial/i);
+    assert.equal(app.el('calendar-tv-section').hidden, true);
+    app.el('calendar-tv').dispatch('click');
+    assert.equal(app.el('calendar-tv-section').hidden, false);
+    assert.equal(app.el('calendar-movies-section').hidden, true);
+    assert.equal(app.el('calendar-filter-wrap').hidden, true);
+    app.el('calendar-movies').dispatch('click');
+    assert.equal(app.el('calendar-filter-wrap').hidden, false);
     assert.doesNotMatch(app.text('requests'), /Pilot/);
 });
 
@@ -751,10 +765,29 @@ test('Calendar release filter repaints cached events without refetching', async 
     await app.flush(); app.el('calendar-tab').dispatch('click'); await app.flush();
     app.el('calendar-filter').value = 'Physical'; app.el('calendar-filter').dispatch('change');
     assert.match(app.text('calendar-radarr'), /Physical film/);
-    assert.doesNotMatch(app.text('calendar-radarr') + app.text('calendar-sonarr'), /Digital film|Episode show/);
-    app.el('calendar-filter').value = 'Episode'; app.el('calendar-filter').dispatch('change');
+    assert.doesNotMatch(app.text('calendar-radarr'), /Digital film/);
+    assert.equal(app.el('calendar-tv-section').hidden, true);
+    app.el('calendar-tv').dispatch('click');
+    assert.equal(app.el('calendar-tv').getAttribute('aria-pressed'), 'true');
     assert.match(app.text('calendar-sonarr'), /Episode show/);
     assert.equal(app.calls.filter(c => c[0] === 'getJSON').length, 2);
+});
+
+test('Calendar date picker changes the 31-day window and Today restores the current window', async () => {
+    const app = setup([bundle(), { Radarr: source(), Sonarr: source() }, { Radarr: source(), Sonarr: source() }, { Radarr: source(), Sonarr: source() }]);
+    await app.flush(); app.el('calendar-tab').dispatch('click'); await app.flush();
+    const today = new Date().toISOString().slice(0, 10);
+    assert.equal(app.el('calendar-date').value, today);
+    app.el('calendar-date').value = '2027-02-10'; app.el('calendar-date').dispatch('change'); await app.flush();
+    const windows = app.calls.filter(c => c[0] === 'url' && c[1] === '3picFin/Calendar');
+    assert.equal(windows[1][2].start, '2027-02-10');
+    assert.equal((Date.parse(windows[1][2].end) - Date.parse(windows[1][2].start)) / 86400000, 31);
+    assert.equal(app.el('calendar-today').disabled, false);
+    app.el('calendar-today').dispatch('click'); await app.flush();
+    assert.equal(windows[0][2].start, today);
+    assert.equal(app.calls.filter(c => c[0] === 'url' && c[1] === '3picFin/Calendar')[2][2].start, today);
+    assert.equal(app.el('calendar-date').value, today);
+    assert.equal(app.el('calendar-today').disabled, true);
 });
 
 test('Calendar holds navigation during a pending read and releases it after failure', async () => {

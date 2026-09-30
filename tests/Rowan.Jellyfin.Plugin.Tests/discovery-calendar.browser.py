@@ -34,16 +34,26 @@ with sync_playwright() as p:
         assert page.locator('#threepic-fin-calendar-radarr h4').all_text_contents() == ['Movie · TMDb #42']
         assert 'S01E03 · Pilot' in page.locator('#threepic-fin-calendar-sonarr').inner_text()
         assert 'Partial results' in page.locator('#threepic-fin-calendar-sonarr').inner_text()
+        assert not page.locator('#threepic-fin-calendar-tv-section').is_visible()
         assert page.evaluate('calendarCalls.length') == 1
         page.locator('#threepic-fin-calendar-filter').select_option('Digital')
-        assert 'No TV matching releases' in page.locator('#threepic-fin-calendar-sonarr').inner_text()
+        page.locator('#threepic-fin-calendar-tv').click()
+        assert page.locator('#threepic-fin-calendar-tv-section').is_visible()
+        assert not page.locator('#threepic-fin-calendar-movies-section').is_visible()
+        assert not page.locator('#threepic-fin-calendar-filter-wrap').is_visible()
+        page.locator('#threepic-fin-calendar-movies').click()
         assert page.evaluate('calendarCalls.length') == 1
         assert '/jellyfin/3picFin/Calendar?start=' in page.evaluate('calendarCalls[0]')
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+        page.locator('#threepic-fin-calendar-date').fill('2027-02-10')
+        assert 'start=2027-02-10' in page.evaluate('calendarCalls[1]')
+        page.locator('#threepic-fin-calendar-today').click()
+        assert page.evaluate('calendarCalls.length') == 3
+        assert page.locator('#threepic-fin-calendar-today').is_disabled()
         box = page.locator('#threepic-fin-calendar-tab').bounding_box()
         assert box is not None and box['height'] >= 44
         page.locator('#threepic-fin-calendar-next').click()
-        assert page.evaluate('calendarCalls.length') == 2
+        assert page.evaluate('calendarCalls.length') == 4
         page.locator('#threepic-fin-calendar-close').click()
         assert not page.locator('#threepic-fin-calendar-panel').is_visible()
         assert page.locator('#threepic-fin-discover-panel').is_visible()

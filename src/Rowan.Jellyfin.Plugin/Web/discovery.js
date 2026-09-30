@@ -96,7 +96,7 @@
             const state = field(item, 'State');
             const progress = field(item, 'Progress');
             const detail = ['Downloading', 'Paused', 'Queued', 'Completed', 'Unknown'].includes(state) ? state : 'Unknown';
-            text(row, 'p', `${detail}${typeof progress === 'number' && Number.isFinite(progress) && progress >= 0 && progress <= 1 ? ` · ${Math.round(progress * 100)}%` : ''} · title-wide`);
+            text(row, 'p', `${detail}${typeof progress === 'number' && Number.isFinite(progress) && progress >= 0 && progress <= 1 ? ` · ${Math.round(progress * 100)}%` : ''}`);
             if (typeof progress === 'number' && Number.isFinite(progress) && progress >= 0 && progress <= 1) {
                 const track = document.createElement('div'); track.className = 'threepic-fin-discovery__progress';
                 const fill = document.createElement('span'); fill.style.width = `${Math.round(progress * 100)}%`;
@@ -134,7 +134,7 @@
             const number = kind === 'TV' && Number.isInteger(season) && season >= 0 && season <= 999 && Number.isInteger(episode) && episode >= 0 && episode <= 999 ? ` · S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}` : '';
             const episodeTitle = field(item, 'EpisodeTitle');
             const detail = kind === 'TV' && eventLabel === 'Episode' ? ` · ${safeDownloadTitle(episodeTitle) ? episodeTitle.trim() : 'episode title unavailable'}` : '';
-            text(info, 'p', `${number ? number.slice(3) + detail : kind === 'TV' ? 'TV episode' + detail : 'Movie release'} · ${validDate ? date.slice(0, 10) + ' UTC' : 'date unavailable'} · title-wide`);
+            text(info, 'p', `${number ? number.slice(3) + detail : kind === 'TV' ? 'TV episode' + detail : 'Movie release'}${validDate ? '' : ' · date unavailable'}`);
             container.appendChild(row);
         }
         if (field(source, 'Partial') === true || visible.length > 100) text(container, 'p', 'Partial results — more events may exist.', 'threepic-fin-discovery__message');
@@ -146,7 +146,8 @@
         const controls = [], railControls = [];
         let disposed = false, discoveryGeneration = 0, searchGeneration = 0, sharedGeneration = 0, downloadsGeneration = 0, downloadsAbort = null;
         let calendarGeneration = 0, calendarAbort = null, calendarOffset = 0, calendarLoading = false, calendarResult = null;
-        const calendarEpoch = Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
+        let calendarEpoch = Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
+        let calendarKind = 'movies';
         let sharedPage = 1, sharedMax = 1;
         let requestListGeneration = 0, sharedListGeneration = 0;
         const metadata = new Map(), metadataAbort = new AbortController();
@@ -566,7 +567,11 @@
                 pager('search', page, 1);
             }
         }
-        function stopDownloads() { ++downloadsGeneration; downloadsAbort?.abort(); downloadsAbort = null; }
+        function stopDownloads() {
+            ++downloadsGeneration; downloadsAbort?.abort(); downloadsAbort = null;
+            el('downloads-refresh').removeAttribute('aria-busy');
+            el('downloads-status').textContent = '';
+        }
         function stopCalendar() {
             ++calendarGeneration;
             calendarAbort?.abort(); calendarAbort = null;
@@ -590,9 +595,14 @@
         function calendarWindow() {
             const start = new Date(calendarEpoch + calendarOffset * 31 * 86400000).toISOString().slice(0, 10);
             const end = new Date(calendarEpoch + (calendarOffset + 1) * 31 * 86400000).toISOString().slice(0, 10);
-            el('calendar-window').textContent = `${start} to ${end} (end exclusive, UTC)`;
+            const last = new Date(Date.parse(end + 'T00:00:00Z') - 86400000);
+            const format = date => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+            el('calendar-window').textContent = `${format(new Date(start + 'T00:00:00Z'))} – ${format(last)}`;
+            el('calendar-date').value = start;
             el('calendar-prev').disabled = calendarLoading || calendarOffset <= -12;
             el('calendar-next').disabled = calendarLoading || calendarOffset >= 12;
+            el('calendar-date').disabled = calendarLoading;
+            el('calendar-today').disabled = calendarLoading || start === new Date().toISOString().slice(0, 10);
             return { start, end };
         }
         async function loadCalendar() {
@@ -629,13 +639,32 @@
         function paintCalendar() {
             const filter = el('calendar-filter').value || 'all';
             renderCalendar(el('calendar-radarr'), field(calendarResult, 'Radarr'), 'Movie', filter);
-            renderCalendar(el('calendar-sonarr'), field(calendarResult, 'Sonarr'), 'TV', filter);
+            renderCalendar(el('calendar-sonarr'), field(calendarResult, 'Sonarr'), 'TV');
+        }
+        function showCalendarKind(kind) {
+            calendarKind = kind;
+            for (const [name, source] of [['movies', 'radarr'], ['tv', 'sonarr']]) {
+                el(`calendar-${name}`).setAttribute('aria-pressed', String(name === kind));
+                el(`calendar-${name}-section`).hidden = name !== kind;
+            }
+            el('calendar-filter-wrap').hidden = kind === 'tv';
+        }
+        function selectCalendarDate(value) {
+            if (calendarLoading || !/^\d{4}-\d\d-\d\d$/.test(value)) return;
+            const epoch = Date.parse(value + 'T00:00:00Z');
+            if (!Number.isFinite(epoch) || new Date(epoch).toISOString().slice(0, 10) !== value) return;
+            calendarEpoch = epoch;
+            calendarOffset = 0;
+            calendarResult = null;
+            loadCalendar();
         }
         async function loadDownloads() {
             if (!currentUser() || !el('downloads-panel').open) return;
             stopDownloads();
             const generation = downloadsGeneration;
             downloadsAbort = new AbortController();
+            el('downloads-refresh').setAttribute('aria-busy', 'true');
+            el('downloads-status').textContent = 'Updating…';
             for (const name of ['radarr', 'sonarr']) message(el(`downloads-${name}`), 'Loading downloads…');
             try {
                 const response = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Downloads'), { signal: downloadsAbort.signal });
@@ -647,6 +676,10 @@
                 }
                 renderDownloads(el('downloads-radarr'), field(response, 'Radarr'), 'Movie');
                 renderDownloads(el('downloads-sonarr'), field(response, 'Sonarr'), 'TV');
+                el('downloads-status').textContent = ['Radarr', 'Sonarr'].some(name => {
+                    const source = field(response, name);
+                    return !field(source, 'Error') && Array.isArray(field(source, 'Items'));
+                }) ? 'Updated just now' : 'Status unavailable. Try again.';
             } catch (error) {
                 if (disposed || generation !== downloadsGeneration) return;
                 if (error?.status === 404 || error?.statusCode === 404) {
@@ -655,7 +688,13 @@
                     return;
                 }
                 for (const name of ['radarr', 'sonarr']) message(el(`downloads-${name}`), 'Downloads unavailable right now. Try refreshing.');
-            } finally { if (generation === downloadsGeneration) downloadsAbort = null; }
+                el('downloads-status').textContent = 'Could not refresh. Try again.';
+            } finally {
+                if (generation === downloadsGeneration) {
+                    downloadsAbort = null;
+                    el('downloads-refresh').removeAttribute('aria-busy');
+                }
+            }
         }
         for (const name of ['downloads', 'calendar']) {
             on(el(`${name}-tab`), 'click', () => openActivity(name));
@@ -668,7 +707,11 @@
             });
         }
         on(el('downloads-refresh'), 'click', loadDownloads);
+        for (const kind of ['movies', 'tv']) on(el(`calendar-${kind}`), 'click', () => showCalendarKind(kind));
+        showCalendarKind(calendarKind);
         on(el('calendar-filter'), 'change', () => { if (calendarResult && el('calendar-panel').open) paintCalendar(); });
+        on(el('calendar-date'), 'change', () => selectCalendarDate(el('calendar-date').value));
+        on(el('calendar-today'), 'click', () => selectCalendarDate(new Date().toISOString().slice(0, 10)));
         on(el('calendar-prev'), 'click', () => { if (!calendarLoading && calendarOffset > -12 && el('calendar-panel').open) { --calendarOffset; calendarResult = null; loadCalendar(); } });
         on(el('calendar-next'), 'click', () => { if (!calendarLoading && calendarOffset < 12 && el('calendar-panel').open) { ++calendarOffset; calendarResult = null; loadCalendar(); } });
         // Keep keyboard traversal inside either modal, including dynamically enabled actions.

@@ -58,7 +58,8 @@
 .threepic-fin-discovery__card-info > button { margin-top: .5rem; font-size: .85rem; min-height: 36px; width: 100%; }
 .threepic-fin-discovery__message { flex: 1 0 100%; color: var(--secondary-text-color, #bbb); }
 .threepic-fin-discovery__downloads, .threepic-fin-discovery__calendar { display: grid; gap: .65rem; }
-.threepic-fin-discovery__calendar { grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); }
+.threepic-fin-discovery__downloads { grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); }
+.threepic-fin-discovery__calendar { grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); align-content: start; }
 .threepic-fin-discovery__calendar .threepic-fin-discovery__message { grid-column: 1 / -1; }
 .threepic-fin-discovery__pager span { overflow-wrap: anywhere; }
 .threepic-fin-discovery__download { min-width: 0; padding: .8rem 1rem; border: 1px solid var(--border-color, #666); border-radius: .6rem; background: var(--card-background, var(--background-secondary, #303030)); }
@@ -134,19 +135,35 @@
 .threepic-fin-discovery .threepic-fin-discovery__utilities button:hover,
 .threepic-fin-discovery .threepic-fin-discovery__search-button:hover { background: var(--accentColor, #514ac7); transform: translateY(-2px); }
 .threepic-fin-discovery__utilities svg, .threepic-fin-discovery__search-button svg { width: 1.25rem; height: 1.25rem; }
-.threepic-fin-discovery .threepic-fin-discovery__activity { width: min(55rem, calc(100vw - 2rem)); padding: clamp(1rem, 3vw, 2rem); }
-.threepic-fin-discovery__activity-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--borderColor, #47505c); }
-.threepic-fin-discovery__eyebrow { color: var(--accentColor, #aaa5ff); font-size: .7rem; font-weight: 700; letter-spacing: .16em; }
-.threepic-fin-discovery__activity-header h3 { margin: .35rem 0 !important; }
-.threepic-fin-discovery__activity-header p { margin: 0; color: var(--dimTextColor, #9ca3af); }
-.threepic-fin-discovery .threepic-fin-discovery__activity .threepic-fin-discovery__icon-button { flex: none; width: 2.5rem; min-height: 2.5rem; padding: 0; border: 0; font-size: 1.7rem; line-height: 1; }
-.threepic-fin-discovery__activity-actions { display: flex; justify-content: flex-end; margin: 1rem 0; }
-.threepic-fin-discovery .threepic-fin-discovery__activity section h3 { font-size: .95rem; margin: 1.5rem 0 .75rem; color: var(--dimTextColor, #aab2c5); }
+.threepic-fin-discovery .threepic-fin-discovery__activity { width: min(55rem, calc(100vw - 2rem)); padding: clamp(1rem, 2.5vw, 1.75rem); }
+.threepic-fin-discovery #threepic-fin-calendar-panel { width: min(76rem, calc(100vw - 2rem)); }
+.threepic-fin-discovery__activity-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-bottom: .75rem; border-bottom: 1px solid var(--borderColor, #47505c); }
+.threepic-fin-discovery__activity-header h3 { margin: 0 !important; }
+.threepic-fin-discovery__header-actions { display: flex; align-items: center; gap: .25rem; }
+.threepic-fin-discovery .threepic-fin-discovery__activity .threepic-fin-discovery__icon-button { display: grid; place-items: center; flex: none; width: 2.75rem; min-height: 2.75rem; padding: 0; border: 0; font-size: 1.7rem; line-height: 1; }
+.threepic-fin-discovery .threepic-fin-discovery__activity .threepic-fin-discovery__icon-button:hover { background: color-mix(in srgb, var(--textColor, #fff) 11%, transparent); }
+.threepic-fin-discovery__icon-button svg, .threepic-fin-discovery__calendar-navigation svg { display: block; width: 1.25rem; height: 1.25rem; }
+.threepic-fin-discovery__refresh svg { width: 1.3rem; height: 1.3rem; }
+.threepic-fin-discovery__refresh[aria-busy="true"] svg { animation: threepic-fin-refresh-spin .85s linear infinite; }
+@keyframes threepic-fin-refresh-spin { to { transform: rotate(360deg); } }
+.threepic-fin-discovery__refresh-status { min-height: 1.3rem; margin: .5rem 0 0; font-size: .8rem; color: var(--dimTextColor, #aab2c5); }
+.threepic-fin-discovery .threepic-fin-discovery__activity section h3 { font-size: .95rem; margin: 1.1rem 0 .6rem; color: var(--dimTextColor, #aab2c5); }
 .threepic-fin-discovery__activity .threepic-fin-discovery__download { background: color-mix(in srgb, var(--card-background, #303747) 75%, transparent); border-color: var(--borderColor, #47505c); }
-.threepic-fin-discovery__filter { display: flex !important; align-items: center; gap: .75rem; margin: 1.25rem 0 .75rem !important; color: var(--dimTextColor, #aab2c5); }
-.threepic-fin-discovery__filter select { min-height: 2.5rem; border: 1px solid var(--borderColor, #47505c); border-radius: .6rem; padding: .35rem .7rem; background: var(--drawerColor, #1e2836); color: var(--textColor, #fff); font: inherit; }
-.threepic-fin-discovery__filter select:focus-visible { outline: 2px solid var(--accentColor, #aaa5ff); outline-offset: 2px; }
-.threepic-fin-discovery__calendar-event { display: flex; gap: .9rem; min-width: 0; padding: .9rem; border: 1px solid var(--borderColor, #47505c); border-radius: .8rem; background: color-mix(in srgb, var(--card-background, #303747) 75%, transparent); }
+.threepic-fin-discovery__calendar-toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: .75rem 1.25rem; padding: 1rem 0; }
+.threepic-fin-discovery__switcher { display: inline-flex; flex: 0 0 auto; gap: .2rem; padding: .25rem; border: 1px solid var(--borderColor, #47505c); border-radius: .7rem; background: color-mix(in srgb, var(--textColor, #fff) 5%, transparent); }
+.threepic-fin-discovery .threepic-fin-discovery__switcher button { min-height: 2.3rem; border: 0; padding: .35rem 1rem; border-radius: .5rem; color: var(--dimTextColor, #aab2c5); }
+.threepic-fin-discovery .threepic-fin-discovery__switcher button[aria-pressed="true"] { background: var(--accentColor, #6862c9); color: #fff; box-shadow: 0 2px 9px rgba(0, 0, 0, .22); }
+.threepic-fin-discovery__filter { display: flex; flex-direction: column; gap: .25rem; margin: 0; color: var(--dimTextColor, #aab2c5); font-size: .78rem; }
+.threepic-fin-discovery__filter select, .threepic-fin-discovery__date-controls input { min-height: 2.65rem; border: 1px solid var(--borderColor, #47505c); border-radius: .55rem; padding: .35rem .7rem; background: var(--drawerColor, #1e2836); color: var(--textColor, #fff); font: inherit; color-scheme: dark; }
+.threepic-fin-discovery__date-controls { display: flex; align-items: end; flex-wrap: wrap; gap: .4rem; margin-left: auto; }
+.threepic-fin-discovery__date-controls label { display: flex; flex-direction: column; gap: .25rem; color: var(--dimTextColor, #aab2c5); font-size: .78rem; }
+.threepic-fin-discovery__date-controls input { font-size: .9rem; }
+.threepic-fin-discovery .threepic-fin-discovery__date-controls button { min-height: 2.65rem; padding: .35rem .85rem; border-color: var(--borderColor, #47505c); }
+.threepic-fin-discovery .threepic-fin-discovery__date-controls button:not(:disabled):hover,
+.threepic-fin-discovery .threepic-fin-discovery__calendar-navigation button:not(:disabled):hover { background: color-mix(in srgb, var(--accentColor, #6862c9) 24%, transparent); }
+.threepic-fin-discovery__calendar-navigation { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .55rem 0 1rem; border-top: 1px solid var(--borderColor, #47505c); color: var(--dimTextColor, #aab2c5); font-size: .9rem; text-align: center; }
+.threepic-fin-discovery .threepic-fin-discovery__calendar-navigation button { display: grid; place-items: center; flex: none; width: 2.5rem; min-height: 2.5rem; padding: 0; }
+.threepic-fin-discovery__calendar-event { display: flex; gap: .8rem; min-width: 0; padding: .75rem; border: 1px solid var(--borderColor, #47505c); border-radius: .7rem; background: color-mix(in srgb, var(--card-background, #303747) 75%, transparent); }
 .threepic-fin-discovery__event-date { display: flex; flex: 0 0 3.2rem; flex-direction: column; align-items: center; justify-content: center; align-self: flex-start; min-height: 3.5rem; border-radius: .55rem; background: color-mix(in srgb, var(--accentColor, #6862c9) 18%, transparent); color: var(--textColor, #fff); }
 .threepic-fin-discovery__event-date span { font-size: .65rem; font-weight: 700; letter-spacing: .1em; }
 .threepic-fin-discovery__event-date strong { font-size: 1.45rem; line-height: 1.2; }
@@ -154,7 +171,7 @@
 .threepic-fin-discovery__event-type { display: inline-block; margin-bottom: .3rem; color: var(--accentColor, #aaa5ff); font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .threepic-fin-discovery__calendar-event[data-event="physical"] .threepic-fin-discovery__event-type { color: #e9bc83; }
 .threepic-fin-discovery__calendar-event[data-event="episode"] .threepic-fin-discovery__event-type { color: #87d9c8; }
-.threepic-fin-discovery__event-info p { margin: .4rem 0 0; font-size: .82rem; color: var(--dimTextColor, #aab2c5); overflow-wrap: anywhere; }
+.threepic-fin-discovery__event-info p { margin: .25rem 0 0; font-size: .82rem; color: var(--dimTextColor, #aab2c5); overflow-wrap: anywhere; }
 .threepic-fin-discovery__dialog fieldset { max-height: 14rem; overflow: auto; border: 1px solid var(--borderColor, #47505c); border-radius: var(--smallRadius, .5rem); margin: 1rem 0; }
 .threepic-fin-discovery__dialog fieldset label { margin: .25rem 0; display: flex; align-items: center; gap: .5rem; }
 .threepic-fin-discovery__dialog input[type="checkbox"] { accent-color: var(--accentColor, #5d55e7); min-height: 1.5rem; min-width: 1.5rem; }
