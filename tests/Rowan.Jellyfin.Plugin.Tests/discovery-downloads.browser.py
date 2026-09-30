@@ -28,7 +28,7 @@ with sync_playwright() as p:
         page.locator('#threepic-fin-downloads-tab').focus()
         page.keyboard.press('Enter')
         assert page.locator('#threepic-fin-downloads-panel').is_visible()
-        assert not page.locator('#threepic-fin-discover-panel').is_visible()
+        assert page.locator('#threepic-fin-discover-panel').is_visible()
         assert page.locator('#threepic-fin-downloads-radarr h4').all_text_contents() == [
             'Movie · TMDb #7', 'Movie · TMDb #8', 'Movie · TMDb #9', 'Dr. Strangelove'
         ]
@@ -37,7 +37,10 @@ with sync_playwright() as p:
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
         box = page.locator('#threepic-fin-downloads-tab').bounding_box()
         assert box is not None and box['height'] >= 44
-        page.locator('#threepic-fin-discover-tab').click()
+        page.locator('#threepic-fin-downloads-refresh').click()
+        assert page.locator('#threepic-fin-downloads-radarr .threepic-fin-discovery__progress').is_visible()
+        page.keyboard.press('Escape')
+        assert not page.locator('#threepic-fin-downloads-panel').is_visible()
         assert page.locator('#threepic-fin-discover-panel').is_visible()
         page.close()
     browser.close()

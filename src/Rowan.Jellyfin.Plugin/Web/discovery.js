@@ -97,34 +97,47 @@
             const progress = field(item, 'Progress');
             const detail = ['Downloading', 'Paused', 'Queued', 'Completed', 'Unknown'].includes(state) ? state : 'Unknown';
             text(row, 'p', `${detail}${typeof progress === 'number' && Number.isFinite(progress) && progress >= 0 && progress <= 1 ? ` · ${Math.round(progress * 100)}%` : ''} · title-wide`);
+            if (typeof progress === 'number' && Number.isFinite(progress) && progress >= 0 && progress <= 1) {
+                const track = document.createElement('div'); track.className = 'threepic-fin-discovery__progress';
+                const fill = document.createElement('span'); fill.style.width = `${Math.round(progress * 100)}%`;
+                track.appendChild(fill); row.appendChild(track);
+            }
             container.appendChild(row);
         }
         if (field(source, 'Partial') === true) text(container, 'p', 'Partial results — more titles may be downloading.', 'threepic-fin-discovery__message');
     }
-    function renderCalendar(container, source, kind) {
+    function renderCalendar(container, source, kind, filter = 'all') {
         container.replaceChildren();
         if (!source || field(source, 'Error') || !Array.isArray(field(source, 'Items'))) {
             message(container, `${kind} calendar unavailable right now.`); return;
         }
         const items = field(source, 'Items');
-        if (!items.length) message(container, `No ${kind} calendar events in this window.`);
-        for (const item of items.slice(0, 100)) {
+        const visible = items.filter(item => filter === 'all' || field(item, 'EventType') === filter);
+        if (!visible.length) message(container, `No ${kind} ${filter === 'all' ? 'calendar events' : 'matching releases'} in this window.`);
+        for (const item of visible.slice(0, 100)) {
             const row = document.createElement('article');
-            row.className = 'threepic-fin-discovery__download';
+            row.className = 'threepic-fin-discovery__calendar-event';
             const id = field(item, 'TitleId'), title = field(item, 'Title');
             const identity = `${kind}${Number.isInteger(id) && id > 0 ? ` · ${kind === 'Movie' ? 'TMDb' : 'TVDb'} #${id}` : ' · title unavailable'}`;
-            text(row, 'h4', safeDownloadTitle(title) ? title.trim() : identity);
             const event = field(item, 'EventType'), date = field(item, 'Date');
             const validDate = typeof date === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|\+00:00)$/.test(date) && !Number.isNaN(Date.parse(date));
             const eventLabel = kind === 'Movie' && ['Cinema', 'Digital', 'Physical'].includes(event) ? event : kind === 'TV' && event === 'Episode' ? 'Episode' : 'Event';
+            row.setAttribute('data-event', eventLabel.toLowerCase());
+            const dateNode = document.createElement('div'); dateNode.className = 'threepic-fin-discovery__event-date';
+            text(dateNode, 'span', validDate ? new Date(date).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }).toUpperCase() : 'DATE');
+            text(dateNode, 'strong', validDate ? date.slice(8, 10) : '—');
+            row.appendChild(dateNode);
+            const info = document.createElement('div'); info.className = 'threepic-fin-discovery__event-info'; row.appendChild(info);
+            text(info, 'span', eventLabel, 'threepic-fin-discovery__event-type');
+            text(info, 'h4', safeDownloadTitle(title) ? title.trim() : identity);
             const season = field(item, 'SeasonNumber'), episode = field(item, 'EpisodeNumber');
             const number = kind === 'TV' && Number.isInteger(season) && season >= 0 && season <= 999 && Number.isInteger(episode) && episode >= 0 && episode <= 999 ? ` · S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}` : '';
             const episodeTitle = field(item, 'EpisodeTitle');
             const detail = kind === 'TV' && eventLabel === 'Episode' ? ` · ${safeDownloadTitle(episodeTitle) ? episodeTitle.trim() : 'episode title unavailable'}` : '';
-            text(row, 'p', `${eventLabel}${number}${detail} · ${validDate ? date.slice(0, 10) + ' UTC' : 'date unavailable'} · title-wide`);
+            text(info, 'p', `${number ? number.slice(3) + detail : kind === 'TV' ? 'TV episode' + detail : 'Movie release'} · ${validDate ? date.slice(0, 10) + ' UTC' : 'date unavailable'} · title-wide`);
             container.appendChild(row);
         }
-        if (field(source, 'Partial') === true || items.length > 100) text(container, 'p', 'Partial results — more events may exist.', 'threepic-fin-discovery__message');
+        if (field(source, 'Partial') === true || visible.length > 100) text(container, 'p', 'Partial results — more events may exist.', 'threepic-fin-discovery__message');
     }
     function mount(root, ApiClient, host = {}) {
         const { deferInitialLoad = false } = host;
@@ -132,7 +145,7 @@
         const el = name => root.querySelector(`#threepic-fin-${name}`);
         const controls = [], railControls = [];
         let disposed = false, discoveryGeneration = 0, searchGeneration = 0, sharedGeneration = 0, downloadsGeneration = 0, downloadsAbort = null;
-        let calendarGeneration = 0, calendarAbort = null, calendarOffset = 0, calendarLoading = false;
+        let calendarGeneration = 0, calendarAbort = null, calendarOffset = 0, calendarLoading = false, calendarResult = null;
         const calendarEpoch = Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
         let sharedPage = 1, sharedMax = 1;
         let requestListGeneration = 0, sharedListGeneration = 0;
@@ -560,17 +573,19 @@
             calendarLoading = false;
             calendarWindow();
         }
-        function selectView(view) {
-            if (el(`${view}-tab`).getAttribute('aria-selected') === 'true' && view !== 'discover') return;
-            if (view !== 'downloads') stopDownloads();
-            if (view !== 'calendar') stopCalendar();
-            for (const name of ['discover', 'downloads', 'calendar']) {
-                el(`${name}-panel`).hidden = name !== view;
-                el(`${name}-tab`).setAttribute('aria-selected', String(name === view));
-                el(`${name}-tab`).tabIndex = name === view ? 0 : -1;
-            }
-            if (view === 'downloads') loadDownloads();
-            if (view === 'calendar') loadCalendar();
+        function closeActivity(name) {
+            const modal = el(`${name}-panel`);
+            if (modal.open) modal.close();
+        }
+        function openActivity(name) {
+            if (!currentUser() || el(`${name}-tab`).hidden) return;
+            const other = name === 'downloads' ? 'calendar' : 'downloads';
+            closeActivity(other);
+            const modal = el(`${name}-panel`);
+            if (modal.open) return;
+            modal.showModal();
+            if (name === 'downloads') loadDownloads();
+            else loadCalendar();
         }
         function calendarWindow() {
             const start = new Date(calendarEpoch + calendarOffset * 31 * 86400000).toISOString().slice(0, 10);
@@ -581,7 +596,7 @@
             return { start, end };
         }
         async function loadCalendar() {
-            if (disposed || calendarLoading || el('calendar-panel').hidden) return;
+            if (!currentUser() || calendarLoading || !el('calendar-panel').open) return;
             calendarLoading = true;
             const generation = ++calendarGeneration;
             calendarAbort = new AbortController();
@@ -592,17 +607,17 @@
                 if (disposed || generation !== calendarGeneration) return;
                 if (field(field(response, 'Radarr'), 'Error') === 'Disabled' && field(field(response, 'Sonarr'), 'Error') === 'Disabled') {
                     el('calendar-tab').hidden = true;
-                    selectView('discover'); el('discover-tab').focus(); return;
+                    closeActivity('calendar'); return;
                 }
-                renderCalendar(el('calendar-radarr'), field(response, 'Radarr'), 'Movie');
-                renderCalendar(el('calendar-sonarr'), field(response, 'Sonarr'), 'TV');
+                calendarResult = response;
+                paintCalendar();
             } catch (error) {
                 if (disposed || generation !== calendarGeneration) return;
                 if (error?.status === 404 || error?.statusCode === 404) {
                     el('calendar-tab').hidden = true;
-                    selectView('discover'); el('discover-tab').focus(); return;
+                    closeActivity('calendar'); return;
                 }
-                for (const name of ['radarr', 'sonarr']) message(el(`calendar-${name}`), 'Calendar unavailable right now. Return to Discover and try again.');
+                for (const name of ['radarr', 'sonarr']) message(el(`calendar-${name}`), 'Calendar unavailable right now. Try another window.');
             } finally {
                 if (generation === calendarGeneration) {
                     calendarAbort = null;
@@ -611,7 +626,13 @@
                 }
             }
         }
+        function paintCalendar() {
+            const filter = el('calendar-filter').value || 'all';
+            renderCalendar(el('calendar-radarr'), field(calendarResult, 'Radarr'), 'Movie', filter);
+            renderCalendar(el('calendar-sonarr'), field(calendarResult, 'Sonarr'), 'TV', filter);
+        }
         async function loadDownloads() {
+            if (!currentUser() || !el('downloads-panel').open) return;
             stopDownloads();
             const generation = downloadsGeneration;
             downloadsAbort = new AbortController();
@@ -621,8 +642,7 @@
                 if (disposed || generation !== downloadsGeneration) return;
                 if (field(field(response, 'Radarr'), 'Error') === 'Disabled' && field(field(response, 'Sonarr'), 'Error') === 'Disabled') {
                     el('downloads-tab').hidden = true;
-                    selectView('discover');
-                    el('discover-tab').focus();
+                    closeActivity('downloads');
                     return;
                 }
                 renderDownloads(el('downloads-radarr'), field(response, 'Radarr'), 'Movie');
@@ -631,31 +651,30 @@
                 if (disposed || generation !== downloadsGeneration) return;
                 if (error?.status === 404 || error?.statusCode === 404) {
                     el('downloads-tab').hidden = true;
-                    selectView('discover');
-                    el('discover-tab').focus();
+                    closeActivity('downloads');
                     return;
                 }
-                for (const name of ['radarr', 'sonarr']) message(el(`downloads-${name}`), 'Downloads unavailable right now. Return to Discover and try again.');
+                for (const name of ['radarr', 'sonarr']) message(el(`downloads-${name}`), 'Downloads unavailable right now. Try refreshing.');
             } finally { if (generation === downloadsGeneration) downloadsAbort = null; }
         }
-        on(el('discover-tab'), 'click', () => selectView('discover'));
-        on(el('downloads-tab'), 'click', () => { if (!el('downloads-tab').hidden) selectView('downloads'); });
-        on(el('calendar-tab'), 'click', () => { if (!el('calendar-tab').hidden) selectView('calendar'); });
-        on(root.querySelector('.threepic-fin-discovery__tabs'), 'keydown', event => {
-            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-            const tabs = ['discover', 'downloads', 'calendar'].filter(name => !el(`${name}-tab`).hidden);
-            const index = tabs.findIndex(name => el(`${name}-tab`) === document.activeElement);
-            if (index < 0) return;
-            event.preventDefault();
-            const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
-            el(`${tabs[next]}-tab`).focus(); selectView(tabs[next]);
-        });
-        on(el('calendar-prev'), 'click', () => { if (!calendarLoading && calendarOffset > -12 && !el('calendar-panel').hidden) { --calendarOffset; loadCalendar(); } });
-        on(el('calendar-next'), 'click', () => { if (!calendarLoading && calendarOffset < 12 && !el('calendar-panel').hidden) { ++calendarOffset; loadCalendar(); } });
+        for (const name of ['downloads', 'calendar']) {
+            on(el(`${name}-tab`), 'click', () => openActivity(name));
+            on(el(`${name}-close`), 'click', () => closeActivity(name));
+            on(el(`${name}-panel`), 'close', () => {
+                if (name === 'downloads') stopDownloads();
+                else { stopCalendar(); calendarResult = null; }
+                for (const source of ['radarr', 'sonarr']) el(`${name}-${source}`).replaceChildren();
+                if (!disposed) (el(`${name}-tab`).hidden ? el('search') : el(`${name}-tab`)).focus();
+            });
+        }
+        on(el('downloads-refresh'), 'click', loadDownloads);
+        on(el('calendar-filter'), 'change', () => { if (calendarResult && el('calendar-panel').open) paintCalendar(); });
+        on(el('calendar-prev'), 'click', () => { if (!calendarLoading && calendarOffset > -12 && el('calendar-panel').open) { --calendarOffset; calendarResult = null; loadCalendar(); } });
+        on(el('calendar-next'), 'click', () => { if (!calendarLoading && calendarOffset < 12 && el('calendar-panel').open) { ++calendarOffset; calendarResult = null; loadCalendar(); } });
         // Keep keyboard traversal inside either modal, including dynamically enabled actions.
-        for (const modal of [detailsDialog, dialog]) on(modal, 'keydown', event => {
+        for (const modal of [detailsDialog, dialog, el('downloads-panel'), el('calendar-panel')]) on(modal, 'keydown', event => {
             if (event.key !== 'Tab') return;
-            const stops = Array.from(modal.querySelectorAll('button, input, [tabindex]'))
+            const stops = Array.from(modal.querySelectorAll('button, input, select, [tabindex]'))
                 .filter(node => !node.disabled && node.tabIndex >= 0 && node.getClientRects().length);
             const first = stops[0], last = stops[stops.length - 1];
             if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
@@ -707,11 +726,11 @@
         if (!deferInitialLoad) activate();
         const cleanup = () => {
             if (disposed) return;
-            disposed = true; catalogAbort.abort(); metadataAbort.abort(); metadata.clear(); ++requestListGeneration; ++sharedListGeneration; closeDetails(false); stopDownloads(); stopCalendar(); ++searchGeneration; ++discoveryGeneration; ++requestGeneration; ++sharedGeneration;
+            disposed = true; catalogAbort.abort(); metadataAbort.abort(); metadata.clear(); ++requestListGeneration; ++sharedListGeneration; closeDetails(false); stopDownloads(); stopCalendar(); calendarResult = null; ++searchGeneration; ++discoveryGeneration; ++requestGeneration; ++sharedGeneration;
             el('search-heading').hidden = true;
             for (const name of ['movies', 'tv', 'requests', 'trending', 'upcoming-movies', 'upcoming-tv', 'shared-requests', 'search-results', 'downloads-radarr', 'downloads-sonarr', 'calendar-radarr', 'calendar-sonarr']) el(name).replaceChildren();
             el('shared-requests').closest('section').hidden = true;
-            el('calendar-panel').hidden = true;
+            closeActivity('calendar'); closeActivity('downloads');
             if (dialog.open) dialog.close();
             controls.forEach(remove => remove());
             for (const { header, heading } of railControls) { header.before(heading); header.remove(); }

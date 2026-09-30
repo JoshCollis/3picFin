@@ -16,7 +16,7 @@ The Jellyfin repository URL is:
 https://raw.githubusercontent.com/JoshCollis/3picFin/catalog/manifest.json
 ```
 
-Versioned ZIPs are on the [releases page](https://github.com/JoshCollis/3picFin/releases); the `catalog` branch retains the version list. Add the repository URL above in Jellyfin's Plugins → Repositories, install 3pic Fin, and restart Jellyfin. File Transformation is required for automatic Home mounting; other user-facing integrations are configured in the 3pic Fin admin settings. The Home adapter checks Jellyfin 12.1 and native route/DOM compatibility at runtime rather than a server-specific asset hash. See [Home adapter compatibility](docs/home-adapter-integration.md) and [release packaging](docs/release-packaging.md).
+Every new push to `main` publishes a versioned ZIP on the [releases page](https://github.com/JoshCollis/3picFin/releases) and appends its entry to the `catalog` branch manifest after verification. Add the repository URL above in Jellyfin's Plugins → Repositories, install 3pic Fin, and restart Jellyfin. File Transformation is required for automatic Home mounting; other user-facing integrations are configured in the 3pic Fin admin settings. The Home adapter checks Jellyfin 12.1 and native route/DOM compatibility at runtime rather than a server-specific asset hash. See [Home adapter compatibility](docs/home-adapter-integration.md) and [release packaging](docs/release-packaging.md).
 
 ## Build and test
 
@@ -27,7 +27,7 @@ dotnet restore RowanJellyfin.slnx
 dotnet test RowanJellyfin.slnx -c Release --no-restore
 dotnet build RowanJellyfin.slnx -c Release --no-restore
 node --test tests/Rowan.Jellyfin.Plugin.Tests/*.test.cjs
-python3 -m unittest discover -s tests -p 'test_package_plugin.py'
+python3 -m unittest discover -s tests -p 'test_*.py'
 ```
 
 The `tests/disposable-*.py` probes use throwaway Jellyfin instances and require Docker. Browser probes also require Playwright. For the title-details HTTP and browser checks, run `python3 tests/disposable-title-details.py --browser`. The hero's filesystem trust requirements are documented in [docs/static-hero.md](docs/static-hero.md).
