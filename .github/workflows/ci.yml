@@ -13,6 +13,9 @@ jobs:
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      matrix:
+        jellyfin-api: ['12.1.0', '12.3.0']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -25,12 +28,13 @@ jobs:
           node-version: '22'
       - name: Test and build Release
         run: |
-          dotnet restore RowanJellyfin.slnx
-          dotnet test RowanJellyfin.slnx -c Release --no-restore
-          dotnet build RowanJellyfin.slnx -c Release --no-restore
+          dotnet restore RowanJellyfin.slnx -p:JellyfinApiVersion=${{ matrix.jellyfin-api }}
+          dotnet test RowanJellyfin.slnx -c Release --no-restore -p:JellyfinApiVersion=${{ matrix.jellyfin-api }}
+          dotnet build RowanJellyfin.slnx -c Release --no-restore -p:JellyfinApiVersion=${{ matrix.jellyfin-api }}
           node --test tests/Rowan.Jellyfin.Plugin.Tests/*.test.cjs
           python3 -m unittest discover -s tests -p 'test_*.py'
       - name: Validate staged archive
+        if: matrix.jellyfin-api == '12.1.0'
         run: |
           python3 scripts/package_plugin.py package \
             --dll src/Rowan.Jellyfin.Plugin/bin/Release/net10.0/Rowan.Jellyfin.Plugin.dll \

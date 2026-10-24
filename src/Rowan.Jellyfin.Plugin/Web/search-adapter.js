@@ -1,4 +1,4 @@
-/* Portable Jellyfin 12.1 Search sibling; never edits native results. */
+/* Portable Jellyfin 12.1/12.3 Search sibling; never edits native results. */
 (function (global) {
     'use strict';
     if (!global.document) return;
@@ -114,7 +114,7 @@
         const ticket = generation;
         if (version !== true) {
             if (!versionPromise) versionPromise = api.getJSON(api.getUrl('System/Info/Public'))
-                .then(info => /^12\.1\.\d+(?:\.\d+)?$/.test(info?.Version || ''))
+                .then(info => /^12\.(?:1|3)\.\d+(?:\.\d+)?$/.test(info?.Version || ''))
                 .catch(() => false).finally(() => { versionPromise = null; });
             const supported = await versionPromise;
             if (disposed || ticket !== generation) return;

@@ -78,7 +78,16 @@ test('supported signed-in Home loads without distribution pin under base path', 
     assert.equal(app.fetches.length, 0);
     app.dispose();
 });
+for (const version of ['12.3.0', '12.3.1', '12.3.0.0', '12.1.1']) {
+    test(`supported Jellyfin ${version} mounts the structural Home contract`, async () => {
+        const app = runtime({ version }); await app.waitForMounts(1);
+        assert.equal(app.appended, 1); app.dispose();
+    });
+}
 for (const [name, options] of [
+    ['future minor', { version: '12.4.0' }],
+    ['preview release', { version: '12.3.0-rc.1' }],
+    ['version suffix', { version: '12.3.0junk' }],
     ['unsupported major', { version: '13.0.0' }],
     ['unsupported minor', { version: '12.2.0' }],
     ['missing version', { version: null }],

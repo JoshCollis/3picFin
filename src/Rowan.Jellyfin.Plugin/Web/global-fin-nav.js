@@ -56,7 +56,7 @@
                 (async () => {
                     try {
                         const info = await api.getJSON(api.getUrl('System/Info/Public'));
-                        if (!/^12\.1\.\d+(?:\.\d+)?$/.test(info?.Version || '')) return;
+                        if (!/^12\.(?:1|3)\.\d+(?:\.\d+)?$/.test(info?.Version || '')) return;
                         const mode = await api.getJSON(api.getUrl('Rowan/Home/Mode'));
                         if (currentTicket !== ticket || stopped || current !== identity ||
                             api !== global.ApiClient || api.getCurrentUserId?.() !== user) return;
