@@ -125,7 +125,7 @@ def browser_probe(base, info, password, output, library, layouts):
                 rect = nav.bounding_box()
                 assert rect and 0 <= rect['x'] < width and 0 <= rect['y'] < 850, ('offscreen Fin seam', layout, rect)
                 if layout == 'tv':
-                    page.locator('.headerTabs .emby-tab-button[data-index="0"]').focus()
+                    page.locator('.headerTabs > .threepic-fin-global-home').focus()
                     page.keyboard.press('ArrowRight')
                     page.wait_for_function('document.activeElement?.classList.contains("threepic-fin-global-nav")')
                     page.keyboard.press('Enter')
@@ -145,6 +145,54 @@ def browser_probe(base, info, password, output, library, layouts):
                 assert page.locator('#homeTab > .sections:visible').count() == 0
                 page.wait_for_selector('.threepic-fin-host__panel .threepic-fin-discovery__title-button')
                 assert 'Populated Fin fixture' in page.locator('.threepic-fin-host__panel').inner_text()
+                if layout != 'desktop':
+                    # Use the actual visible control, not a scripted hash change:
+                    # the native already-selected Home tab was a no-op in Fin.
+                    home = page.locator('.headerTabs > .threepic-fin-global-home:visible, .headerTabs .emby-tab-button[data-index="0"]:visible').first
+                    home.click()
+                    page.wait_for_function('location.hash === "#/home"', timeout=5000)
+                    page.wait_for_selector('.rowan-static-hero img')
+                    for _ in range(2):
+                        page.locator('.headerTabs > .threepic-fin-global-nav').click()
+                        page.wait_for_selector('.threepic-fin-host__panel', state='visible')
+                        page.wait_for_function('document.querySelector(".headerTabs > .threepic-fin-global-nav")?.getAttribute("aria-current") === "page"')
+                        assert home.get_attribute('aria-current') == 'false'
+                        assert page.locator('.headerTabs .emby-tab-button-active:visible').count() == 0
+                        assert page.locator('.headerTabs [aria-current="page"]:visible').count() == 1
+                        native_tabs = page.locator('.headerTabs > [is="emby-tabs"]')
+                        assert native_tabs.evaluate('e => e.selectedIndex()') == 0
+                        assert native_tabs.locator('.emby-tab-button').count() == 2
+                        assert home.evaluate('e => getComputedStyle(e).backgroundColor') != page.locator('.headerTabs > .threepic-fin-global-nav').evaluate('e => getComputedStyle(e).backgroundColor')
+                        home.focus(); page.keyboard.press('Enter')
+                        page.wait_for_function('location.hash === "#/home"')
+                        page.wait_for_selector('.rowan-static-hero img')
+                        page.wait_for_function('document.querySelector(".headerTabs > .threepic-fin-global-home")?.getAttribute("aria-current") === "page"')
+                        assert page.locator('.threepic-fin-host__panel:visible').count() == 0
+                        assert page.locator('#homeTab:visible > .sections:visible').count() == 1
+                    page.locator('.headerTabs > .threepic-fin-global-nav').click()
+                    page.wait_for_selector('.threepic-fin-host__panel', state='visible')
+                    if layout != 'tv':
+                        # Test the real legacy drawer too, including its native
+                        # selected-state updater and close lifecycle.
+                        page.locator('.mainDrawerButton').click()
+                        page.wait_for_selector('.mainDrawer.drawer-open')
+                        drawer_home = page.locator('.mainDrawer .threepic-fin-global-home')
+                        drawer_fin = page.locator('.mainDrawer .threepic-fin-global-nav')
+                        assert drawer_home.inner_text().strip() == 'Home'
+                        assert drawer_fin.evaluate('e => e.classList.contains("navMenuOption-selected")')
+                        assert not drawer_home.evaluate('e => e.classList.contains("navMenuOption-selected")')
+                        drawer_home.click()
+                        page.wait_for_function('location.hash === "#/home"')
+                        page.wait_for_selector('.mainDrawer.drawer-open', state='detached')
+                        page.wait_for_selector('.rowan-static-hero img')
+                        page.locator('.mainDrawerButton').click()
+                        page.wait_for_selector('.mainDrawer.drawer-open')
+                        page.wait_for_function('document.querySelector(".mainDrawer .threepic-fin-global-home")?.getAttribute("aria-current") === "page"')
+                        assert not drawer_fin.evaluate('e => e.classList.contains("navMenuOption-selected")')
+                        drawer_fin.click()
+                        page.wait_for_function('location.hash === "#/home?fin=1"')
+                        page.wait_for_selector('.mainDrawer.drawer-open', state='detached')
+                        page.wait_for_selector('.threepic-fin-host__panel', state='visible')
                 page.screenshot(path=str(output / f'fin-{layout}-{width}.png'))
                 page.evaluate('id => location.hash = "#/movies?topParentId=" + id', library)
                 page.wait_for_function('!location.hash.startsWith("#/home")')

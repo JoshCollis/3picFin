@@ -5,36 +5,42 @@
     global.__threePicFinGlobalNav?.dispose();
     const document = global.document;
     let identity = null, ticket = 0, stopped = false, scheduled = false, allowed = false;
-    let links = [], timer, pending = null, shellDirty = true, shells = [];
+    let links = [], homeLinks = [], timer, pending = null, shellDirty = true, shells = [];
     const hiddenFavorites = new Set();
+    const hiddenHomes = new Set();
     const finRoute = '#/home?fin=1';
     function remove() {
-        for (const link of links) link.remove();
+        for (const link of [...links, ...homeLinks]) link.remove();
         // A framework remount may clone our markup without its listeners, before
         // shell rediscovery runs. Identity teardown must remove those orphans too.
-        for (const node of document.querySelectorAll('.threepic-fin-global-nav, .threepic-fin-global-nav-item')) node.remove();
-        links = [];
+        for (const node of document.querySelectorAll('.threepic-fin-global-nav, .threepic-fin-global-nav-item, .threepic-fin-global-home')) node.remove();
+        links = []; homeLinks = [];
+        for (const node of hiddenFavorites) node.classList.remove('threepic-fin-hidden-favorite');
+        for (const node of hiddenHomes) node.classList.remove('threepic-fin-hidden-home');
         for (const node of document.querySelectorAll('.threepic-fin-hidden-favorite')) node.classList.remove('threepic-fin-hidden-favorite');
+        for (const node of document.querySelectorAll('.threepic-fin-hidden-home')) node.classList.remove('threepic-fin-hidden-home');
         hiddenFavorites.clear();
+        hiddenHomes.clear();
     }
-    function action(favorite, drawer, legacy) {
+    function action(favorite, drawer, legacy, home = false) {
         // Adopt the sibling's native component shell, but not React's owned descendants
         // or handlers. This lets the active theme supply geometry, hover and focus.
-        const button = legacy === 'tabs' || legacy === 'header' ? document.createElement('a') : favorite.cloneNode(false);
-        if (legacy === 'header') {
+        const button = legacy ? document.createElement('a') : favorite.cloneNode(false);
+        if (legacy === 'header' || legacy === 'drawer') {
             button.className = favorite.className;
-            button.classList.remove('headerHomeButton', 'barsMenuButton', 'hide');
-            button.classList.add('threepic-fin-global-nav--header');
+            button.classList.remove('headerHomeButton', 'barsMenuButton', 'hide', 'lnkMediaFolder', 'navMenuOption-selected');
+            if (legacy === 'header') button.classList.add('threepic-fin-global-nav--header');
         }
-        button.classList.add('threepic-fin-global-nav');
-        button.classList.remove('threepic-fin-hidden-favorite');
+        button.classList.add(home ? 'threepic-fin-global-home' : 'threepic-fin-global-nav');
+        button.classList.remove('threepic-fin-hidden-favorite', 'threepic-fin-hidden-home');
         if (legacy === 'tabs') button.classList.add('emby-button', 'button-link', 'threepic-fin-global-nav--tabs');
         button.removeAttribute('data-index');
         button.removeAttribute('id');
         button.removeAttribute('aria-hidden');
         button.tabIndex = 0;
-        button.href = finRoute;
-        button.setAttribute('aria-label', '3pic Fin');
+        const title = home ? (favorite.querySelector('.navMenuOptionText')?.textContent || favorite.textContent).trim() : '3pic Fin';
+        button.href = home ? '#/home' : finRoute;
+        button.setAttribute('aria-label', title);
         const icon = favorite.querySelector(drawer ? '.MuiListItemIcon-root' : '.MuiButton-startIcon')?.cloneNode(false)
             || document.createElement('span');
         icon.classList.add(drawer ? 'MuiListItemIcon-root' : 'MuiButton-startIcon');
@@ -42,7 +48,7 @@
         icon.innerHTML = '<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10m-3.5-3.5L12 13l3.5-3.5M5 17v2h14v-2"/><path d="m19 4 .4 1.6L21 6l-1.6.4L19 8l-.4-1.6L17 6l1.6-.4z"/></svg>';
         const label = favorite.querySelector(drawer ? '.MuiListItemText-root' : '.MuiTypography-root')?.cloneNode(false)
             || document.createElement('span');
-        label.textContent = '3pic Fin';
+        label.textContent = title;
         button.replaceChildren(icon, label);
         if (legacy) {
             label.className = legacy === 'drawer' ? 'navMenuOptionText' : '';
@@ -52,21 +58,22 @@
             event.preventDefault();
             if (stopped || !allowed || identity?.api !== global.ApiClient ||
                 identity?.user !== global.ApiClient?.getCurrentUserId?.()) return;
-            global.location.hash = finRoute;
+            global.location.hash = home ? '#/home' : finRoute;
             if (drawer) document.querySelector('.MuiToolbar-root button[aria-label="Open Menu"]')?.click();
             if (legacy === 'drawer') document.querySelector('.skinHeader .mainDrawerButton')?.click();
         });
         return button;
     }
-    function select(button, drawer) {
-        const selected = global.location.hash === finRoute;
+    function select(button, drawer, home = false) {
+        const selected = home ? /^#\/home(?:\?tab=0)?$/.test(global.location.hash) : global.location.hash === finRoute;
         const value = selected ? 'page' : 'false';
         if (button.getAttribute('aria-current') !== value) button.setAttribute('aria-current', value);
         if (drawer) button.classList.toggle('Mui-selected', selected);
-        else {
+        else if (button.classList.contains('MuiButton-root')) {
             button.classList.toggle('MuiButton-textPrimary', selected);
             button.classList.toggle('MuiButton-textInherit', !selected);
         }
+        if (button.classList.contains('navMenuOption')) button.classList.toggle('navMenuOption-selected', selected);
     }
     function sync() {
         if (stopped) return;
@@ -96,9 +103,10 @@
         }
         if (!allowed) { remove(); return; }
         // Only shell changes need fresh anchor measurements.
-        if (!shellDirty && links.length && links.every(node => node.isConnected)) {
+        if (!shellDirty && links.length && [...links, ...homeLinks].every(node => node.isConnected)) {
             for (const node of links) select(node.matches('.threepic-fin-global-nav-item')
                 ? node.querySelector('.threepic-fin-global-nav') : node, node.matches('.threepic-fin-global-nav-item'));
+            for (const node of homeLinks) select(node, false, true);
             return;
         }
         shellDirty = false;
@@ -135,7 +143,7 @@
                 }
             }
         }
-        const nativeHomes = [...document.querySelectorAll('.mainDrawer .mainDrawer-scrollContainer > a.navMenuOption[href="#/home"]')];
+        const nativeHomes = [...document.querySelectorAll('.mainDrawer .mainDrawer-scrollContainer > a.navMenuOption.lnkMediaFolder[href="#/home"]')];
         if (nativeHomes.length === 1) targets.push({ anchor: nativeHomes[0], legacy: 'drawer' });
         // TV hides its drawer trigger outside Home and clears the Home tabs.
         // Use the native visible Home-button seam there, not an offscreen drawer.
@@ -150,8 +158,30 @@
         for (const node of suppress) if (!hiddenFavorites.has(node)) {
             node.classList.add('threepic-fin-hidden-favorite'); hiddenFavorites.add(node);
         }
+        // Fin is URL state inside native Home (index zero). The native active
+        // Home button is deliberately a no-op on click, and its active class is
+        // used by the controller itself. Replace only that validated navigation
+        // surface with an owned Home/Fin pair; never falsify native tab state.
+        const paired = targets.filter(target => target.legacy === 'tabs' || target.legacy === 'drawer');
+        for (const node of hiddenHomes) if (!paired.some(target => target.anchor === node)) {
+            node.classList.remove('threepic-fin-hidden-home'); hiddenHomes.delete(node);
+        }
+        for (const { anchor } of paired) if (!hiddenHomes.has(anchor) || !anchor.classList.contains('threepic-fin-hidden-home')) {
+            anchor.classList.add('threepic-fin-hidden-home'); hiddenHomes.add(anchor);
+        }
         if (!targets.length) { remove(); return; }
         for (const old of links) if (!old.isConnected || !targets.some(t => old.previousElementSibling === t.anchor)) old.remove();
+        for (const old of homeLinks) if (!old.isConnected || !paired.some(t => old.nextElementSibling === t.anchor)) old.remove();
+        homeLinks = paired.map(({ anchor, favorite, legacy }) => {
+            let node = anchor.previousElementSibling;
+            if (!homeLinks.includes(node) || !node?.classList.contains('threepic-fin-global-home')) {
+                if (node?.classList.contains('threepic-fin-global-home')) node.remove();
+                node = action(favorite || anchor, false, legacy, true);
+                anchor.insertAdjacentElement('beforebegin', node);
+            }
+            select(node, false, true);
+            return node;
+        });
         links = targets.map(({ anchor, drawer: isDrawer, favorite, legacy }) => {
             let node = anchor.nextElementSibling;
             if (!links.includes(node) || !node?.classList.contains(isDrawer ? 'threepic-fin-global-nav-item' : 'threepic-fin-global-nav')) {
@@ -174,7 +204,7 @@
     }
     function owned(node) {
         const element = node.nodeType === 1 ? node : node.parentElement;
-        return !!element?.closest('.threepic-fin-global-nav, .threepic-fin-global-nav-item');
+        return !!element?.closest('.threepic-fin-global-nav, .threepic-fin-global-nav-item, .threepic-fin-global-home');
     }
     const observer = new MutationObserver(records => {
         if (records.every(record => owned(record.target) || record.type === 'childList' &&
@@ -192,7 +222,7 @@
         }
         const api = global.ApiClient, user = api?.getCurrentUserId?.() || null;
         if (shellDirty || (identity?.user || null) !== user || user && identity?.api !== api ||
-            links.some(node => !node.isConnected)) schedule();
+            [...links, ...homeLinks].some(node => !node.isConnected)) schedule();
     }
     function resized() { shellDirty = true; schedule(); }
     global.addEventListener('hashchange', schedule);
