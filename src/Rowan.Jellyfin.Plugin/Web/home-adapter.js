@@ -1,7 +1,7 @@
 /* Portable Jellyfin 12.1/12.3 Home adapter. No distribution-specific fingerprints. */
 (function (global) {
     'use strict';
-    const COMPATIBILITY = '12.1';
+    const COMPATIBILITY = '12.1'; // Shared structural contract, not the detected server version.
     function homeRoute(route) {
         return /^#\/home(?:\?(?:tab=0|fin=1))?$/.test(route || '');
     }

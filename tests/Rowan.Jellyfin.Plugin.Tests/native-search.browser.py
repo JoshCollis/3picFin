@@ -1,4 +1,4 @@
-"""Synthetic signed-in Jellyfin 12.1 Search DOM; exercises shipped adapter in Chromium."""
+"""Synthetic signed-in Jellyfin 12.3 Search DOM; exercises shipped adapter in Chromium."""
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -20,7 +20,7 @@ with sync_playwright() as p:
         page.evaluate("""() => {
           window.identity='alice'; window.calls=[]; window.posts=0;
           window.ApiClient={ logout:()=>{identity=null; return Promise.resolve();}, getCurrentUserId:()=>identity, getUrl:(path,query)=>'/jellyfin/'+path+(query?'?'+new URLSearchParams(query):''),
-            getJSON: async url=>{calls.push(url); if(url.includes('System/Info/Public')) return {Version:'12.1.0'};
+            getJSON: async url=>{calls.push(url); if(url.includes('System/Info/Public')) return {Version:'12.3.0'};
               if(url.includes('3picFin/Search')) return {Items:[{TmdbId:9,MediaType:'movie',Title:'Seerr title',PosterPath:'/poster.jpg'}],TotalPages:1};
               if(url.includes('RequestOptions')) return {CanRequest:true,CanRequest4k:false,MediaStatus:1,Seasons:[]};
               if(url.includes('3picFin/Discovery')) return {Requests:{Items:[{Id:17,TmdbId:9,MediaType:'movie',Status:1,Is4k:false,Seasons:[]}]}};

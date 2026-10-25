@@ -15,9 +15,9 @@ from urllib.parse import urlparse
 GUID = "bd36ab75-0f4a-49b6-92ef-3a93da040c7a"
 NAME = "3pic Fin"
 DLL = "Rowan.Jellyfin.Plugin.dll"
-ABI = "12.1.0.0"
+ABI = "12.1.0.0"  # Minimum ABI: the same DLL is exercised on both 12.1 and 12.3.
 VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\Z")
-DESCRIPTION = "Jellyfin 12.1 Home, discovery and media-request integration."
+DESCRIPTION = "Jellyfin 12.1 and 12.3 Home, discovery and media-request integration."
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 
 
