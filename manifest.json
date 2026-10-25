@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.8.13",
+        "changelog": "Fix legacy Home selection and return navigation",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v0.1.8.13/3pic-fin_0.1.8.13.zip",
+        "checksum": "49206845d20869cebb8bc0e3b1b36cf1",
+        "timestamp": "2026-10-25T20:49:43Z"
+      },
+      {
         "version": "0.1.8.12",
         "changelog": "Fix navigation and modal behavior across Jellyfin layouts",
         "targetAbi": "12.1.0.0",
