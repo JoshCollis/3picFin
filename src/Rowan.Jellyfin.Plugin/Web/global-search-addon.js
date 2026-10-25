@@ -13,7 +13,7 @@
             old.resultListeners.length = 0;
             old.section.remove();
         }
-        function syncLayout(state) {
+        function syncLayout(state, measure = false) {
             const root = state.section.parentElement;
             const groups = root?.querySelectorAll?.(':scope > .searchResults > .verticalSection');
             if (!groups) return;
@@ -22,22 +22,31 @@
             // native BaseItemKind in data-type. Wait for its effect-built cards;
             // an unpopulated/ambiguous row must not be inferred from its title.
             for (const group of groups) {
+                if (before === 2) break;
                 const cards = group.querySelectorAll('.itemsContainer .card');
                 const expected = before === 0 ? ['Movie', 'Series'] : ['Series'];
-                if (!cards.length || ![...cards].every(card => expected.includes(card.getAttribute('data-type')))) break;
+                if (!cards.length) break;
                 const kind = cards[0].getAttribute('data-type');
-                if (![...cards].every(card => card.getAttribute('data-type') === kind)) break;
+                if (!expected.includes(kind) || ![...cards].every(card => card.getAttribute('data-type') === kind)) break;
                 before++;
             }
-            state.section.dataset.nativeBefore = String(Math.min(before, 2));
             const reference = groups[0]?.querySelector('.card') || groups[0]?.querySelector('h2, h3');
-            if (reference?.getBoundingClientRect && root.getBoundingClientRect) {
-                const gutter = reference.getBoundingClientRect().left - root.getBoundingClientRect().left;
-                if (gutter >= 0) state.section.style.setProperty('--search-rail-gutter', `${gutter}px`);
+            let gutter = state.gutter;
+            // Read before writing, and only when the native reference or viewport
+            // changes. Image/custom-element mutations cannot change this anchor.
+            if ((measure || reference !== state.reference) && reference?.getBoundingClientRect && root.getBoundingClientRect) {
+                const left = reference.getBoundingClientRect().left - root.getBoundingClientRect().left;
+                if (left >= 0) gutter = `${left}px`;
+            }
+            state.reference = reference;
+            const value = String(before);
+            if (state.section.dataset.nativeBefore !== value) state.section.dataset.nativeBefore = value;
+            if (gutter !== undefined && gutter !== state.gutter) {
+                state.section.style.setProperty('--search-rail-gutter', gutter); state.gutter = gutter;
             }
         }
         function mount({ root, apiClient, userId, sessionUserId, query, parentId, collectionType, enabled = false,
-            requestAction, detailsAction }) {
+            requestAction, detailsAction, nativeResultLimit }) {
             dispose();
             if (!enabled || !root?.appendChild || !apiClient?.getUrl || !apiClient?.getJSON || !userId ||
                 typeof sessionUserId !== 'function' || sessionUserId() !== userId ||
@@ -53,6 +62,8 @@
             prev.setAttribute('aria-label', 'Previous results'); next.setAttribute('aria-label', 'Next results');
             const pageLabel = document.createElement('span'); pager.appendChild(prev); pager.appendChild(next); pager.appendChild(pageLabel);
             section.appendChild(pager);
+            const limitNote = document.createElement('p'); limitNote.className = 'threepic-fin-search__limit-note';
+            limitNote.hidden = true; section.appendChild(limitNote);
             // Search's native rows are React-owned. Insert a sibling ahead of
             // them rather than appending after an arbitrarily long result list.
             const nativeResults = root.querySelector?.('.searchResults');
@@ -66,7 +77,14 @@
                 else root.appendChild(section);
             }
             const state = { section, body, prev, next, pageLabel, apiClient, userId, sessionUserId, requestAction, detailsAction,
-                query: '', page: 1, max: 1, generation: 0, listeners: [], resultListeners: [], timer: null, abort: null };
+                query: '', page: 1, max: 1, generation: 0, listeners: [], resultListeners: [], timer: null, abort: null, limitNote };
+            state.setNativeLimit = limit => {
+                const text = Number.isInteger(limit) && limit > 0
+                    ? `Jellyfin search is limited to ${limit} results per request. Refine your search for more.` : '';
+                if (limitNote.textContent !== text) limitNote.textContent = text;
+                if (limitNote.hidden !== !text) limitNote.hidden = !text;
+            };
+            state.setNativeLimit(nativeResultLimit);
             current = state;
             syncLayout(state);
             const listen = (node, type, handler) => { node.addEventListener(type, handler); state.listeners.push([node,type,handler]); };
@@ -205,7 +223,8 @@
             const state = current;
             if (!state) return;
             if (state.sessionUserId() !== state.userId) { dispose(); return; }
-            syncLayout(state);
+            if (changes.layout !== false) syncLayout(state, changes.measure === true);
+            if (Object.hasOwn(changes, 'nativeResultLimit')) state.setNativeLimit(changes.nativeResultLimit);
             if (Object.hasOwn(changes, 'parentId') && parentId !== null ||
                 Object.hasOwn(changes, 'collectionType') && collectionType !== null ||
                 Object.hasOwn(changes, 'query') && typeof query !== 'string') { dispose(); return; }

@@ -59,6 +59,8 @@ function runtime({ timing = ['https://example.test/jellyfin/web/hometab.abc.chun
         waitForDisposals: count => waitFor(() => stableDisposals >= count, `${count} disposals`),
         get appended() { return appended; },
         get mounts() { return mounts; },
+        get schedules() { return schedules; },
+        silentMutation: hash => { context.location.hash = hash; observer?.(); },
         get disposals() { return disposals; }, get fetches() { return fetches; },
         change: (hash, id) => { context.location.hash = hash; if (id !== undefined) context.ApiClient.getCurrentUserId = () => id;
             listeners.hashchange?.(); observer?.(); },
@@ -76,6 +78,18 @@ test('supported signed-in Home loads without distribution pin under base path', 
     const app = runtime(); await app.waitForMounts(1);
     assert.equal(app.appended, 1);
     assert.equal(app.fetches.length, 0);
+    app.dispose();
+});
+test('the verified 12.3 structural contract also mounts Home', async () => {
+    const app = runtime({ version: '12.3.0' }); await app.waitForMounts(1);
+    assert.equal(app.appended, 1); app.dispose();
+});
+test('silent route exit tears Home down once and ignores subsequent native Search churn', async () => {
+    const app = runtime(); await app.waitForMounts(1);
+    app.silentMutation('#/search?query=fixture'); await app.waitForDisposals(1); await app.settle();
+    const count = app.schedules;
+    for (let i=0;i<100;i++) app.silentMutation('#/search?query=fixture');
+    await app.settle(); assert.equal(app.schedules,count);
     app.dispose();
 });
 for (const [name, options] of [

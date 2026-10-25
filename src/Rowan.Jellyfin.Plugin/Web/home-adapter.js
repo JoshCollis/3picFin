@@ -1,4 +1,4 @@
-/* Portable Jellyfin 12.1 Home adapter. No distribution-specific fingerprints. */
+/* Portable Jellyfin 12.1/12.3 Home adapter. No distribution-specific fingerprints. */
 (function (global) {
     'use strict';
     const COMPATIBILITY = '12.1';
@@ -117,7 +117,7 @@
                     rejected = true; return;
                 }
                 const info = await api.getJSON(api.getUrl('System/Info/Public'));
-                if (!/^12\.1\.\d+(?:\.\d+)?$/.test(info?.Version || '')) { rejected = true; return; }
+                if (!/^12\.(?:1|3)\.\d+(?:\.\d+)?$/.test(info?.Version || '')) { rejected = true; return; }
                 if (!stopped && api === global.ApiClient && api.getCurrentUserId?.() === userId &&
                     homeRoute(global.location.hash) && resolveHomeNodes(document.querySelector('#indexPage')).pane === pane)
                     bundleHash = COMPATIBILITY;
@@ -182,7 +182,13 @@
             watchIdentity(); adapter.refresh(); if (!verification && !bundleHash) verify();
         } });
     }
-    const observer = new MutationObserver(schedule);
+    // Retain one teardown for silent pushState transitions, but native Search
+    // card churn must not queue Home work at every microtask checkpoint.
+    let observedHomeRoute = homeRoute(global.location.hash);
+    const observer = new MutationObserver(() => {
+        const active = homeRoute(global.location.hash);
+        if (active || observedHomeRoute) { observedHomeRoute = active; schedule(); }
+    });
     observer.observe(document.documentElement, { childList: true, subtree: true });
     global.addEventListener('hashchange', schedule);
     global.addEventListener('popstate', schedule);

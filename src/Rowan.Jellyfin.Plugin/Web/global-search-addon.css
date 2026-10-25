@@ -1,6 +1,7 @@
 /* Native card hierarchy and theme sizing own the card; match its scroller-scoped gap. */
 .threepic-fin-search { position: relative; min-width: 0; padding: .75rem var(--search-rail-gutter, 3.3%) 1.25rem; color: var(--primary-text-color, inherit); --itemColumnGap: .5em; }
 .threepic-fin-search h2 { font-size: 1.3rem; font-weight: 600; margin: 0 5.5rem .75rem 0; }
+.threepic-fin-search__limit-note { font-size: .85rem; opacity: .75; margin: .75rem 0 0; }
 /* Only visual order changes: React retains ownership and DOM order of every native row. */
 #searchPage:has(> .threepic-fin-search):has(> .searchResults > .verticalSection) { display: flex; flex-direction: column; }
 #searchPage:has(> .threepic-fin-search) > .searchResults:has(> .verticalSection) { display: contents; }
