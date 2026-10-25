@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.8.12",
+        "changelog": "Fix navigation and modal behavior across Jellyfin layouts",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v0.1.8.12/3pic-fin_0.1.8.12.zip",
+        "checksum": "2f9c419a9ba347ffdcb176fc4d84eb20",
+        "timestamp": "2026-10-25T19:52:54Z"
+      },
+      {
         "version": "0.1.8.11",
         "changelog": "Feature/activity modal polish (#9)",
         "targetAbi": "12.1.0.0",
