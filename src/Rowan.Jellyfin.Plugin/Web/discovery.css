@@ -207,3 +207,6 @@
     padding-inline-start: .75rem;
 }
 .threepic-fin-discovery__row-heading:has(#threepic-fin-search-heading[hidden]) { display: none; }
+.threepic-fin-discovery__dialog { overscroll-behavior: contain; }
+/* CSS owns the lock, including nested dialogs and removal during route teardown. */
+html:has(dialog.threepic-fin-discovery__dialog:modal) { overflow: hidden; }

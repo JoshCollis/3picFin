@@ -8,10 +8,11 @@ const { createAdapter, resolveHomeNodes } = require('../../src/Rowan.Jellyfin.Pl
 const body = Buffer.from('tested Home distribution');
 const digest = crypto.createHash('sha256').update(body).digest('hex');
 function runtime({ timing = ['https://example.test/jellyfin/web/hometab.abc.chunk.js'],
-    version = '12.1.0', route = '#/home', children, user = 'alice', duplicatePages = false } = {}) {
+    version = '12.1.0', route = '#/home', children, user = 'alice', duplicatePages = false,
+    inactiveCachedPage = false, pageVisible = true } = {}) {
     const source = fs.readFileSync(require.resolve('../../src/Rowan.Jellyfin.Plugin/Web/home-adapter.js'), 'utf8');
     let appended = 0, mounts = 0, disposals = 0, stableMounts = 0, stableDisposals = 0;
-    let fetches = [], listeners = {}, observer, ticks, watchReady = false, schedules = 0;
+    let fetches = [], listeners = {}, documentListeners = {}, observer, ticks, watchReady = false, schedules = 0;
     // Publish host events after the adapter's awaited mount/refresh continuation has run.
     const publish = () => setImmediate(() => { stableMounts = mounts; stableDisposals = disposals; signal(); });
     const waiters = [];
@@ -31,10 +32,12 @@ function runtime({ timing = ['https://example.test/jellyfin/web/hometab.abc.chun
     });
     const pane = { id: 'homeTab', getAttribute: () => '0', querySelector: () => ({}), getClientRects: () => [{}] };
     const favorites = { id: 'favoritesTab', getAttribute: () => '1' };
-    const page = { children: children || [pane, favorites] };
+    const page = { children: children || [pane, favorites], getClientRects: () => pageVisible ? [{}] : [] };
     const document = { documentElement: {}, baseURI: 'https://example.test/jellyfin/web/index.html',
         querySelector: () => page,
-        querySelectorAll: () => duplicatePages ? [page, {children:[pane, favorites]}] : [page],
+        querySelectorAll: () => duplicatePages ? [page, {children:[pane, favorites], getClientRects: () => inactiveCachedPage ? [] : [{}]}] : [page],
+        addEventListener: (name, handler) => documentListeners[name] = handler,
+        removeEventListener: name => delete documentListeners[name],
         createElement: () => ({ remove() {}, set src(value) { this.url = value; }, get src() { return this.url; } }),
         head: { appendChild(script) { appended++; signal(); script.onload?.(); } } };
     const context = { document, location: { hash: route },
@@ -53,6 +56,8 @@ function runtime({ timing = ['https://example.test/jellyfin/web/hometab.abc.chun
     vm.runInNewContext(source, context);
     const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(resolve => setImmediate(resolve)); };
     return { context, pane, favorites, settle, tick: () => ticks?.(),
+        setVisible: value => { pageVisible = value; },
+        shown: (id = 'indexPage') => documentListeners.pageshow?.({ target: { id } }),
         waitForWatch: () => waitFor(() => watchReady, 'identity watcher'),
         nextSchedule: () => { const target = schedules + 1; return waitFor(() => schedules >= target, 'scheduled refresh'); },
         waitForMounts: count => waitFor(() => stableMounts >= count, `${count} mounts`),
@@ -119,6 +124,23 @@ test('ambiguous native Home nodes fail closed', async () => {
 test('duplicate native index pages fail closed even if the first has valid Home nodes', async () => {
     const app = runtime({ duplicatePages: true });
     await app.settle(); assert.equal(app.appended, 0); app.dispose();
+});
+test('an inactive cached native Home does not make the active Home ambiguous', async () => {
+    const app = runtime({ duplicatePages: true, inactiveCachedPage: true });
+    await app.waitForMounts(1); app.dispose();
+});
+test('native pageshow mounts a cached Home revealed after the hash event', async () => {
+    const app = runtime({ pageVisible: false }); await app.settle();
+    assert.equal(app.mounts, 0);
+    app.setVisible(true); app.shown(); await app.waitForMounts(1);
+    app.dispose(); await app.settle(); const schedules = app.schedules;
+    app.shown(); await app.settle(); assert.equal(app.schedules, schedules);
+});
+test('unrelated native pageshow does not schedule Home or bypass its route gate', async () => {
+    const app = runtime({ route: '#/search?query=fixture' }); await app.settle();
+    const schedules = app.schedules;
+    app.shown('searchPage'); app.shown(); await app.settle();
+    assert.equal(app.schedules, schedules); assert.equal(app.mounts, 0); app.dispose();
 });
 test('Fin query is Home-owned while Favorites and arbitrary queries fail closed', async () => {
     const app = runtime({ route: '#/home?fin=1' }); await app.waitForMounts(1);

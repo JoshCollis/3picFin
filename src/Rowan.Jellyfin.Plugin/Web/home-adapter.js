@@ -68,7 +68,11 @@
     let logoutPending = false;
 
     function uniqueIndexPage() {
-        const pages = document.querySelectorAll('#indexPage');
+        // The legacy router caches an old, display:none Home on query transitions.
+        // Require one rendered page, not one ID across inactive cached views.
+        const pages = [...document.querySelectorAll('#indexPage')].filter(page =>
+            page.getClientRects().length > 0 && global.getComputedStyle(page).display !== 'none' &&
+            global.getComputedStyle(page).visibility !== 'hidden');
         return pages.length === 1 ? pages[0] : null;
     }
     const loadHost = api => {
@@ -119,7 +123,7 @@
                 const info = await api.getJSON(api.getUrl('System/Info/Public'));
                 if (!/^12\.(?:1|3)\.\d+(?:\.\d+)?$/.test(info?.Version || '')) { rejected = true; return; }
                 if (!stopped && api === global.ApiClient && api.getCurrentUserId?.() === userId &&
-                    homeRoute(global.location.hash) && resolveHomeNodes(document.querySelector('#indexPage')).pane === pane)
+                    homeRoute(global.location.hash) && resolveHomeNodes(uniqueIndexPage()).pane === pane)
                     bundleHash = COMPATIBILITY;
             } catch (_) { /* Transient API errors may retry; never mount on failure. */ }
         })();
@@ -190,11 +194,19 @@
         if (active || observedHomeRoute) { observedHomeRoute = active; schedule(); }
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
+    // Cached legacy Back navigation can reveal Home using only class/style
+    // changes, after hashchange has already observed a hidden pane. Use the
+    // native page lifecycle instead of broad document attribute observation.
+    function shown(event) {
+        if (event.target?.id === 'indexPage' && homeRoute(global.location.hash)) schedule();
+    }
+    document.addEventListener('pageshow', shown);
     global.addEventListener('hashchange', schedule);
     global.addEventListener('popstate', schedule);
     global.addEventListener('resize', schedule);
     global.__threePicFinHomeAdapter = { dispose() {
         stopped = true; observer.disconnect(); global.removeEventListener('hashchange', schedule);
+        document.removeEventListener('pageshow', shown);
         global.removeEventListener('popstate', schedule); global.removeEventListener('resize', schedule);
         unwatch(); adapter.dispose();
     } };

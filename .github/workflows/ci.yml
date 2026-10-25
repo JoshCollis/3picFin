@@ -41,3 +41,12 @@ jobs:
             --manifest manifest.json --output dist --version 0.0.0.1 \
             --source-url https://example.invalid/releases/download/v0.0.0.1/3pic-fin_0.0.0.1.zip \
             --epoch 0 --changelog 'CI fixture only; not published'
+      - name: Render layout and modal regressions
+        if: matrix.jellyfin-api == '12.1.0'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/fin-browser-tools"
+          "$RUNNER_TEMP/fin-browser-tools/bin/python" -m pip install playwright==1.63.0
+          "$RUNNER_TEMP/fin-browser-tools/bin/python" -m playwright install --with-deps chromium
+          "$RUNNER_TEMP/fin-browser-tools/bin/python" tests/Rowan.Jellyfin.Plugin.Tests/layout-navigation.browser.py
+          "$RUNNER_TEMP/fin-browser-tools/bin/python" tests/Rowan.Jellyfin.Plugin.Tests/cached-home.browser.py
+          "$RUNNER_TEMP/fin-browser-tools/bin/python" tests/Rowan.Jellyfin.Plugin.Tests/modal-dismissal.browser.py

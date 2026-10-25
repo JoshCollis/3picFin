@@ -324,11 +324,11 @@
             return list(field(source, 'Items')).find(item => matching(item, chosen)) || null;
         };
         function closeRequest() {
-            if (submitting) return;
             ++requestGeneration;
+            selection = null; options = null;
+            el('request-submit').disabled = true;
             if (dialog.open) dialog.close();
             trigger?.focus(); trigger = null;
-            selection = null; options = null;
         }
         async function openRequest(item, button, context = item) {
             if (disposed || submitting || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
@@ -398,6 +398,9 @@
             try {
                 created = await ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('3picFin/Requests'), data: JSON.stringify(chosen), contentType: 'application/json', dataType: 'json' });
             } catch (error) { failure = error; }
+            // A sent POST cannot be unsent, but dismissal must detach its read-back
+            // and all subsequent actions, including when the transport ignores abort.
+            if (!currentUser() || generation !== requestGeneration || !dialog.open) { submitting = false; return; }
             try {
                 const fresh = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Discovery', { moviePage: 1, tvPage: 1, requestsPage: 1 }));
                 if (!currentUser() || generation !== requestGeneration) return;
@@ -580,6 +583,8 @@
         }
         function closeActivity(name) {
             const modal = el(`${name}-panel`);
+            if (name === 'downloads') stopDownloads();
+            else { stopCalendar(); calendarResult = null; }
             if (modal.open) modal.close();
         }
         function openActivity(name) {
@@ -700,6 +705,7 @@
             on(el(`${name}-tab`), 'click', () => openActivity(name));
             on(el(`${name}-close`), 'click', () => closeActivity(name));
             on(el(`${name}-panel`), 'close', () => {
+                if (el(`${name}-panel`).open) return;
                 if (name === 'downloads') stopDownloads();
                 else { stopCalendar(); calendarResult = null; }
                 for (const source of ['radarr', 'sonarr']) el(`${name}-${source}`).replaceChildren();
@@ -715,8 +721,44 @@
         on(el('calendar-prev'), 'click', () => { if (!calendarLoading && calendarOffset > -12 && el('calendar-panel').open) { --calendarOffset; calendarResult = null; loadCalendar(); } });
         on(el('calendar-next'), 'click', () => { if (!calendarLoading && calendarOffset < 12 && el('calendar-panel').open) { ++calendarOffset; calendarResult = null; loadCalendar(); } });
         // Keep keyboard traversal inside either modal, including dynamically enabled actions.
+        // HTML dialog backdrops retarget pointer events to the top-layer dialog.
+        // Bind to our four owned surfaces, never to document or native framework DOM.
+        // Both ends must be outside: a down-inside/drag-out is not dismissal.
+        for (const [modal, close] of [[detailsDialog, closeDetails], [dialog, closeRequest],
+            [el('downloads-panel'), () => closeActivity('downloads')],
+            [el('calendar-panel'), () => closeActivity('calendar')]]) {
+            let down = null;
+            const outside = event => {
+                if (event.target !== modal || !modal.open || !modal.matches(':modal')) return false;
+                const rect = modal.getBoundingClientRect();
+                return event.clientX < rect.left || event.clientX > rect.right ||
+                    event.clientY < rect.top || event.clientY > rect.bottom;
+            };
+            on(modal, 'pointerdown', event => { down = event.isPrimary && event.button === 0 && outside(event) ? event.pointerId : null; });
+            on(modal, 'pointercancel', () => { down = null; });
+            on(modal, 'click', event => {
+                const dismiss = down !== null && (event.pointerId === undefined || event.pointerId === down) && outside(event);
+                down = null;
+                if (dismiss) { event.preventDefault(); event.stopPropagation(); close(); }
+            });
+            on(modal, 'cancel', event => { event.preventDefault(); down = null; close(); });
+            on(modal, 'close', () => { down = null; });
+            on(modal, 'command', event => {
+                if (event.detail?.command === 'back' && event.target?.closest?.('dialog') === modal &&
+                    modal.open && modal.matches(':modal')) {
+                    event.preventDefault(); event.stopPropagation(); close();
+                }
+            });
+            // Stop TV's window-level Escape-to-route handler before it can leave Home.
+            on(modal, 'keydown', event => {
+                if (event.key === 'Escape' && !event.defaultPrevented &&
+                    event.target?.closest?.('dialog') === modal && modal.open) {
+                    event.preventDefault(); event.stopPropagation(); close();
+                }
+            });
+        }
         for (const modal of [detailsDialog, dialog, el('downloads-panel'), el('calendar-panel')]) on(modal, 'keydown', event => {
-            if (event.key !== 'Tab') return;
+            if (event.key !== 'Tab' || event.target?.closest?.('dialog') !== modal) return;
             const stops = Array.from(modal.querySelectorAll('button, input, select, [tabindex]'))
                 .filter(node => !node.disabled && node.tabIndex >= 0 && node.getClientRects().length);
             const first = stops[0], last = stops[stops.length - 1];
@@ -725,15 +767,13 @@
         });
         on(el('request-form'), 'submit', submitRequest);
         on(el('details-close'), 'click', () => closeDetails());
-        on(detailsDialog, 'cancel', () => { invalidateDetails(); detailsTrigger?.focus(); detailsTrigger = null; });
-        on(detailsDialog, 'close', () => { invalidateDetails(); detailsTrigger?.focus(); detailsTrigger = null; });
+        on(detailsDialog, 'close', () => { if (!detailsDialog.open) closeDetails(); });
         on(el('details-request'), 'click', () => { if (!detailsItem || detailsBusy || el('details-request').hidden || el('details-request').disabled) return; const item = detailsItem, button = detailsTrigger, context = detailsContext; closeDetails(false); openRequest(item, button, context); });
         on(el('request-4k'), 'change', () => { if (options && selection && !submitting && !locked) { renderRequestSeasons(); updateRequestStatus(); } });
         on(el('request-cancel'), 'click', closeRequest);
         on(el('shared-requests-prev'), 'click', () => { if (sharedPage > 1) sharedRequests(sharedPage - 1); });
         on(el('shared-requests-next'), 'click', () => { if (sharedPage < sharedMax) sharedRequests(sharedPage + 1); });
-        on(dialog, 'cancel', event => { if (submitting) event.preventDefault(); else { ++requestGeneration; trigger?.focus(); selection = null; options = null; } });
-        on(dialog, 'close', () => { if (!submitting) { ++requestGeneration; trigger?.focus(); trigger = null; selection = null; options = null; } });
+        on(dialog, 'close', () => { if (!dialog.open) closeRequest(); });
         function clearSearch() {
             ++searchGeneration; searchQuery = ''; searchPage = searchMax = 1;
             el('search-heading').hidden = true; el('search-results').replaceChildren(); pager('search', 1, 1);

@@ -1,6 +1,6 @@
 """Fin pill state and single-line geometry across app-shell routes."""
 from pathlib import Path
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 
 web = Path(__file__).resolve().parents[2] / 'src/Rowan.Jellyfin.Plugin/Web'
 html = '''<html><head><style>
@@ -38,8 +38,8 @@ with sync_playwright() as playwright:
             assert not drawer.evaluate('(e)=>e.classList.contains("Mui-selected")')
         nav.click()
         page.wait_for_function('location.hash==="#/home?fin=1"')
-        assert nav.get_attribute('aria-current') == 'page'
-        assert drawer.get_attribute('aria-current') == 'page'
+        expect(nav).to_have_attribute('aria-current', 'page')
+        expect(drawer).to_have_attribute('aria-current', 'page')
         assert drawer.evaluate('(e)=>e.classList.contains("Mui-selected")')
         page.evaluate('location.hash="#/search?query=Avatar"')
         page.wait_for_function("document.querySelector('.MuiStack-root .threepic-fin-global-nav').getAttribute('aria-current')==='false'")

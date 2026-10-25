@@ -69,19 +69,27 @@ def seed(page, base, info, login):
         'UserId': login['User']['Id'], 'AccessToken': login['AccessToken']}] })) + ');')
 
 
-def browser_probe(base, info, password, output):
+def browser_probe(base, info, password, output, library, layouts):
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         try:
-            for width in (390, 1280):
+            for layout, width in ((mode, width) for mode in layouts for width in (390, 1280)):
                 login = ok(call(base, '/Users/AuthenticateByName', 'POST', {'Username': 'probe', 'Pw': password}))
                 page = browser.new_page(viewport={'width': width, 'height': 850})
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 seed(page, base, info, login)
+                page.add_init_script('localStorage.setItem("layout", ' + json.dumps(layout) + ');')
+                page.add_init_script('''window.finLifecycle=[]; document.addEventListener('pageshow',e=>{
+                    finLifecycle.push({id:e.target.id,classes:e.target.className,route:location.hash});
+                    if(finLifecycle.length>40)finLifecycle.shift();
+                });''')
                 # Only the candidate feed is synthetic; assets, native data and auth are real.
                 page.route('**/3picFin/Search?*', lambda route: route.fulfill(status=200, content_type='application/json', body=json.dumps({
                     'Items': [{'TmdbId': 9, 'MediaType': 'movie', 'Title': 'Fixture candidate', 'PosterPath': None}], 'TotalPages': 1})))
+                page.route('**/3picFin/Discovery?*', lambda route: route.fulfill(status=200, content_type='application/json', body=json.dumps({
+                    'Movies': {'Items': [{'TmdbId': 9, 'MediaType': 'movie', 'Title': 'Populated Fin fixture'}]},
+                    'Tv': {'Items': []}, 'Requests': {'Items': []}})))
                 page.goto(base + '/web/index.html#/home', wait_until='domcontentloaded')
                 page.wait_for_selector('#homeTab > .sections', timeout=45000)
                 page.wait_for_function('!!window.ApiClient?.getCurrentUserId()')
@@ -90,22 +98,68 @@ def browser_probe(base, info, password, output):
                 page.wait_for_function('!!document.querySelector(".rowan-static-hero img")?.naturalWidth')
                 page.locator('.rowan-static-hero img').first.evaluate('(img) => img.decode()')
                 page.wait_for_selector('#homeTab .threepic-fin-host__panel', state='attached')
+                assert page.locator('a[href="#/home?tab=1"]:visible').count() == 0
+                assert page.locator('.headerTabs .emby-tab-button[data-index="1"]:visible').count() == 0
+                if layout == 'desktop':
+                    page.locator('button[aria-controls="app-user-menu"]').click()
+                    page.wait_for_selector('#app-user-menu .MuiPaper-root')
+                    page.mouse.click(2, 2)
+                    page.wait_for_selector('#app-user-menu', state='hidden')
                 assert page.locator('#homeTab > .sections').is_visible()
+                page.locator('#homeTab:visible > .sections').get_by_role('heading', name='My Media', exact=True).wait_for()
                 hero = page.locator('.rowan-static-hero').first
                 assert hero.is_visible()
+                page.locator('.rowan-hero-next').click()
+                page.wait_for_function('document.querySelector(".rowan-hero-counter")?.textContent === "2 / 2"')
+                page.wait_for_function('!!document.querySelector(".rowan-static-hero img")?.naturalWidth')
+                page.locator('.rowan-static-hero img').first.evaluate('(img) => img.decode()')
+                page.locator('.rowan-hero-previous').click()
+                page.wait_for_function('document.querySelector(".rowan-hero-counter")?.textContent === "1 / 2"')
+                page.wait_for_function('!!document.querySelector(".rowan-static-hero img")?.naturalWidth')
                 assert page.evaluate('document.querySelector("#homeTab > .sections").getBoundingClientRect().top >= document.querySelector(".rowan-static-hero").getBoundingClientRect().bottom - 1')
-                if width == 390:
+                if width == 390 and layout == 'desktop':
                     page.get_by_role('button', name='Open Menu', exact=True).click()
-                nav = page.locator('.threepic-fin-global-nav:visible').first
+                nav = page.locator('.threepic-fin-global-nav:visible').first if layout == 'desktop' else page.locator('.headerTabs > .threepic-fin-global-nav')
                 nav.wait_for()
-                nav.click()
-                if width == 390:
+                nav.click(trial=True)  # finish native drawer animation before geometry
+                rect = nav.bounding_box()
+                assert rect and 0 <= rect['x'] < width and 0 <= rect['y'] < 850, ('offscreen Fin seam', layout, rect)
+                if layout == 'tv':
+                    page.locator('.headerTabs .emby-tab-button[data-index="0"]').focus()
+                    page.keyboard.press('ArrowRight')
+                    page.wait_for_function('document.activeElement?.classList.contains("threepic-fin-global-nav")')
+                    page.keyboard.press('Enter')
+                else:
+                    nav.click()
+                if width == 390 and layout == 'desktop':
                     page.keyboard.press('Escape')
                 page.wait_for_function('location.hash === "#/home?fin=1"')
-                page.wait_for_selector('#homeTab .threepic-fin-host__panel', state='visible')
-                assert not page.locator('#homeTab > .sections').is_visible()
+                try:
+                    page.wait_for_selector('#homeTab .threepic-fin-host__panel', state='visible', timeout=10000)
+                except Exception:
+                    print(json.dumps(page.evaluate('''() => ({route:location.hash, layout:document.documentElement.className,
+                        panes:[...document.querySelectorAll('#homeTab, #favoritesTab, .threepic-fin-host__panel')].map(e=>({id:e.id,hidden:e.hidden,view:e.getAttribute('data-threepic-fin-view'),style:getComputedStyle(e).display,rect:e.getBoundingClientRect().toJSON()})),
+                        tabs:[...document.querySelectorAll('.headerTabs')].map(e=>e.outerHTML)})''')), flush=True)
+                    page.screenshot(path=str(output / f'failure-{layout}-{width}.png'))
+                    raise
+                assert page.locator('#homeTab > .sections:visible').count() == 0
+                page.wait_for_selector('.threepic-fin-host__panel .threepic-fin-discovery__title-button')
+                assert 'Populated Fin fixture' in page.locator('.threepic-fin-host__panel').inner_text()
+                page.screenshot(path=str(output / f'fin-{layout}-{width}.png'))
+                page.evaluate('id => location.hash = "#/movies?topParentId=" + id', library)
+                page.wait_for_function('!location.hash.startsWith("#/home")')
+                page.wait_for_selector('.threepic-fin-host__panel', state='detached')
+                page.wait_for_function('finLifecycle.some(e => e.route.startsWith("#/movies"))')
+                page.go_back()
+                try:
+                    page.wait_for_function('location.hash === "#/home?fin=1"', timeout=10000)
+                    page.wait_for_selector('.threepic-fin-host__panel', state='visible', timeout=10000)
+                except Exception:
+                    print(json.dumps(page.evaluate('''() => ({route:location.hash, lifecycle:finLifecycle,
+                        pages:[...document.querySelectorAll('.page')].map(e=>({id:e.id,classes:e.className,display:getComputedStyle(e).display,rect:e.getBoundingClientRect().toJSON()}))})''')), flush=True)
+                    raise
                 page.evaluate('location.hash = "#/home?tab=1"')
-                page.wait_for_selector('#favoritesTab', state='visible')
+                page.wait_for_selector('#favoritesTab:visible')
                 page.wait_for_selector('#homeTab .threepic-fin-host__panel', state='detached')
                 page.evaluate('location.hash = "#/search?query=Compatibility"')
                 page.wait_for_selector('#searchTextInput', timeout=30000)
@@ -113,20 +167,43 @@ def browser_probe(base, info, password, output):
                 assert page.locator('.threepic-fin-search .cardText').inner_text() == 'Fixture candidate'
                 page.wait_for_selector('#searchPage .card[data-type="Movie"]', timeout=30000)
                 assert page.locator('#searchPage .card[data-type="Movie"]').count() > 0
-                if width == 390:
+                if width == 390 and layout == 'desktop':
                     page.get_by_role('button', name='Open Menu', exact=True).click()
-                page.locator('.threepic-fin-global-nav:visible').first.click()
-                if width == 390:
+                if layout != 'desktop':
+                    entry = page.locator('.headerLeft > .threepic-fin-global-nav')
+                    entry.wait_for()
+                    entry.click(trial=True)
+                    box = entry.bounding_box()
+                    assert box and 0 <= box['x'] < width and 0 <= box['y'] < 850, ('offscreen persistent Fin seam', layout, box)
+                    entry.click()
+                else:
+                    page.locator('.threepic-fin-global-nav:visible').first.click()
+                if width == 390 and layout == 'desktop':
                     page.keyboard.press('Escape')
                 page.wait_for_selector('#homeTab .threepic-fin-host__panel', state='visible')
                 page.wait_for_selector('.threepic-fin-search', state='detached')
                 page.evaluate('location.hash = "#/home"')
                 page.wait_for_selector('.rowan-static-hero img')
+                page.locator('#homeTab:visible > .sections').get_by_role('heading', name='My Media', exact=True).wait_for()
                 page.wait_for_function('!!document.querySelector(".rowan-static-hero img")?.naturalWidth')
                 page.locator('.rowan-static-hero img').first.evaluate('(img) => img.decode()')
-                page.screenshot(path=str(output / f'home-{width}.png'))
+                page.screenshot(path=str(output / f'home-{layout}-{width}.png'))
                 page.locator('.rowan-static-hero button').filter(has_text='Open').click()
                 page.wait_for_function('!location.hash.startsWith("#/home")')
+                # Exercise the real native dialogHelper, never a reimplemented fixture.
+                page.locator('.btnMoreCommands:visible').first.click()
+                native = page.locator('.dialogContainer > .dialog.opened').last
+                native.wait_for()
+                if layout == 'tv':
+                    # Native action sheets deliberately fill the viewport in TV mode.
+                    page.keyboard.press('Escape')
+                else:
+                    box = native.bounding_box()
+                    assert box and (box['x'] > 2 or box['y'] > 2), ('no outside hit area', layout, box)
+                    native.dispatch_event('click')  # inside the dialog itself, not a menu action
+                    assert native.is_visible()
+                    page.mouse.click(2, 2)
+                page.wait_for_selector('.dialogContainer > .dialog.opened', state='detached')
                 page.evaluate('location.hash = "#/configurationpage?name=3pic%20Fin"')
                 page.wait_for_selector('#RowanConfigPage', timeout=30000)
                 page.wait_for_function('!document.querySelector("#RowanSaveButton").disabled && document.querySelector("#HomeEnabled").checked')
@@ -140,7 +217,7 @@ def browser_probe(base, info, password, output):
                 page.locator('#RowanSaveButton').click()
                 page.wait_for_function('!document.querySelector("#RowanSaveButton").disabled')
                 assert not page.evaluate('(id) => ApiClient.getPluginConfiguration(id).then(c => c.CombinedPlaybackHideWatched)', GUID)
-                page.screenshot(path=str(output / f'admin-{width}.png'))
+                page.screenshot(path=str(output / f'admin-{layout}-{width}.png'))
                 page.evaluate('location.hash = "#/home"')
                 page.wait_for_selector('.rowan-static-hero img')
                 page.evaluate('ApiClient.logout()')
@@ -148,7 +225,7 @@ def browser_probe(base, info, password, output):
                 page.wait_for_selector('.threepic-fin-global-nav', state='detached')
                 assert not errors, errors
                 page.close()
-                print(json.dumps({'width': width, 'home': 'pass', 'hero_decode_open': 'pass', 'fin_favorites_global_nav': 'pass', 'native_search_and_fixture_candidate': 'pass', 'admin_toggle_save_readback': 'pass', 'logout': 'pass', 'pageerrors': errors}), flush=True)
+                print(json.dumps({'layout': layout, 'width': width, 'home': 'pass', 'hero_decode_carousel_open': 'pass', 'fin_favorites_global_nav': 'pass', 'native_more_menu': 'Back (fullscreen)' if layout == 'tv' else 'outside-dismiss', 'native_search_and_fixture_candidate': 'pass', 'admin_toggle_save_readback': 'pass', 'logout': 'pass', 'pageerrors': errors}), flush=True)
         finally:
             browser.close()
 
@@ -157,6 +234,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', default='jellyfin/jellyfin:12.3@sha256:2038fe038ab3876a80f6e7b7e0aef6607b032c7dc0c9b3ad3296d0b2eba3bbb5')
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--layouts', nargs='+', choices=('desktop', 'tv', 'desktop-legacy', 'mobile-legacy'),
+                        default=['desktop', 'tv', 'desktop-legacy', 'mobile-legacy'])
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     dll_hash = hashlib.sha256(DLL.read_bytes()).hexdigest()
@@ -177,6 +256,9 @@ def main():
         media = root / 'media/Compatibility Film (2020)'; media.mkdir(parents=True)
         (media / 'movie.nfo').write_text('<movie><title>Compatibility Film</title><premiered>2020-01-01</premiered><year>2020</year></movie>')
         subprocess.run(['ffmpeg', '-nostdin', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=blue:s=160x90:r=1', '-t', '1', '-c:v', 'mpeg4', str(media / 'Compatibility Film.mp4')], check=True)
+        second = root / 'media/Compatibility Second (2021)'; second.mkdir()
+        (second / 'movie.nfo').write_text('<movie><title>Compatibility Second</title><premiered>2021-01-01</premiered><year>2021</year></movie>')
+        (second / 'Compatibility Second.mp4').write_bytes((media / 'Compatibility Film.mp4').read_bytes())
         subprocess.run(['ffmpeg', '-nostdin', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=orange:s=640x360', '-frames:v', '1', str(root / 'image.jpg')], check=True)
         cid = docker('run', '-d', '--label', '3pic-fin=disposable-version-compat', '--user', f'{os.getuid()}:{os.getgid()}', '-p', '127.0.0.1::8096', '-v', f'{root}/config:/config', '-v', f'{root}/cache:/cache', '-v', f'{root}/media:/media:ro', args.image)
         try:
@@ -195,9 +277,13 @@ def main():
             folders = ok(call(base, '/Library/VirtualFolders', token=token))
             library = next(f['ItemId'] for f in folders if f['Name'] == 'Movies')
             ok(call(base, '/Library/Refresh', 'POST', {}, token))
-            items = wait(lambda: ok(call(base, '/Items?Recursive=true&IncludeItemTypes=Movie&Limit=10', token=token))['Items'], 'media scan')
+            def scanned_movies():
+                movies = ok(call(base, '/Items?Recursive=true&IncludeItemTypes=Movie&Limit=10', token=token))['Items']
+                return movies if len(movies) == 2 else None
+            items = wait(scanned_movies, 'two synthetic movies')
             item = items[0]['Id']
-            ok(call(base, f'/Items/{item}/Images/Backdrop/0', 'POST', base64.b64encode((root / 'image.jpg').read_bytes()), token, 'image/jpeg'))
+            for movie in items:
+                ok(call(base, f'/Items/{movie["Id"]}/Images/Backdrop/0', 'POST', base64.b64encode((root / 'image.jpg').read_bytes()), token, 'image/jpeg'))
             configuration = ok(call(base, '/Plugins/' + GUID + '/Configuration', token=token))
             configuration.update(HomeEnabled=True, DiscoveryPageEnabled=True, GlobalSearchEnabled=True, HeroTrustedFilesystemEnabled=True, HeroLibraryIds=[library])
             ok(call(base, '/Plugins/' + GUID + '/Configuration', 'POST', configuration, token))
@@ -214,6 +300,7 @@ def main():
             assert mode['HeroEnabled'] and mode['DiscoveryEnabled'], mode
             slides = ok(call(base, '/Rowan/Home/Hero', token=token))
             assert slides
+            item = slides[0]['Id']
             tag = slides[0]['ImageTag']
             image_status = call(base, f'/Rowan/Home/Hero/Image/{item}?tag={tag}', token=token)[0]
             assert image_status == 200, image_status
@@ -228,7 +315,7 @@ def main():
             assert call(base, f'/Rowan/Home/Hero/Image/{item}?tag={tag}', token=viewer_token)[0] == 404
             assert call(base, '/Plugins/' + GUID + '/Configuration', token=viewer_token)[0] == 403
             print(json.dumps({'runtime': info['Version'], 'dll_sha256': dll_hash, 'plugin_active': True, 'anonymous': 401, 'userless_key': 403, 'metadata_hero_image': 200}), flush=True)
-            browser_probe(base, info, password, args.output)
+            browser_probe(base, info, password, args.output, library, args.layouts)
             token = ok(call(base, '/Users/AuthenticateByName', 'POST', {'Username': 'probe', 'Pw': password}))['AccessToken']
             configuration = ok(call(base, '/Plugins/' + GUID + '/Configuration', token=token))
             configuration['DiscoveryPageEnabled'] = False

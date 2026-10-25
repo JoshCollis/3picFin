@@ -81,14 +81,11 @@ with sync_playwright() as p:
                     page.locator('#threepic-fin-request-4k').check()
                     assert page.locator('#threepic-fin-request-seasons input:checked').count()==1
                 if width!=320 and kind in ('movie','tv'): page.screenshot(path=str(out/f'after-confirm-{kind}-{width}.png'))
-                # Actual submission, in-flight dismissal lock, duplicate prevention and read-back.
+                # Actual submission, duplicate prevention and read-back when kept open.
                 if kind in ('movie','tv'):
                     page.locator('#threepic-fin-request-submit').click()
                     expect(request).to_contain_text('Submitting request…')
                     page.evaluate("document.querySelector('#threepic-fin-request-form').requestSubmit()")
-                    page.keyboard.press('Escape')
-                    expect(request).to_be_visible()
-                    page.locator('#threepic-fin-request-cancel').click()
                     expect(request).to_be_visible()
                     assert page.evaluate('posts.length')==1
                     payload=page.evaluate('JSON.parse(posts[0].data)')

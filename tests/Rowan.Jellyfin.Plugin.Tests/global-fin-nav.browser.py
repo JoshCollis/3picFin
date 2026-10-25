@@ -16,7 +16,7 @@ with sync_playwright() as p:
     for width in (390, 1280):
         page = browser.new_page(viewport={'width': width, 'height': 750})
         page.set_content('''<html class="layout-desktop"><head><style>
-:root { --ef12-navPillBackground: rgb(32, 32, 38); --ef12-navRadius: 20px;
+:root { --darkerGradientPointAlpha: rgb(32, 32, 38); --ef12-navPillBackground: rgb(32, 32, 38); --ef12-navRadius: 20px;
 --ef12-navPaddingInline: 16px; --ef12-navGap: 8px; --textColor: white;
 --btnPlayColor: rgb(20, 130, 170); --zeroContrastColor: white;
 --hoverTabBackgroundColor: rgb(65, 72, 85); --smallRadius: 8px;
@@ -24,6 +24,7 @@ with sync_playwright() as p:
 .MuiButton-root { display:inline-flex; align-items:center; border:0; cursor:pointer; text-decoration:none; min-height:40px; font-family:Arial; }
 .MuiListItemButton-root { display:flex; align-items:center; padding:10px 16px; text-decoration:none; }
 .MuiListItemIcon-root { display:inline-flex; width:32px; }
+.skinHeader { display:none; } /* Modern AppHeader retains hidden legacy nodes. */
 </style></head><body><div class="MuiAppBar-root"><div class="MuiToolbar-root"><button aria-label="Open Menu">Menu</button><div class="MuiStack-root"><a class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary" href="#/">Home</a><a class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit" href="#/home?tab=1"><span class="MuiButton-icon MuiButton-startIcon"><svg viewBox="0 0 24 24"></svg></span><span class="MuiTypography-root">Favorites</span></a><a class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit" href="#/movies">Movies</a></div></div></div><div class="MuiDrawer-root"><div class="MuiDrawer-paper"><ul><li class="MuiListItem-root"><a class="MuiButtonBase-root MuiListItemButton-root" href="#/"><span class="MuiListItemIcon-root">⌂</span><span class="MuiListItemText-root">Home</span></a></li><li class="MuiListItem-root"><a class="MuiButtonBase-root MuiListItemButton-root" href="#/home?tab=1"><span class="MuiListItemIcon-root">☆</span><span class="MuiListItemText-root">Favorites</span></a></li><li class="MuiListItem-root"><a class="MuiButtonBase-root MuiListItemButton-root" href="#/movies">Movies</a></li></ul></div></div><div class="skinHeader"><div class="headerTabs"><div is="emby-tabs"><div class="emby-tabs-slider"><button class="emby-tab-button" data-index="0">Home</button><button class="emby-tab-button" data-index="1">Favorites</button></div></div></div></div><div id="indexPage"><div id="homeTab" data-index="0"><div class="sections">Home sections</div></div><div id="favoritesTab" data-index="1">Favorites</div></div></div></body></html>''')
         page.evaluate('(mobile) => { document.documentElement.className=mobile ? "layout-mobile" : "layout-desktop"; window.ApiClient={getCurrentUserId:()=>window.user,getUrl:path=>"/jellyfin/"+path,getJSON:async()=>({Version:"12.1.0",DiscoveryEnabled:true})}; window.user="alice"; location.hash="#/movies"; }', width < 600)
         page.add_style_tag(content=theme.read_text())
@@ -35,7 +36,7 @@ with sync_playwright() as p:
           const stack=document.querySelector('.MuiStack-root'), drawer=document.querySelector('.MuiDrawer-paper');
           const a=stack.querySelector('a[href="#/home?tab=1"]'), b=stack.querySelector('.threepic-fin-global-nav');
           const d=drawer.querySelector('a[href="#/home?tab=1"]'), f=drawer.querySelector('.threepic-fin-global-nav');
-          const style=e=>{const s=getComputedStyle(e);return {background:s.backgroundColor,radius:s.borderRadius,padding:s.padding,font:s.fontFamily,color:s.color,display:s.display}};
+          const style=e=>{const s=getComputedStyle(e);return {background:s.backgroundColor,radius:s.borderRadius,padding:s.padding,font:s.fontFamily,color:s.color}};
           return {toolbar:[style(a),style(b)],drawer:[style(d),style(f)],
             toolbarStructure:[a.querySelector('.MuiButton-startIcon')?.tagName,b.querySelector('.MuiButton-startIcon')?.tagName],
             drawerStructure:[d.querySelector('.MuiListItemIcon-root')?.tagName,f.querySelector('.MuiListItemIcon-root')?.tagName],
@@ -53,18 +54,27 @@ with sync_playwright() as p:
             assert result['label'] == '3pic Fin' and result['transform'] == 'none', result
             assert not result['selected'] and result['aria'] == 'false', result
             assert page.locator('.emby-tab-button').count() == 2
+            assert page.locator('a[href="#/home?tab=1"]:visible').count() == 0
         if width == 1280:
             page.locator('.MuiStack-root .threepic-fin-global-nav').hover()
+            page.wait_for_timeout(400)  # theme hover transition, not navigation timing
             hover = page.evaluate('''() => {
               const e=document.querySelector('.MuiStack-root .threepic-fin-global-nav');
               const s=getComputedStyle(e); return [s.backgroundColor,s.color];
             }''')
-            page.locator('.MuiStack-root a[href="#/home?tab=1"]').hover()
+            favorite = page.locator('.MuiStack-root a[href="#/home?tab=1"]')
+            favorite.evaluate('e=>e.classList.remove("threepic-fin-hidden-favorite")')
+            favorite.hover()
+            page.wait_for_timeout(400)
             native_hover = page.evaluate('''() => {
               const e=document.querySelector('.MuiStack-root a[href="#/home?tab=1"]');
               const s=getComputedStyle(e); return [s.backgroundColor,s.color];
             }''')
-            assert hover == native_hover, (hover,native_hover)
+            # Fin deliberately uses a non-selected color-mix hover; compare text
+            # legibility, not equality with the theme's unrelated hover swatch.
+            assert hover[1] == native_hover[1], (hover,native_hover)
+            assert hover[0] not in ('rgba(0, 0, 0, 0)', 'rgb(255, 255, 255)'), hover
+            favorite.evaluate('e=>e.classList.add("threepic-fin-hidden-favorite")')
         page.locator('.MuiStack-root .threepic-fin-global-nav').focus()
         assert page.evaluate('document.activeElement.getAttribute("aria-label")') == '3pic Fin'
         page.locator('.MuiStack-root .threepic-fin-global-nav').click()
