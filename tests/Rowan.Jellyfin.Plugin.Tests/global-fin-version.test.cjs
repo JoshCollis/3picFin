@@ -10,6 +10,7 @@ for (const [version, supported] of [
     ['12.3.0-rc.1', false], ['12.3.0junk', false], [null, false]
 ]) test(`global shell navigation checks Mode only for supported stable version ${version}`, async () => {
     let modeReads = 0;
+    const timers = new Map(); let nextTimer = 0;
     const context = {
         document: { documentElement: {}, querySelectorAll: () => [] },
         ApiClient: { getCurrentUserId: () => 'viewer', getUrl: path => path,
@@ -20,10 +21,16 @@ for (const [version, supported] of [
             } },
         location: { hash: '#/movies' }, queueMicrotask,
         MutationObserver: class { observe() {} disconnect() {} },
-        addEventListener() {}, removeEventListener() {}, setInterval() {}, clearInterval() {}
+        addEventListener() {}, removeEventListener() {}, setInterval() {}, clearInterval() {},
+        setTimeout(callback) { timers.set(++nextTimer, callback); return nextTimer; },
+        clearTimeout(id) { timers.delete(id); }
     };
     vm.runInNewContext(source, context);
-    await new Promise(resolve => setImmediate(resolve));
+    while (timers.size) {
+        const [id, callback] = timers.entries().next().value;
+        timers.delete(id); callback();
+        await new Promise(resolve => setImmediate(resolve));
+    }
     assert.equal(modeReads, supported ? 1 : 0);
     context.__threePicFinGlobalNav.dispose();
 });

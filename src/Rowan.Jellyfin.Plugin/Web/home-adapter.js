@@ -182,7 +182,13 @@
             watchIdentity(); adapter.refresh(); if (!verification && !bundleHash) verify();
         } });
     }
-    const observer = new MutationObserver(schedule);
+    // Retain one teardown for silent pushState transitions, but native Search
+    // card churn must not queue Home work at every microtask checkpoint.
+    let observedHomeRoute = homeRoute(global.location.hash);
+    const observer = new MutationObserver(() => {
+        const active = homeRoute(global.location.hash);
+        if (active || observedHomeRoute) { observedHomeRoute = active; schedule(); }
+    });
     observer.observe(document.documentElement, { childList: true, subtree: true });
     global.addEventListener('hashchange', schedule);
     global.addEventListener('popstate', schedule);

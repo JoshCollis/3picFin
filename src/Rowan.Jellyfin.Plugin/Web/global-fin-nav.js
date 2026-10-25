@@ -5,7 +5,7 @@
     global.__threePicFinGlobalNav?.dispose();
     const document = global.document;
     let identity = null, ticket = 0, stopped = false, scheduled = false, allowed = false;
-    let links = [], timer;
+    let links = [], timer, pending = null, shellDirty = true, shells = [];
     const finRoute = '#/home?fin=1';
     function remove() {
         for (const link of links) link.remove();
@@ -38,7 +38,8 @@
     }
     function select(button, drawer) {
         const selected = global.location.hash === finRoute;
-        button.setAttribute('aria-current', selected ? 'page' : 'false');
+        const value = selected ? 'page' : 'false';
+        if (button.getAttribute('aria-current') !== value) button.setAttribute('aria-current', value);
         if (drawer) button.classList.toggle('Mui-selected', selected);
         else {
             button.classList.toggle('MuiButton-textPrimary', selected);
@@ -48,6 +49,10 @@
     function sync() {
         if (stopped) return;
         const api = global.ApiClient, user = api?.getCurrentUserId?.() || null;
+        if (!user) {
+            if (identity) { ++ticket; identity = null; allowed = false; remove(); }
+            return;
+        }
         if (!identity || api !== identity.api || user !== identity.user) {
             ++ticket; identity = user && api?.getUrl && api?.getJSON ? { api, user } : null;
             allowed = false; remove();
@@ -61,12 +66,20 @@
                         if (currentTicket !== ticket || stopped || current !== identity ||
                             api !== global.ApiClient || api.getCurrentUserId?.() !== user) return;
                         allowed = mode?.DiscoveryEnabled === true || mode?.discoveryEnabled === true;
+                        shellDirty = true;
                         schedule();
                     } catch (_) { /* No navigation on unavailable/unsupported server. */ }
                 })();
             }
         }
         if (!allowed) { remove(); return; }
+        // Only shell changes need fresh anchor measurements.
+        if (!shellDirty && links.length && links.every(node => node.isConnected)) {
+            for (const node of links) select(node.matches('.threepic-fin-global-nav-item')
+                ? node.querySelector('.threepic-fin-global-nav') : node, node.matches('.threepic-fin-global-nav-item'));
+            return;
+        }
+        shellDirty = false;
         const toolbar = [...document.querySelectorAll('.MuiToolbar-root > .MuiStack-root')].filter(stack =>
             stack.getBoundingClientRect().width > 0 &&
             stack.querySelectorAll(':scope > a[href="#/"]').length === 1 &&
@@ -98,17 +111,43 @@
     function schedule() {
         if (scheduled || stopped) return;
         scheduled = true;
-        global.queueMicrotask(() => { scheduled = false; sync(); });
+        // Yield to native rendering; never replenish the same microtask checkpoint.
+        pending = global.setTimeout(() => { pending = null; scheduled = false; sync(); }, 80);
     }
-    const observer = new MutationObserver(schedule);
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    function owned(node) {
+        const element = node.nodeType === 1 ? node : node.parentElement;
+        return !!element?.closest('.threepic-fin-global-nav, .threepic-fin-global-nav-item');
+    }
+    const observer = new MutationObserver(records => {
+        if (records.every(record => owned(record.target) || record.type === 'childList' &&
+            [...record.addedNodes, ...record.removedNodes].every(owned))) return;
+        shellDirty = true; schedule();
+    });
+    function poll() {
+        if (stopped) return;
+        // Rediscover replaced headers and portalled drawers without observing results.
+        const next = [...document.querySelectorAll('.MuiToolbar-root, .MuiDrawer-root')];
+        if (next.length !== shells.length || next.some((node, i) => node !== shells[i])) {
+            observer.disconnect(); shells = next; shellDirty = true;
+            for (const node of shells) observer.observe(node, { childList: true, subtree: true,
+                attributes: true, attributeFilter: ['href', 'class', 'style', 'hidden', 'aria-hidden'] });
+        }
+        const api = global.ApiClient, user = api?.getCurrentUserId?.() || null;
+        if (shellDirty || (identity?.user || null) !== user || user && identity?.api !== api ||
+            links.some(node => !node.isConnected)) schedule();
+    }
+    function resized() { shellDirty = true; schedule(); }
     global.addEventListener('hashchange', schedule);
     global.addEventListener('popstate', schedule);
-    timer = global.setInterval(schedule, 500);
+    global.addEventListener('resize', resized);
+    timer = global.setInterval(poll, 500);
     global.__threePicFinGlobalNav = { dispose() {
         stopped = true; ++ticket; observer.disconnect(); global.clearInterval(timer);
+        if (pending !== null) global.clearTimeout(pending);
         global.removeEventListener('hashchange', schedule); global.removeEventListener('popstate', schedule);
+        global.removeEventListener('resize', resized);
+        shells = [];
         remove(); identity = null; allowed = false;
     } };
-    schedule();
+    poll();
 })(typeof globalThis !== 'undefined' ? globalThis : this);
