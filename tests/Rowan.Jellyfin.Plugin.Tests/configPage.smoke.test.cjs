@@ -40,7 +40,7 @@ function setup(config, folders, options = {}) {
     let persisted = structuredClone(config);
     const ids = ['RowanConfigPage', 'RowanConfigForm', 'RecentlyAddedLibraries', 'HeroLibraries', 'RowanSaveButton',
         'RowanConfigError', 'RowanConfigStatus', 'HomeEnabled', 'CombinedPlaybackRowEnabled', 'DiscoverRowEnabled', 'DiscoverMoviesRowEnabled', 'DiscoverTvRowEnabled', 'CombinedPlaybackHideWatched', 'MyRequestsRowEnabled', 'MyRequestsHideWatched', 'CollectionsRowEnabled', 'LiveTvRowEnabled', 'BecauseYouWatchedRowEnabled', 'BecauseYouWatchedHideWatched', 'HeroTrustedFilesystemEnabled', 'DiscoveryPageEnabled', 'SharedRequestsEnabled', 'DownloadsEnabled', 'CalendarEnabled',
-        'Enable4kRequests', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'ClearSeerrApiKey', 'GlobalSearchEnabled', 'ClearRadarrApiKey', 'ClearSonarrApiKey',
+        'Enable4kRequests', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'ClearSeerrApiKey', 'GlobalSearchEnabled', 'ClearRadarrApiKey', 'ClearSonarrApiKey', 'NativeGuidePagingEnabled',
         'NativeHomeRowsEnabled', 'NativeRowContinueWatching', 'NativeRowNextUp', 'NativeRowLatestMovies', 'NativeRowLatestShows', 'NativeRowMyMedia', 'NativeRowContinueWatchingNextUp', 'NativeRowCollections', 'NativeRowBecauseYouWatched', 'NativeRowMyRequests',
         'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey', 'RecentlyAddedAll',
         'RecentlyAddedSelected', 'RecentlyAddedNone'];
@@ -88,6 +88,25 @@ function setup(config, folders, options = {}) {
 }
 
 const folders = [{ Name: '<img src=x onerror=alert(1)>', ItemId: A }, { Name: 'Movies', ItemId: B }];
+
+test('native guide paging is independent, opt-in, saved and checked during pending saves', async () => {
+    assert.match(html, /id="NativeGuidePagingEnabled"/);
+    const update = deferred();
+    const app = setup({ HomeEnabled: false, RecentlyAddedLibraryIds: null }, folders, { update: () => update.promise });
+    await app.load();
+    assert.equal(app.elements.NativeGuidePagingEnabled.checked, false);
+    app.elements.NativeGuidePagingEnabled.checked = true;
+    app.form.dispatch('submit'); await app.flush();
+    assert.equal(app.writes[0].NativeGuidePagingEnabled, true);
+    assert.equal(app.writes[0].HomeEnabled, false);
+    assert.equal(app.elements.NativeGuidePagingEnabled.disabled, true);
+    app.elements.NativeGuidePagingEnabled.checked = false;
+    update.resolve({}); await app.flush();
+    assert.match(app.elements.RowanConfigError.textContent, /changed during save/i);
+    await app.save();
+    assert.equal(app.writes[1].NativeGuidePagingEnabled, false);
+    assert.equal(app.elements.RowanConfigStatus.textContent, 'Configuration saved.');
+});
 
 test('personal Home row selection is editable and saved in a stable order', async () => {
     assert.match(html, /id="NativeHomeRowsEnabled"/);

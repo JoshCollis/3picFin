@@ -5,9 +5,17 @@
     function homeRoute(route) {
         return /^#\/home(?:\?(?:tab=0|fin=1))?$/.test(route || '');
     }
-    function createAdapter({ bundleHash, getState, loadHost }) {
+    function createAdapter({ bundleHash, getState, loadHost, setTimer = global.setTimeout, clearTimer = global.clearTimeout }) {
         let host = null, identity = null, generation = 0, disposed = false;
-        async function refresh() {
+        let retryScope = null, retryTimer = null, retries = 0;
+        const same = (a,b) => a && b && Object.keys(a).every(key => a[key] === b[key]);
+        function clearRetry() { if (retryTimer !== null) clearTimer(retryTimer); retryTimer = null; retryScope = null; retries = 0; }
+        function retry(next) {
+            retryScope = next;
+            if (retries >= 3 || retryTimer !== null || disposed) return;
+            retryTimer = setTimer(() => { retryTimer = null; refresh(true); }, [300,1000,2500][retries++]);
+        }
+        async function refresh(fromRetry = false) {
             if (disposed) return;
             const state = getState();
             const allowed = state.compatibilityVerified === true && state.activePane === true &&
@@ -16,6 +24,8 @@
                 state.apiClient?.getCurrentUserId?.() === state.userId &&
                 state.apiClient?.getUrl && state.apiClient?.getJSON;
             const next = allowed ? { userId: state.userId, pane: state.pane, apiClient: state.apiClient } : null;
+            if (retryScope && !same(next,retryScope)) clearRetry();
+            if (same(next,retryScope) && !fromRetry) return;
             if (next && identity && Object.keys(next).every(key => next[key] === identity[key])) {
                 // Native header can be replaced without a route/identity change.
                 host?.sync?.();
@@ -43,10 +53,13 @@
                     enabled: true, heroEnabled: true });
                 if (!mounted || ticket !== generation || disposed) {
                     loaded.dispose(); if (host === loaded) { host = null; identity = null; }
+                    if (ticket === generation && !disposed && loaded.retryable === true) retry(next);
+                } else {
+                    clearRetry();
                 }
-            } catch (_) { if (ticket === generation) { host?.dispose(); host = null; identity = null; } }
+            } catch (_) { if (ticket === generation) { host?.dispose(); host = null; identity = null; retry(next); } }
         }
-        function invalidate() { ++generation; host?.dispose(); host = null; identity = null; }
+        function invalidate() { ++generation; clearRetry(); host?.dispose(); host = null; identity = null; }
         function dispose() { disposed = true; invalidate(); }
         return { refresh, invalidate, dispose };
     }
@@ -65,6 +78,7 @@
     const document = global.document;
     let bundleHash = null, verification = null, rejected = false, scheduled = false, stopped = false;
     let scriptPromise = null, watchTimer = null, watchedUser = null, watchedApi = null, logoutHook = null;
+    let verifyRetry = null, verifyRetries = 0;
     let logoutPending = false;
 
     function uniqueIndexPage() {
@@ -109,14 +123,14 @@
                 if (!pane || !favorites || !pane.getClientRects().length ||
                     global.getComputedStyle(pane).display === 'none' ||
                     global.getComputedStyle(pane).visibility === 'hidden') return;
-                // Resource Timing confirms a unique same-origin Home script load, not
+                // Resource Timing confirms a same-origin Home script load, not
                 // the bytes it executed. Structural checks are the compatibility gate.
-                const loaded = global.performance.getEntriesByType('resource').filter(entry =>
-                    entry.initiatorType === 'script' && /\/hometab\.[a-f0-9]+\.chunk\.js(?:[?#]|$)/i.test(entry.name));
+                const loaded = [...new Set(global.performance.getEntriesByType('resource').filter(entry =>
+                    entry.initiatorType === 'script' && /\/hometab\.[a-f0-9]+\.chunk\.js(?:[?#]|$)/i.test(entry.name)).map(entry => entry.name))];
                 if (!loaded.length) return; // Home has not loaded yet.
-                const url = new URL(loaded[0].name, document.baseURI);
+                const url = new URL(loaded[0], document.baseURI);
                 const base = new URL(document.baseURI);
-                if (loaded.length !== 1 || url.origin !== base.origin || url.search || url.hash ||
+                if (loaded.length !== 1 || url.origin !== base.origin || url.hash ||
                     url.pathname.slice(0, url.pathname.lastIndexOf('/') + 1) !== base.pathname.slice(0, base.pathname.lastIndexOf('/') + 1)) {
                     rejected = true; return;
                 }
@@ -125,7 +139,12 @@
                 if (!stopped && api === global.ApiClient && api.getCurrentUserId?.() === userId &&
                     homeRoute(global.location.hash) && resolveHomeNodes(uniqueIndexPage()).pane === pane)
                     bundleHash = COMPATIBILITY;
-            } catch (_) { /* Transient API errors may retry; never mount on failure. */ }
+            } catch (_) {
+                // A failed public-info read does not itself cause a DOM mutation.
+                // Retry finitely, without reloading Home or changing route intent.
+                if (!stopped && verifyRetry === null && verifyRetries < 3)
+                    verifyRetry = global.setTimeout(() => { verifyRetry = null; schedule(); }, [300,1000,2500][verifyRetries++]);
+            }
         })();
         verification = pending.finally(() => { verification = null; if (!stopped && bundleHash) schedule(); });
         return verification;
@@ -139,6 +158,8 @@
     }
     function unwatch() {
         if (watchTimer !== null) { global.clearInterval(watchTimer); watchTimer = null; }
+        if (verifyRetry !== null) global.clearTimeout(verifyRetry);
+        verifyRetry = null; verifyRetries = 0;
         unhook(); watchedApi = null; watchedUser = null;
     }
     function watchIdentity() {
@@ -206,6 +227,7 @@
     global.addEventListener('resize', schedule);
     global.__threePicFinHomeAdapter = { dispose() {
         stopped = true; observer.disconnect(); global.removeEventListener('hashchange', schedule);
+        if (verifyRetry !== null) global.clearTimeout(verifyRetry);
         document.removeEventListener('pageshow', shown);
         global.removeEventListener('popstate', schedule); global.removeEventListener('resize', schedule);
         unwatch(); adapter.dispose();

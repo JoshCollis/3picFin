@@ -61,7 +61,8 @@ public sealed class DiscoveryPageControllerTests
         Assert.False(new PluginConfiguration().GlobalSearchEnabled);
         Assert.IsType<NotFoundResult>(new DiscoveryPageController(() => true, () => false).GetAsset("global-search-addon.js"));
         Assert.IsType<NotFoundResult>(new DiscoveryPageController(() => true, () => false).GetAsset("global-search-addon.css"));
-        foreach (var (asset, mime) in new[] { ("global-search-addon.js", "text/javascript; charset=utf-8"), ("global-search-addon.css", "text/css; charset=utf-8") })
+        Assert.IsType<NotFoundResult>(new DiscoveryPageController(() => true, () => false).GetAsset("channel-search.js"));
+        foreach (var (asset, mime) in new[] { ("channel-search.js", "text/javascript; charset=utf-8"), ("global-search-addon.js", "text/javascript; charset=utf-8"), ("global-search-addon.css", "text/css; charset=utf-8") })
         {
             var result = Assert.IsType<FileStreamResult>(new DiscoveryPageController(() => false, () => true).GetAsset(asset));
             Assert.Equal(mime, result.ContentType);

@@ -140,7 +140,7 @@ test('hidden legacy tab header never becomes the stock navigation seam', async (
     assert.equal(await f.mount({ enabled: true, mode: { DiscoveryEnabled: true } }), false);
     assert.equal(f.document.querySelector('.threepic-fin-host__nav'), null);
 });
-test('failed nav seam removes an otherwise misleading Fin URL', async () => {
+test('late nav seam preserves Fin intent without mounting an unsupported shell', async () => {
     const f = fixture(), browser = { location: { hash: '#/home?fin=1' } };
     f.toolbar.remove();
     f.document.querySelector('.skinHeader').getBoundingClientRect = () => ({ width: 0 });
@@ -149,7 +149,8 @@ test('failed nav seam removes an otherwise misleading Fin URL', async () => {
     assert.equal(await host.mount({ pane: f.pane, favorites: f.favorites,
         apiClient: { getUrl: x => x, getJSON: async () => ({}) }, fingerprint: '12.1',
         userId: 'alice', enabled: true, mode: { DiscoveryEnabled: true } }), false);
-    assert.equal(browser.location.hash, '#/home');
+    assert.equal(browser.location.hash, '#/home?fin=1');
+    assert.equal(host.retryable, true);
 });
 test('hero-only mode rejects a stale Fin deep link instead of showing Home under it', async () => {
     const f = fixture(), browser = { location: { hash: '#/home?fin=1' } };
@@ -161,13 +162,30 @@ test('hero-only mode rejects a stale Fin deep link instead of showing Home under
     assert.equal(browser.location.hash, '#/home');
     host.dispose();
 });
-test('failed Fin fragment does not leave a misleading deep link', async () => {
+test('transient Fin fragment failure preserves intent for a bounded adapter retry', async () => {
     const f = fixture(), browser = { location: { hash: '#/home?fin=1' } };
     const host = testBuild(browser)({ document:f.document, loadFragment:async()=>{throw Error('offline');} });
     assert.equal(await host.mount({pane:f.pane, favorites:f.favorites,
         apiClient:{getUrl:x=>x, getJSON:async()=>({})}, fingerprint:'12.1',
         userId:'alice', enabled:true, mode:{DiscoveryEnabled:true}}), false);
-    assert.equal(browser.location.hash, '#/home');
+    assert.equal(browser.location.hash, '#/home?fin=1');
+    assert.equal(host.retryable, true);
+});
+test('transient Mode failure preserves Fin intent; explicit denial still clears it', async () => {
+    const f=fixture(),browser={location:{hash:'#/home?fin=1'}};
+    const host=testBuild(browser)({document:f.document});
+    const options={pane:f.pane,favorites:f.favorites,apiClient:{getUrl:x=>x,getJSON:async()=>{throw Error('offline');}},fingerprint:'12.1',userId:'alice',enabled:true};
+    assert.equal(await host.mount(options),false);assert.equal(browser.location.hash,'#/home?fin=1');assert.equal(host.retryable,true);
+    options.apiClient.getJSON=async()=>({DiscoveryEnabled:false});
+    assert.equal(await host.mount(options),false);assert.equal(browser.location.hash,'#/home');assert.equal(host.retryable,false);
+});
+test('authorization/not-found fragment failures are never marked for transient retries', async () => {
+    for(const status of [401,403,404]){
+        const f=fixture(),browser={location:{hash:'#/home?fin=1'}};
+        const host=testBuild(browser)({document:f.document,loadFragment:async()=>{throw Object.assign(Error('denied'),{status});}});
+        assert.equal(await host.mount({pane:f.pane,favorites:f.favorites,apiClient:{getUrl:x=>x,getJSON:async()=>({})},fingerprint:'12.1',userId:'alice',enabled:true,mode:{DiscoveryEnabled:true}}),false);
+        assert.equal(host.retryable,false);assert.equal(f.pane.children.length,1);
+    }
 });
 test('enabled hero reserves a slot before slide fetch settles and releases empty results', async () => {
     const f = fixture(); let release;

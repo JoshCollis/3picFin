@@ -42,6 +42,9 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     /// <summary>Opt-in Live TV guide preview; requires Home and the user's Live TV grant.</summary>
     public bool LiveTvRowEnabled { get; set; }
 
+    /// <summary>Opt-in channel search, assigned categories and 50-channel pages on a structurally compatible native guide. Independent of Home.</summary>
+    public bool NativeGuidePagingEnabled { get; set; }
+
     /// <summary>Independently opt in to per-user Because You Watched data; requires Home.</summary>
     public bool BecauseYouWatchedRowEnabled { get; set; }
 

@@ -50,6 +50,13 @@
 <h1>3pic Fin</h1>
 <p class="fin-intro">Choose Home and household features. Reload the client after saving; newly enabled web features may need a Jellyfin restart.</p>
 <form id="RowanConfigForm">
+<details class="fin-section">
+<summary>Native Live TV guide</summary>
+<div class="fin-section-body">
+<label class="fin-choice"><input id="NativeGuidePagingEnabled" type="checkbox" /><span>Search, categorize and page the native guide (50 channels per page)</span></label>
+<p class="fin-help">Default off. On a structurally compatible native web guide, search channel names/numbers or use First, Page/Go, Previous/Next and Last above the guide. All dates, logos and native actions stay available. This is smaller native pagination, not continuous-scroll virtualisation. Unsupported guide shapes and native Android TV are unchanged. Requires File Transformation and a fresh client document after saving.</p>
+</div>
+</details>
 <details class="fin-section" open>
 <summary>Home</summary>
 <div class="fin-section-body">
@@ -169,7 +176,7 @@
 </label>
 <label class="fin-choice">
 <input id="GlobalSearchEnabled" type="checkbox" />
-<span>Show Seerr results alongside Jellyfin Search</span>
+<span>Show channels and Seerr results alongside Jellyfin Search</span>
 </label>
 <p class="fin-help">On supported web clients, matching Jellyfin search requests are capped at 50 results each to keep rendering responsive. Refine the query to find more; this does not add native pagination or change server API defaults.</p>
 <fieldset>
@@ -314,6 +321,7 @@
                     ['MyRequestsRowEnabled', 'MyRequestsHideWatched'].forEach(function (id) { page.querySelector('#' + id).disabled = locked; });
                     page.querySelector('#CollectionsRowEnabled').disabled = locked;
                     page.querySelector('#LiveTvRowEnabled').disabled = locked;
+                    page.querySelector('#NativeGuidePagingEnabled').disabled = locked;
                     page.querySelector('#BecauseYouWatchedRowEnabled').disabled = locked;
                     page.querySelector('#BecauseYouWatchedHideWatched').disabled = locked;
                     page.querySelector('#HeroTrustedFilesystemEnabled').disabled = locked;
@@ -433,6 +441,7 @@
                         ['MyRequestsRowEnabled', 'MyRequestsHideWatched'].forEach(function (id) { page.querySelector('#' + id).checked = config[id] === true; });
                         page.querySelector('#CollectionsRowEnabled').checked = config.CollectionsRowEnabled === true;
                         page.querySelector('#LiveTvRowEnabled').checked = config.LiveTvRowEnabled === true;
+                        page.querySelector('#NativeGuidePagingEnabled').checked = config.NativeGuidePagingEnabled === true;
                         page.querySelector('#BecauseYouWatchedRowEnabled').checked = config.BecauseYouWatchedRowEnabled === true;
                         page.querySelector('#BecauseYouWatchedHideWatched').checked = config.BecauseYouWatchedHideWatched === true;
                         page.querySelector('#HeroTrustedFilesystemEnabled').checked = config.HeroTrustedFilesystemEnabled === true;
@@ -525,6 +534,7 @@
                     const myRequests = Object.fromEntries(['MyRequestsRowEnabled', 'MyRequestsHideWatched'].map(function (id) { return [id, page.querySelector('#' + id).checked]; }));
                     const collectionsRowEnabled = page.querySelector('#CollectionsRowEnabled').checked;
                     const liveTvRowEnabled = page.querySelector('#LiveTvRowEnabled').checked;
+                    const nativeGuidePagingEnabled = page.querySelector('#NativeGuidePagingEnabled').checked;
                     const becauseYouWatchedRowEnabled = page.querySelector('#BecauseYouWatchedRowEnabled').checked;
                     const becauseYouWatchedHideWatched = page.querySelector('#BecauseYouWatchedHideWatched').checked;
                     const heroTrustedFilesystemEnabled = page.querySelector('#HeroTrustedFilesystemEnabled').checked;
@@ -568,6 +578,7 @@
                         Object.assign(config, myRequests);
                         config.CollectionsRowEnabled = collectionsRowEnabled;
                         config.LiveTvRowEnabled = liveTvRowEnabled;
+                        config.NativeGuidePagingEnabled = nativeGuidePagingEnabled;
                         config.BecauseYouWatchedRowEnabled = becauseYouWatchedRowEnabled;
                         config.BecauseYouWatchedHideWatched = becauseYouWatchedHideWatched;
                         config.HeroTrustedFilesystemEnabled = heroTrustedFilesystemEnabled;
@@ -581,7 +592,7 @@
                         });
                         config.RecentlyAddedLibraryIds = selectedIds;
                         submitted = Object.fromEntries(Object.keys(config).filter(function (id) {
-                            return ['HomeEnabled', 'NativeHomeRowsEnabled', 'NativeHomeRowKinds', 'CombinedPlaybackRowEnabled', 'DiscoverRowEnabled', 'DiscoverMoviesRowEnabled', 'DiscoverTvRowEnabled', 'CombinedPlaybackHideWatched', 'MyRequestsRowEnabled', 'MyRequestsHideWatched', 'CollectionsRowEnabled', 'LiveTvRowEnabled', 'BecauseYouWatchedRowEnabled', 'BecauseYouWatchedHideWatched', 'HeroTrustedFilesystemEnabled', 'HeroLibraryIds', 'DiscoveryPageEnabled', 'GlobalSearchEnabled', 'Enable4kRequests', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'SharedRequestsEnabled', 'DownloadsEnabled', 'CalendarEnabled', 'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey', 'RecentlyAddedLibraryIds'].includes(id);
+                            return ['HomeEnabled', 'NativeHomeRowsEnabled', 'NativeHomeRowKinds', 'CombinedPlaybackRowEnabled', 'DiscoverRowEnabled', 'DiscoverMoviesRowEnabled', 'DiscoverTvRowEnabled', 'CombinedPlaybackHideWatched', 'MyRequestsRowEnabled', 'MyRequestsHideWatched', 'CollectionsRowEnabled', 'LiveTvRowEnabled', 'NativeGuidePagingEnabled', 'BecauseYouWatchedRowEnabled', 'BecauseYouWatchedHideWatched', 'HeroTrustedFilesystemEnabled', 'HeroLibraryIds', 'DiscoveryPageEnabled', 'GlobalSearchEnabled', 'Enable4kRequests', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'SharedRequestsEnabled', 'DownloadsEnabled', 'CalendarEnabled', 'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey', 'RecentlyAddedLibraryIds'].includes(id);
                         }).map(function (id) { return [id, config[id]]; }));
                         return ApiClient.updatePluginConfiguration(pluginId, config);
                     }).then(function (result) {
@@ -605,6 +616,7 @@
                             Object.keys(myRequests).some(function (id) { return page.querySelector('#' + id).checked !== myRequests[id]; }) ||
                             page.querySelector('#CollectionsRowEnabled').checked !== collectionsRowEnabled ||
                             page.querySelector('#LiveTvRowEnabled').checked !== liveTvRowEnabled ||
+                            page.querySelector('#NativeGuidePagingEnabled').checked !== nativeGuidePagingEnabled ||
                             page.querySelector('#BecauseYouWatchedRowEnabled').checked !== becauseYouWatchedRowEnabled ||
                             page.querySelector('#BecauseYouWatchedHideWatched').checked !== becauseYouWatchedHideWatched ||
                             page.querySelector('#HeroTrustedFilesystemEnabled').checked !== heroTrustedFilesystemEnabled ||

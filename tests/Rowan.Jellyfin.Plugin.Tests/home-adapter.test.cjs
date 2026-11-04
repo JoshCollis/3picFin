@@ -50,6 +50,7 @@ function runtime({ timing = ['https://example.test/jellyfin/web/hometab.abc.chun
         addEventListener: (name, handler) => listeners[name] = handler,
         removeEventListener: name => delete listeners[name],
         queueMicrotask: callback => queueMicrotask(() => { callback(); schedules++; signal(); }), URL,
+        setTimeout, clearTimeout,
         setInterval: callback => { ticks = callback; watchReady = true; signal(); return 1; }, clearInterval: () => { ticks = null; },
         crypto: crypto.webcrypto,
         ThreePicFinHomeHost: { createHost: () => ({ mount: async () => { mounts++; publish(); return true; }, dispose() { disposals++; publish(); } }) } };
@@ -108,7 +109,7 @@ for (const [name, options] of [
     ['missing version', { version: null }],
     ['invalid version', { version: '12.1-preview' }],
     ['missing resource timing', { timing: [] }],
-    ['ambiguous duplicate resource timing', { timing: ['https://example.test/jellyfin/web/hometab.abc.chunk.js', 'https://example.test/jellyfin/web/hometab.abc.chunk.js'] }],
+    ['ambiguous different Home modules', { timing: ['https://example.test/jellyfin/web/hometab.abc.chunk.js', 'https://example.test/jellyfin/web/hometab.def.chunk.js'] }],
     ['cross-origin script URL', { timing: ['https://evil.test/jellyfin/web/hometab.abc.chunk.js'] }],
     ['Favorites route', { route: '#/home?tab=1' }],
     ['signed-out identity', { user: null }],
@@ -136,6 +137,11 @@ test('native pageshow mounts a cached Home revealed after the hash event', async
     app.dispose(); await app.settle(); const schedules = app.schedules;
     app.shown(); await app.settle(); assert.equal(app.schedules, schedules);
 });
+test('late signed-in ApiClient identity and Home chunk settle without a document reload', async () => {
+    const timing=[];const app=runtime({user:null,timing});await app.waitForWatch();await app.settle();
+    app.context.ApiClient.getCurrentUserId=()=> 'alice';app.tick();await app.settle();assert.equal(app.mounts,0);
+    timing.push('https://example.test/jellyfin/web/hometab.abc.chunk.js');app.shown();await app.waitForMounts(1);app.dispose();
+});
 test('unrelated native pageshow does not schedule Home or bypass its route gate', async () => {
     const app = runtime({ route: '#/search?query=fixture' }); await app.settle();
     const schedules = app.schedules;
@@ -153,6 +159,10 @@ test('Fin query is Home-owned while Favorites and arbitrary queries fail closed'
 test('another same-origin Home chunk hash is portable', async () => {
     const app = runtime({ timing: ['https://example.test/jellyfin/web/hometab.deadbeef.chunk.js'] });
     await app.waitForMounts(1); assert.equal(app.appended, 1); app.dispose();
+});
+test('repeated same Home resource and a version query do not reject the structural Home contract', async () => {
+    const url='https://example.test/jellyfin/web/hometab.abc.chunk.js?revision=1';
+    const app=runtime({timing:[url,url]});await app.waitForMounts(1);app.dispose();
 });
 
 test('route exit and user switch tear down and remount only verified Home', async () => {
@@ -178,6 +188,20 @@ test('observer refresh while host script pending does not cancel its own load', 
         loadHost: () => { loads++; return pending; } });
     const first = adapter.refresh(); await adapter.refresh(); release(host); await first;
     assert.equal(loads, 1); assert.equal(mounts, 1); adapter.dispose();
+});
+test('transient host failures retry only three times and stale route cancels pending retry', async () => {
+    const timers=[];let calls=0;
+    let state={route:'#/home?fin=1',userId:'alice',pane:{},favorites:{},activePane:true,compatibilityVerified:true,bundleHash:'bundle',
+        apiClient:{getUrl(){},getJSON(){},getCurrentUserId:()=>state.userId}};
+    const adapter=createAdapter({bundleHash:'bundle',getState:()=>state,
+        loadHost:async()=>({retryable:true,mount:async()=>{calls++;return false;},dispose(){}}),
+        setTimer:(fn,delay)=>{timers.push({fn,delay});return timers.length;},clearTimer:()=>{}});
+    await adapter.refresh();
+    for(let i=0;i<3;i++){assert.equal(timers[i].delay,[300,1000,2500][i]);timers[i].fn();await new Promise(r=>setImmediate(r));}
+    await adapter.refresh();assert.equal(calls,4);assert.equal(timers.length,3);
+    state={...state,pane:{}};await adapter.refresh();assert.equal(calls,5);
+    state={...state,route:'#/search?query=Lab'};await adapter.refresh();timers[3].fn();await new Promise(r=>setImmediate(r));
+    assert.equal(calls,5);adapter.dispose();
 });
 test('logout synchronously tears down mounted Home without hash or DOM mutation', async () => {
     const app = runtime(); await app.waitForMounts(1);

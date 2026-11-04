@@ -87,6 +87,7 @@
     global.__threePicFinSearchAdapter?.dispose();
     const document = global.document;
     const addon = global.ThreePicFinSearchAddon?.createSearchAddon();
+    const channels = global.ThreePicFinChannelSearch?.createSection();
     if (!addon) return;
     let disposed = false, generation = 0, key = null, flow = null, loadingFlow = null;
     let hookedApi = null, logoutWrapper = null, originalLogout = null, logoutPending = false;
@@ -126,8 +127,9 @@
         if (!checkVisibility && pages[0] === key?.root) return pages[0];
         return pages[0].getClientRects().length && global.getComputedStyle(pages[0]).display !== 'none' ? pages[0] : null;
     }
-    function teardown() {
+    function teardown(preserveChannelScope = false) {
         ++generation; key = null; addon.dispose();
+        if (preserveChannelScope) channels?.suspend(); else channels?.dispose();
         if (hookedApi?.logout === logoutWrapper) hookedApi.logout = originalLogout;
         hookedApi = logoutWrapper = originalLogout = null;
         try { flow?.cleanup(); } catch (_) { /* A fragment cleanup error cannot retain user content. */ }
@@ -183,14 +185,26 @@
     async function refresh() {
         if (disposed || logoutPending) return;
         const api = global.ApiClient, id = api?.getCurrentUserId?.(), query = route(), root = query ? page() : null;
+        channels?.checkIdentity(api, id);
         // A separate Seerr section does not infer TMDb identities from native cards.
         // Scope/query/user transitions clear detached actions before any async work.
         const next = api && id && query && root && api.getUrl && api.getJSON ? { api, id, query, root } : null;
-        if (!next) { if (key) teardown(); return; }
+        if (!next) {
+            const location = new URL(global.location.href);
+            const path = location.hash.startsWith('#/') ? new URL(location.hash.slice(1), location.origin) : location;
+            const stillSearching = /\/search\/?$/i.test(path.pathname) && !path.searchParams.has('parentId') && !path.searchParams.has('collectionType');
+            // Native input and its query URL update in separate tasks. Clear old
+            // actions immediately, but don't rebuild an authorized metadata index
+            // on every key while the same Search root/user remains active.
+            if (key) teardown(stillSearching && api === key.api && id === key.id);
+            else if (!stillSearching) channels?.dispose();
+            return;
+        }
         if (key && Object.keys(next).every(k => next[k] === key[k]) &&
             root.querySelectorAll(':scope > .threepic-fin-search').length === 1) {
             const updateLayout = layoutDirty && mutationTimer === null;
             addon.update({ layout: updateLayout, measure: updateLayout && measureDirty, nativeResultLimit: budget.limit() });
+            channels?.update({ query });
             if (updateLayout) layoutDirty = measureDirty = false;
             return;
         }
@@ -203,11 +217,12 @@
             finally { flow?.root.remove(); flow = null; loadingFlow = null; }
             key = next;
             addon.update({ query, layout: false, nativeResultLimit: budget.limit() });
+            channels?.update({ query });
             return;
         }
         // React can replace Search's children without replacing #searchPage. In that
         // case dispose detached actions and mount a fresh user-bound section.
-        teardown();
+        teardown(true);
         const ticket = generation;
         if (!compatible(api)) {
             if (!versionPromise || verifyingApi !== api) {
@@ -232,6 +247,8 @@
             query, parentId: null, collectionType: null, enabled: true, nativeResultLimit: budget.limit(),
             requestAction: (item, button) => openFlow('request', item, button, api, id, generation),
             detailsAction: (item, button) => openFlow('details', item, button, api, id, generation) });
+        channels?.mount({ root, apiClient: api, userId: id, sessionUserId: () => api.getCurrentUserId?.(), query,
+            isCurrent: () => !disposed && !logoutPending && global.ApiClient === api && page(true) === root && !!route() });
     }
     function schedule() {
         if (scheduled || disposed) return;
@@ -246,7 +263,7 @@
         if (disposed) return;
         if (records && key && !records.some(record => {
             const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
-            if (!target || target.closest('.threepic-fin-search, .threepic-fin-search__flow, .card')) return false;
+            if (!target || target.closest('.threepic-fin-search, .threepic-fin-search__flow, .threepic-fin-channels, .card')) return false;
             return target === key.root || key.root.contains(target) && !!target.closest('.searchResults') ||
                 [...record.removedNodes].some(node => node === key.root || node.contains?.(key.root));
         })) return;

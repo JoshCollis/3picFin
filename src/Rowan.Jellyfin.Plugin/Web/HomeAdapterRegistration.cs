@@ -51,7 +51,7 @@ public sealed class HomeAdapterRegistration : IHostedService
                     var payload = new JObject
                     {
                         ["id"] = RegistrationId.ToString(),
-                        ["fileNamePattern"] = "index.html",
+                        ["fileNamePattern"] = GuideModulePreloadTransform.IndexFileNamePattern,
                         ["callbackAssembly"] = typeof(HomeAdapterRegistration).Assembly.FullName,
                         ["callbackClass"] = typeof(HomeAdapterRegistration).FullName,
                         ["callbackMethod"] = nameof(Transform)
@@ -131,7 +131,8 @@ public sealed class HomeAdapterRegistration : IHostedService
         var loader = (enabled ? "<script data-threepic-fin-adapter src=\"../3picFin/Web/home-adapter.js\"></script>" +
             "<link data-threepic-fin-global-style rel=\"stylesheet\" href=\"../3picFin/Web/global-fin-nav.css\">" +
             "<script data-threepic-fin-global-nav src=\"../3picFin/Web/global-fin-nav.js\"></script>" : string.Empty) +
-            (searchEnabled ? "<script data-threepic-fin-search src=\"../3picFin/Web/global-search-addon.js\"></script>" +
+            (searchEnabled ? "<script data-threepic-fin-channel-search src=\"../3picFin/Web/channel-search.js\"></script>" +
+                "<script data-threepic-fin-search src=\"../3picFin/Web/global-search-addon.js\"></script>" +
                 "<script data-threepic-fin-search-host src=\"../3picFin/Web/search-adapter.js\"></script>" : string.Empty);
         return html.Replace(anchor, loader + anchor, StringComparison.Ordinal);
     }

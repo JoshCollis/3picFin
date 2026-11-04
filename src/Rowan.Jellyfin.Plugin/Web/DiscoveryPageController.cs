@@ -47,7 +47,7 @@ public sealed class DiscoveryPageController : ControllerBase
     [HttpGet]
     public IActionResult GetAsset(string asset)
     {
-        var searchAsset = asset is "global-search-addon.js" or "global-search-addon.css" or "search-adapter.js";
+        var searchAsset = asset is "global-search-addon.js" or "global-search-addon.css" or "search-adapter.js" or "channel-search.js";
         var homeAsset = asset is "home-adapter.js" or "home-tab-host.js" or "home-tab-host.css";
         var navAsset = asset is "global-fin-nav.js" or "global-fin-nav.css";
         var heroAsset = asset is "static-hero.js" or "static-hero.css";
@@ -60,6 +60,7 @@ public sealed class DiscoveryPageController : ControllerBase
         {
             "global-search-addon.js" => "text/javascript; charset=utf-8",
             "search-adapter.js" => "text/javascript; charset=utf-8",
+            "channel-search.js" => "text/javascript; charset=utf-8",
             "global-search-addon.css" => "text/css; charset=utf-8",
             "discovery.html" => "text/html; charset=utf-8",
             "discovery.css" => "text/css; charset=utf-8",

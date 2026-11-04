@@ -33,5 +33,8 @@
     <EmbeddedResource Include="Web/global-fin-nav.css" />
     <EmbeddedResource Include="Web/native-home-rows.js" />
     <EmbeddedResource Include="Web/native-home-rows.css" />
+    <EmbeddedResource Include="Web/native-guide-controls.js" />
+    <EmbeddedResource Include="Web/native-guide-controls.css" />
+    <EmbeddedResource Include="Web/channel-search.js" />
   </ItemGroup>
 </Project>

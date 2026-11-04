@@ -1,0 +1,31 @@
+/* Quiet, transparent Jellyfin/ElegantFin surfaces; wrap controls, never shrink targets. */
+.tvguide .finGuideToolbar { display:flex; flex-wrap:wrap; align-items:center; gap:.4em .6em; padding:.4em 3.3%; flex:none; color:inherit; font-size:1rem; }
+.tvguide .finGuideSearch { display:flex; flex:1 1 14em; align-items:center; gap:.3em; min-width:0; margin:0; }
+.tvguide .finGuideToolbar :is(input,button,select) { box-sizing:border-box; min-height:44px; min-height:max(44px,2.7em); margin:0; border:1px solid #888; border-radius:.3em; font:inherit; color:inherit; }
+.tvguide .finGuideToolbar :is(input,select) { background:transparent; padding:.4em .5em; min-width:0; }
+.tvguide .finGuideSearchInput { flex:1; width:10em; }
+.tvguide .finGuideToolbar input::placeholder { color:inherit; opacity:.8; }
+.tvguide .finGuideToolbar button { display:inline-flex; align-items:center; justify-content:center; min-width:44px; padding:.4em .55em; background:transparent; cursor:pointer; }
+.tvguide .finGuideCategoryLabel { flex:0 1 10em; min-width:0; }
+.tvguide .finGuideCategory { width:100%; cursor:pointer; }
+.tvguide .finGuideCategory option { color:CanvasText; background:Canvas; }
+.tvguide .finGuideToolbar :is(input,button,select):focus-visible { outline:3px solid currentColor; outline-offset:2px; }
+.tvguide .finGuideToolbar :is(button,select):disabled { opacity:.5; border-style:dashed; cursor:default; }
+.tvguide .finGuideToolbar button:not(:disabled):hover { background:rgba(127,127,127,.2); }
+.tvguide .finGuideToolbar .guideOptions { display:flex; flex:0 1 auto; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:.25em; margin:0; padding:0; width:auto; }
+.tvguide .finGuideRange { white-space:nowrap; font-size:.85em; line-height:1.4; margin-inline-end:.3em; }
+.tvguide .finGuideJump { display:inline-flex; align-items:center; gap:.25em; margin:0; }
+.tvguide .finGuidePage { width:3em; appearance:textfield; -moz-appearance:textfield; }
+.tvguide .finGuidePage::-webkit-inner-spin-button, .tvguide .finGuidePage::-webkit-outer-spin-button { appearance:none; margin:0; }
+.tvguide .finGuidePages { white-space:nowrap; font-size:.85em; }
+.tvguide .finGuideState:not(.finGuideNotice) { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.tvguide .finGuideNotice { flex:1 1 100%; font-size:.9em; line-height:1.4; }
+@media (max-width:600px) {
+ .tvguide .finGuideToolbar { padding:.4em 1em; gap:.35em; }
+ .tvguide .finGuideSearch { flex-basis:100%; }
+ .tvguide .finGuideCategoryLabel { flex:1 1 100%; }
+ .tvguide .finGuideToolbar .guideOptions { justify-content:flex-start; flex-basis:100%; }
+ .tvguide .finGuideRange { flex-basis:100%; }
+ .tvguide .finGuideToolbar :is(.finGuideFirst,.finGuideLast) { width:44px; padding-inline:0; }
+}
+@media (forced-colors:active) { .tvguide .finGuideToolbar :is(input,button,select) { border:1px solid ButtonText; } }

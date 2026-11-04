@@ -6,7 +6,7 @@
     const guid = id => typeof id === 'string' && /^(?:[a-f\d]{32}|[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12})$/i.test(id);
     const defaultFragment = async url => {
         const response = await fetch(url, { credentials: 'same-origin' });
-        if (!response.ok) throw new Error('Discovery fragment unavailable');
+        if (!response.ok) throw Object.assign(new Error('Discovery fragment unavailable'), { status: response.status });
         return response.text();
     };
     const defaultScript = (url, document) => new Promise((resolve, reject) => {
@@ -19,7 +19,7 @@
     });
     function createHost({ document,
         loadFragment = defaultFragment, loadScript = url => defaultScript(url, document) } = {}) {
-        let current = null, generation = 0;
+        let current = null, generation = 0, retryable = false;
         function clearFinUrl() {
             if (global.location?.hash !== '#/home?fin=1') return;
             try {
@@ -162,6 +162,7 @@
             pane.removeAttribute('data-threepic-fin-view');
         }
         async function mount({ pane, favorites, apiClient, fingerprint, userId, enabled = false, mode }) {
+            retryable = false;
             // The adapter checks server version, script timing, route and native DOM.
             // Never accept arbitrary fingerprints from a caller.
             if (!enabled || fingerprint !== SUPPORTED_WEB_CONTRACT ||
@@ -178,7 +179,10 @@
             const url = path => apiClient.getUrl(`3picFin/Web/${path}`);
             try {
                 mode ??= await apiClient.getJSON(apiClient.getUrl('Rowan/Home/Mode'));
-            } catch (_) { if (ticket === generation) clearFinUrl(); return false; }
+            } catch (error) {
+                if (ticket === generation) retryable = ![401,403,404].includes(Number(error?.status));
+                return false;
+            }
             if (ticket !== generation || (apiClient.getCurrentUserId && apiClient.getCurrentUserId() !== userId) ||
                 !mode || (mode.DiscoveryEnabled !== true && mode.discoveryEnabled !== true &&
                     mode.HeroEnabled !== true && mode.heroEnabled !== true &&
@@ -209,7 +213,10 @@
                 discovery = await loadScript(url('discovery.js'));
                 if (ticket !== generation) return false;
                 if (typeof discovery?.mount !== 'function') { clearFinUrl(); return false; }
-            } catch (_) { if (ticket === generation) clearFinUrl(); return false; }
+            } catch (error) {
+                if (ticket === generation) retryable = ![401,403,404].includes(Number(error?.status));
+                return false;
+            }
             const stylesheet = document.createElement('link');
             stylesheet.rel = 'stylesheet'; stylesheet.href = url('discovery.css');
             const hostStyles = document.createElement('link');
@@ -244,7 +251,7 @@
                 if (global.__threePicFinGlobalNav) { current.removeNav?.(); return; }
                 const headers = document.querySelectorAll('.skinHeader .headerTabs');
                 const failClosed = () => {
-                    current.removeNav?.(); select('home'); clearFinUrl();
+                    current.removeNav?.(); select('home');
                 };
                 if (headers.length !== 1) { failClosed(); return; }
                 const header = headers[0];
@@ -346,7 +353,7 @@
                 current.cleanup = discovery.mount(panel, apiClient, { deferInitialLoad: true, openItem, userId, isCurrent: currentMount });
                 if (global.location?.hash === '#/home?fin=1') select('discovery');
                 syncNav();
-                if (!current.nav && !global.__threePicFinGlobalNav) { dispose(); return false; }
+                if (!current.nav && !global.__threePicFinGlobalNav) { dispose(); retryable = true; return false; }
                 startHero(current);
                 startRows(current);
             } catch (_) {
@@ -355,7 +362,7 @@
             }
             return true;
         }
-        return { mount, dispose, sync: () => current?.syncNav?.() };
+        return { mount, dispose, sync: () => current?.syncNav?.(), get retryable() { return retryable; } };
     }
     global.ThreePicFinHomeHost = { createHost };
     if (typeof module !== 'undefined' && module.exports) module.exports = { createHost };

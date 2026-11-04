@@ -10,6 +10,14 @@ User-scoped rows, Seerr discovery and requests, title-wide Arr downloads, and an
 
 ## Packages
 
+The independent, default-off **native guide** option adds full-catalogue channel
+name/number search, assigned M3U categories and a compact toolbar with 50-channel
+pages. Categories default to All and intersect with search; only the selected page
+loads programmes. The existing native renderer and actions remain in charge on
+compatible desktop, mobile, web-TV and Qt web surfaces. This does not patch native
+Android TV; real-device playback/remote acceptance remains separate. See
+[guide paging and category source](docs/native-guide-paging.md).
+
 The Jellyfin repository URL is:
 
 ```text

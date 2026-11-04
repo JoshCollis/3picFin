@@ -38,3 +38,18 @@
 .threepic-fin-search__flow .threepic-fin-discovery__dialog { color: var(--primary-text-color, inherit); }
 @media (hover: none) { .threepic-fin-search__poster button { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .threepic-fin-search__poster button { transition: none; } }
+.threepic-fin-channels { order:-1; padding:.75rem var(--search-rail-gutter,3.3%) 1rem; min-width:0; color:inherit; }
+.threepic-fin-channels h2 { font-size:1.3rem; margin:0 0 .65rem; }
+.finChannelResults { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr)); gap:.5em; }
+.finChannelResult { display:flex; align-items:center; gap:.75em; min-height:56px; padding:.55em .75em; border:1px solid #888; border-radius:.3em; color:inherit; text-decoration:none; background:rgba(127,127,127,.12); min-width:0; }
+.finChannelResult img { width:4em; height:2.7em; object-fit:contain; flex:none; }
+.finChannelResult > span { min-width:0; }
+.finChannelResult strong, .finChannelResult > span > span { display:block; overflow-wrap:anywhere; }
+.finChannelResult > span > span { margin-top:.2em; font-size:.85em; }
+.finChannelResult:focus-visible, .finChannelGuide:focus-visible { outline:3px solid currentColor; outline-offset:3px; }
+.finChannelResult:hover { border-width:2px; padding:calc(.55em - 1px) calc(.75em - 1px); }
+.threepic-fin-channels p { margin:.6em 0; font-size:.9em; }
+.finChannelGuide { display:inline-flex; align-items:center; min-height:44px; padding:0 .65em; border:1px solid #888; border-radius:.3em; color:inherit; }
+/* Replace only a duplicate, exclusively-channel poster group once the complete
+   compact channel section is available. Never hide mixed/native media groups. */
+#searchPage:has(.threepic-fin-channels[data-complete="true"]:not([hidden])) .searchResults > .verticalSection:has(.card:is([data-type="TvChannel"],[data-type="LiveTvChannel"])):not(:has(.card:not(:is([data-type="TvChannel"],[data-type="LiveTvChannel"])))) { display:none; }
