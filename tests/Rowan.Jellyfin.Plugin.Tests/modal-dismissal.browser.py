@@ -10,6 +10,7 @@ with sync_playwright() as p:
         page.set_default_timeout(4000)
         page.set_content('<button id="trigger">Inspect</button>' + (web / 'discovery.html').read_text())
         page.add_style_tag(path=str(web / 'discovery.css'))
+        page.add_script_tag(path=str(web / 'continuous-rail.js'))
         page.add_script_tag(path=str(web / 'discovery.js'))
         page.evaluate('''() => {
             window.calls=[]; window.posts=[]; window.pending={};

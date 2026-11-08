@@ -24,6 +24,7 @@ with sync_playwright() as p:
             page.route('**/*',lambda r:r.fulfill(content_type='text/css',body='') if r.request.resource_type=='stylesheet' else r.abort())
             page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#10151c;font-family:Arial,sans-serif">'+asset('discovery.html')+'</body></html>')
             for name in ('elegant-source-0.css','elegant-source-1.css'): page.add_style_tag(path=str(theme/name))
+            page.add_script_tag(content=(root / 'src/Rowan.Jellyfin.Plugin/Web/continuous-rail.js').read_text())
             page.add_style_tag(content=asset('discovery.css')); page.add_script_tag(content=asset('discovery.js'))
             page.evaluate('''({scenario, base}) => {
               const tv = scenario === 'partial-tv';

@@ -31,6 +31,7 @@ with sync_playwright() as p:
         # The hosted theme paints visualCardBox later in the cascade; the owned
         # card must stay unboxed even when this rule follows the addon CSS.
         page.add_style_tag(content='#searchPage .threepic-fin-search__card .cardBox { background: rgba(30,40,54,.8); border: 1px solid rgb(71,80,92); }')
+        page.add_script_tag(path=str(web / 'continuous-rail.js'))
         page.add_script_tag(path=str(web / 'global-search-addon.js'))
         page.evaluate('''() => {
             window.opened = [];

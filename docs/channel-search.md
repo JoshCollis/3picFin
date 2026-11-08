@@ -47,7 +47,7 @@ the separate category endpoint supplies only assigned-group membership.
   one bounded operation containing sequential native reads; its result callback
    cannot commit for an obsolete query. At most 50 result rows/programme scopes
   render. Main Search renders at most eight compact station results, gives the
-  full matching count and links to the paged guide.
+  full matching count and links to the continuous native guide.
 - Pause, route exit, API-client switch, logout and account changes invalidate the
   snapshot/actions. Pending metadata pages recheck identity/scope before and after
   every native read. Live TV denial is enforced by the native endpoint, not a

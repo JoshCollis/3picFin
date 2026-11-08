@@ -48,11 +48,11 @@ test('pause/account switch drops pending work and old user results without claim
     f.calls[1].resolve({}); await flush(); assert.equal(rendered,1);
 });
 
-test('page jump is bounded by current authenticated result, supports direct tail, rejects invalid values',()=>{
+test('logical scroll window is bounded by the authenticated result, including the tail',()=>{
     const f=fixture(); f.scope.update(1879,0,25);
-    assert.equal(f.scope.go('76'),true); assert.deepEqual(f.jumps,[1875]);
-    for(const value of ['0','77','-1','1.5','NaN','1e2','', '999999999999999999999']) assert.equal(f.scope.go(value),false,value);
-    f.scope.update(17,0,17); assert.equal(f.scope.go('76'),false); assert.equal(f.scope.go('1'),false);
+    assert.equal(f.scope.ensureIndex(1878),true); assert.deepEqual(f.jumps,[1854]);
+    for(const value of [-1,1879,1.5,NaN,'1','',Number.MAX_SAFE_INTEGER]) assert.equal(f.scope.ensureIndex(value),false,String(value));
+    f.scope.update(17,0,17); assert.equal(f.scope.ensureIndex(1878),false); assert.equal(f.scope.ensureIndex(0),false);
 });
 
 test('nested GuideInfo/channel begin retains inert-blurred focus, but pause clears it',()=>{
@@ -91,8 +91,8 @@ test('search and Clear invalidate old replies immediately and reset the native o
 
 test('a catalogue shrinking under a late page corrects the native offset instead of showing an invalid range',()=>{
     const f=fixture();f.scope.update(1879,1875,4);
-    f.scope.update(1819,1875,0);assert.deepEqual(f.jumps,[1800]);
-    f.scope.update(0,1800,0);assert.deepEqual(f.jumps,[1800,0]);
+    f.scope.update(1819,1875,0);assert.deepEqual(f.jumps,[1794]);
+    f.scope.update(0,1794,0);assert.deepEqual(f.jumps,[1794,0]);
 });
 
 test('assigned category changes invalidate pending work and reset page without clearing channel search',()=>{

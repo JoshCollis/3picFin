@@ -30,7 +30,7 @@ with sync_playwright() as p:
     # Exercise the actual shipped host and fragment in Chromium.
     web = Path(__file__).resolve().parents[2] / 'src/Rowan.Jellyfin.Plugin/Web'
     host_js = (web / 'home-tab-host.js').read_text()
-    fragment_js = (web / 'discovery.js').read_text()
+    fragment_js = (web / 'continuous-rail.js').read_text() + '\n' + (web / 'discovery.js').read_text()
     fragment_html = (web / 'discovery.html').read_text()
     page = browser.new_page()
     page.set_content('<html><head></head><body><div class="skinHeader"><div class="headerTabs"><div is="emby-tabs"><div class="emby-tabs-slider"><button class="emby-tab-button emby-tab-button-active" data-index="0">Home</button><button class="emby-tab-button" data-index="1">Favorites</button></div></div></div></div><div class="MuiToolbar-root"><div class="MuiStack-root"><a href="#/">Logo</a><a href="#/home?tab=1">Favorites</a></div></div><div id="home"><div class="sections">Native rows</div></div><div id="favorites"></div></body></html>')

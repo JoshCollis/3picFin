@@ -13,6 +13,7 @@ with sync_playwright() as p:
         body=(web / 'global-search-addon.css').read_text()))
     page.route('https://image.tmdb.org/**', lambda r: r.abort())
     page.goto('http://localhost:8765/web/index.html#/search?query=Alien')
+    page.add_script_tag(content=(web / 'continuous-rail.js').read_text())
     page.add_script_tag(content=(web / 'global-search-addon.js').read_text())
     page.add_script_tag(content=(web / 'search-adapter.js').read_text())
     page.evaluate('''() => { window.ApiClient = {

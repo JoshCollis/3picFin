@@ -29,6 +29,7 @@ with sync_playwright() as p:
             page.set_content('<html class="layout-desktop"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;font-family:Arial,sans-serif;background:#10151c">'+asset('discovery.html')+'</body></html>')
             for name in ('elegant-source-0.css','elegant-source-1.css'): page.add_style_tag(path=str(theme/name))
             page.add_style_tag(content=asset('discovery.css'))
+            page.add_script_tag(content=(web / 'continuous-rail.js').read_text())
             page.add_script_tag(content=asset('discovery.js'))
             page.evaluate('''kind => {
               const tv = kind === 'tv' || kind === 'long';

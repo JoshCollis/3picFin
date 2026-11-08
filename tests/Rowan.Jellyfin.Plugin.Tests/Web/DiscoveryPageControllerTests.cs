@@ -74,6 +74,7 @@ public sealed class DiscoveryPageControllerTests
     [InlineData("discovery.html", "text/html; charset=utf-8")]
     [InlineData("discovery.css", "text/css; charset=utf-8")]
     [InlineData("discovery.js", "text/javascript; charset=utf-8")]
+    [InlineData("continuous-rail.js", "text/javascript; charset=utf-8")]
     [InlineData("home-tab-host.js", "text/javascript; charset=utf-8")]
     [InlineData("home-tab-host.css", "text/css; charset=utf-8")]
     public void EnabledPageServesEmbeddedAssetsWithExactContentType(string path, string contentType)
@@ -93,6 +94,33 @@ public sealed class DiscoveryPageControllerTests
     [InlineData("Discovery.html")]
     public void UnknownAssetsAreNotServed(string path) =>
         Assert.IsType<NotFoundResult>(new DiscoveryPageController(() => true).GetAsset(path));
+
+    [Fact]
+    public void ContinuousRailHasIndependentSearchGateAndNoResultPagerMarkup()
+    {
+        Assert.IsType<NotFoundResult>(new DiscoveryPageController(() => false).GetAsset("continuous-rail.js"));
+        using var script = Assert.IsType<FileStreamResult>(new DiscoveryPageController(() => false, () => true).GetAsset("continuous-rail.js")).FileStream;
+        using var reader = new StreamReader(Assert.IsType<FileStreamResult>(new DiscoveryPageController(() => true).GetAsset("discovery.html")).FileStream);
+        var html = reader.ReadToEnd();
+        Assert.DoesNotContain("__pager", html, StringComparison.Ordinal);
+        foreach (var name in new[] { "search", "requests", "shared-requests", "trending", "movies", "tv", "upcoming-movies", "upcoming-tv" })
+            foreach (var suffix in new[] { "prev", "next", "page", "page-size" })
+                Assert.DoesNotContain($"id=\"threepic-fin-{name}-{suffix}\"", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void SharedRailScriptLoadsExactlyOnceBeforeItsConsumers(bool home, bool search)
+    {
+        var input = new Newtonsoft.Json.Linq.JObject { ["contents"] = "<html><body></body></html>" };
+        var html = HomeAdapterRegistration.TransformIndex(input, enabled: home, searchEnabled: search);
+        Assert.Equal(1, html.Split("data-threepic-fin-scroll src=", StringSplitOptions.None).Length - 1);
+        var helper = html.IndexOf("continuous-rail.js", StringComparison.Ordinal);
+        if (home) Assert.True(helper < html.IndexOf("home-adapter.js", StringComparison.Ordinal));
+        if (search) Assert.True(helper < html.IndexOf("global-search-addon.js", StringComparison.Ordinal));
+    }
 
     [Fact]
     public void PageIsInertAndContainsNoSecretBearingInlineConfiguration()

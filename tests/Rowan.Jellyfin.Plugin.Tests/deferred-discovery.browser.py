@@ -4,7 +4,7 @@ from playwright.sync_api import sync_playwright
 
 web = Path(__file__).resolve().parents[2] / 'src/Rowan.Jellyfin.Plugin/Web'
 fragment = (web / 'discovery.html').read_text()
-discovery = (web / 'discovery.js').read_text()
+discovery = (web / 'continuous-rail.js').read_text() + '\n' + (web / 'discovery.js').read_text()
 host = (web / 'home-tab-host.js').read_text()
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True)
@@ -16,6 +16,7 @@ with sync_playwright() as playwright:
     page.evaluate("""async fragment => {
         window.discoveryCalls = [];
         window.api = {
+            getCurrentUserId: () => 'alice',
             getUrl: (route, params = {}) => `https://example.test/jellyfin/${route}?${new URLSearchParams(params)}`,
             getJSON: async url => { if (url.includes('Rowan/Home/Mode')) return { DiscoveryEnabled: true, HeroEnabled: false }; window.discoveryCalls.push(url); return {
                 Movies: { Items: [{ TmdbId: 7, MediaType: 'movie', Title: 'Ready' }], TotalPages: 1 },
@@ -34,8 +35,8 @@ with sync_playwright() as playwright:
     page.locator('.headerTabs > .threepic-fin-host__nav').click()
     page.locator('.emby-tab-button').first.click()
     page.locator('.headerTabs > .threepic-fin-host__nav').click()
-    assert page.evaluate('discoveryCalls.length') == 1
-    assert page.get_by_label('Discover movies').get_by_role('heading', name='Ready').is_visible()
+    assert page.evaluate('discoveryCalls.filter(url=>url.includes("/3picFin/Discovery?")).length') == 1
+    page.locator('#threepic-fin-movies').get_by_role('button', name='Ready', exact=True).wait_for()
     assert page.evaluate('discoveryCalls[0].includes("/jellyfin/3picFin/Discovery?")')
     page.evaluate('host.dispose()')
     assert page.evaluate('document.querySelector("#home > .sections") !== null')

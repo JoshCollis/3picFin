@@ -26,6 +26,7 @@ async function fixture(browser, width, before = false, parityTitle = null) {
   await page.addStyleTag({content:hostCss});
   for (const content of themes) await page.evaluate(css => { const style=document.createElement('style'); style.textContent=css; document.head.appendChild(style); },content);
   await page.addStyleTag({content:read('discovery.css')});
+  await page.addScriptTag({content:fs.readFileSync(web+'continuous-rail.js','utf8')});
   await page.addScriptTag({content:read('discovery.js')});
   await page.evaluate(parityTitle => {
     window.calls=[]; window.posts=[]; window.mediaState=3; window.failDetails=false; window.pending=false; window.trendingMode='ok'; window.owned=[];

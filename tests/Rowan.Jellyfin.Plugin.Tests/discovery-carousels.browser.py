@@ -6,7 +6,7 @@ from playwright.sync_api import sync_playwright
 web = Path(__file__).resolve().parents[2] / 'src/Rowan.Jellyfin.Plugin/Web'
 fragment = (web / 'discovery.html').read_text()
 css = (web / 'discovery.css').read_text()
-script = (web / 'discovery.js').read_text()
+script = (web / 'continuous-rail.js').read_text() + '\n' + (web / 'discovery.js').read_text()
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
@@ -55,8 +55,9 @@ with sync_playwright() as p:
         page.wait_for_function('document.querySelector("#threepic-fin-movies").scrollLeft > 0')
         page.get_by_role('button', name='Scroll movies left').click()
         page.wait_for_function('document.querySelector("#threepic-fin-movies").scrollLeft === 0')
-        page.locator('#threepic-fin-movies-next').click()
-        page.get_by_text('Page 2 of 2').first.wait_for()
+        rail.evaluate('(el) => { el.scrollLeft = el.scrollWidth; el.dispatchEvent(new Event("scroll")); }')
+        page.wait_for_function('calls.some(c => c.includes("moviePage=2"))')
+        assert page.locator('#threepic-fin-movies-next').count() == 0
         assert 'moviePage=2' in page.evaluate('calls.filter(c => c.includes("/Discovery?")).at(-1)')
         page.locator('#threepic-fin-movies .threepic-fin-discovery__title-button').first.click()
         page.get_by_text('Story').wait_for()

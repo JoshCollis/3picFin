@@ -27,21 +27,22 @@ with sync_playwright() as p:
         if theme:
             for i in (0, 1):
                 page.add_style_tag(content=(theme / f'elegant-source-{i}.css').read_text())
+        page.add_script_tag(content=(web / 'continuous-rail.js').read_text())
         page.add_script_tag(content=(web / 'global-search-addon.js').read_text())
         page.add_script_tag(content=(web / 'search-adapter.js').read_text())
-        page.evaluate('''() => { window.ApiClient={getCurrentUserId:()=> 'alice',getUrl:p=>'/'+p,
-          getJSON:async url=>url.includes('System/Info/Public')?{Version:'12.1.0'}:
-          {Items:Array.from({length:20},(_,i)=>({TmdbId:i+1,MediaType:'movie',Title:'Title '+i,
+        page.evaluate('''() => { window.ApiClient={getCurrentUserId:()=> 'alice',getUrl:(p,q)=>'/'+p+(q?'?'+new URLSearchParams(q):''),
+           getJSON:async url=>url.includes('System/Info/Public')?{Version:'12.1.0'}:
+           {Items:Array.from({length:20},(_,i)=>({TmdbId:(Number(new URL(url,location.href).searchParams.get('page')||1)-1)*20+i+1,MediaType:'movie',Title:'Title '+i,
             PosterPath:i===1?null:'/poster.jpg'})),TotalPages:6}} }''')
-        page.wait_for_selector('.threepic-fin-search__card:nth-child(20)')
+        page.wait_for_selector('.threepic-fin-search__card')
         page.wait_for_function("document.querySelector('.threepic-fin-search__card img')?.naturalWidth > 0")
         assert page.locator('.threepic-fin-search h2').inner_text() == 'Available to request'
         assert page.locator('.searchResults .verticalSection').count() == 5
-        assert page.locator('.threepic-fin-search__card').count() == 20
-        assert page.locator('.threepic-fin-search__card button').count() == 20
+        assert 2 <= page.locator('.threepic-fin-search__card').count() <= 30
+        assert page.locator('.threepic-fin-search__card button').count() == page.locator('.threepic-fin-search__card').count()
         assert page.evaluate('''() => {const e=document.querySelector('.threepic-fin-search__cards');
           return getComputedStyle(e).overflowX === 'auto' && e.scrollWidth > e.clientWidth &&
-          [...e.children].every(c=>Math.abs(c.offsetTop-e.children[0].offsetTop)<2)}'''), width
+          [...e.querySelectorAll('article')].every(c=>Math.abs(c.offsetTop-e.querySelector('article').offsetTop)<2)}'''), width
         assert page.evaluate('''() => {const c=document.querySelector('.threepic-fin-search__card--has-art');
           const b=c.querySelector('button').getBoundingClientRect(), i=c.querySelector('img').getBoundingClientRect();
           return b.left>=i.left && b.right<=i.right && b.top>=i.top && b.bottom<=i.bottom}''')
@@ -66,15 +67,14 @@ with sync_playwright() as p:
         assert page.evaluate('''() => {let b=document.querySelector('.threepic-fin-search__card button').getBoundingClientRect();
           let p=document.querySelector('.threepic-fin-search__poster').getBoundingClientRect();
           return b.width <= 44 && b.height <= 44 && b.width < p.width * .55 && b.top >= p.top && b.bottom <= p.bottom}''')
-        # Rail navigation exposes all cards without creating a second row.
-        page.locator('.threepic-fin-search nav button').last.click()
+        # Native scrolling exposes incremental results without result-page controls.
+        page.locator('.threepic-fin-search__cards').evaluate('(el)=>el.scrollBy({left:el.clientWidth})')
         page.wait_for_function("document.querySelector('.threepic-fin-search__cards').scrollLeft > 0")
         page.evaluate("document.querySelector('.threepic-fin-search__cards').scrollLeft = 100000")
-        page.wait_for_function("document.querySelector('.threepic-fin-search nav button:last-of-type').disabled === false")
-        page.locator('.threepic-fin-search nav button').last.click()
-        page.wait_for_function("document.querySelector('.threepic-fin-search nav span').textContent === 'Page 2 of 6'")
-        assert page.locator('.threepic-fin-search__card button').count() == 20
-        assert page.evaluate("document.querySelector('.threepic-fin-search__cards').scrollLeft === 0")
+        page.wait_for_function('Array.from(document.querySelectorAll(".threepic-fin-search__card")).some(el=>Number(el.dataset.finIndex)>=20)')
+        assert page.locator('.threepic-fin-search nav').count() == 0
+        assert page.locator('.threepic-fin-search__card button').count() <= 30
+        assert page.evaluate("document.querySelector('.threepic-fin-search__cards').scrollLeft > 0")
         assert page.evaluate('''() => {const rows=[...document.querySelectorAll('.searchResults .verticalSection')];
           return rows.length === new Set(rows).size && rows.every(row=>row.parentElement.classList.contains('searchResults'));}''')
         if os.environ.get('SEARCH_RAIL_SCREENSHOT_DIR'):

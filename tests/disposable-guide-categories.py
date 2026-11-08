@@ -110,7 +110,7 @@ with tempfile.TemporaryDirectory(prefix='fin-categories-',dir=os.environ['TMPDIR
         assert call(base,endpoint,token=denied['AccessToken'])[0]==403
         receipt.update(dllSha256=hashlib.sha256(dll.read_bytes()).hexdigest(),nativeTags=[],groups=[{'name':g['Name'],'count':len(g['ChannelIds'])} for g in groups['Items']],trailingRemnantBytes=3057,anonymous=401,userless=403,liveTvDenied=403)
         with sync_playwright() as p:
-            browser=p.chromium.launch(headless=True,executable_path=os.environ.get('FIN_GUIDE_CHROME'))
+            browser=p.chromium.launch(headless=True,executable_path=os.environ.get('FIN_GUIDE_CHROME'),env={**os.environ,'TMPDIR':os.environ['TMPDIR']})
             try:
                 for label,width,layout in [('desktop',1280,'desktop'),('mobile',390,'desktop'),('tv',1280,'tv')]:
                     page=browser.new_page(viewport={'width':width,'height':850},service_workers='block');errors=[];programmes=[]
@@ -125,24 +125,31 @@ with tempfile.TemporaryDirectory(prefix='fin-categories-',dir=os.environ['TMPDIR
                     seed(page,base,info,login);page.add_init_script('localStorage.setItem("layout",'+json.dumps(layout)+')')
                     page.goto(base+'/web/index.html#/livetv?tab=1');page.wait_for_selector('.programCell:visible',timeout=45000)
                     page.wait_for_function('document.querySelector(".tvguide")?.getAttribute("aria-busy")==="false"')
-                    assert page.locator('.channelPrograms:visible').count()==50
+                    window=page.locator('.channelPrograms:visible').count();assert 0<window<=50
+                    assert page.locator('.btnNextPage,.btnPreviousPage,.finGuidePage,.finGuideFirst,.finGuideLast').count()==0
                     select=page.locator('.finGuideCategory:visible'); assert select.input_value()==''
                     page.evaluate('''() => {const mark=document.createElement('div');mark.textContent='DISPOSABLE SIGNED-IN — real Jellyfin auth/APIs; synthetic lineup and EPG';
                         mark.style.cssText='position:fixed;bottom:0;left:0;z-index:100000;background:#111;color:white;font:12px sans-serif;padding:4px;pointer-events:none';document.body.appendChild(mark);}''')
                     geometry=page.locator('.finGuideToolbar:visible').bounding_box()
                     page.screenshot(path=str(args.output/(label+'-toolbar.png')))
-                    page.locator('.finGuideLast:visible').click();page.wait_for_function('document.querySelector(".finGuidePage")?.value==="3" && document.querySelector(".tvguide")?.getAttribute("aria-busy")==="false"')
-                    select.select_option(label='UK General');page.wait_for_function('document.querySelector(".finGuidePage")?.value==="1" && document.querySelector(".tvguide")?.getAttribute("aria-busy")==="false"')
+                    seen=set()
+                    for index in list(range(0,128,window))+[127]:
+                        page.locator('.guideVerticalScroller:visible').evaluate('''(el,index)=>{const h=el.querySelector('.channelPrograms').getBoundingClientRect().height;
+                            if(el.getScrollEventName()==='scrollanimate')el.scrollToPosition(index*h,true);else el.scrollTop=index*h;el.dispatchEvent(new Event('scroll'));}''',index)
+                        snapshot=page.wait_for_function('''index=>{const el=document.querySelector('.tvguide'),start=Number(el?.dataset.finGuideStart),rows=Array.from(el?.querySelectorAll('.channelPrograms')||[]);return el?.getAttribute('aria-busy')==='false'&&index>=start&&index<start+rows.length?rows.map(r=>r.dataset.channelid):false;}''',arg=index).json_value()
+                        seen.update(snapshot)
+                    assert seen=={c['Id'] for c in channels['Items']},len(seen)
+                    select.select_option(label='UK General');page.wait_for_function('document.querySelector(".tvguide")?.dataset.finGuideStart==="0" && document.querySelector(".tvguide")?.dataset.finGuideTotal==="100" && document.querySelector(".tvguide")?.getAttribute("aria-busy")==="false"')
                     field=page.locator('.finGuideSearchInput:visible');field.fill('France2');field.press('Enter')
                     page.wait_for_function('document.querySelectorAll(".channelPrograms").length===1 && document.querySelector(".tvguide")?.getAttribute("aria-busy")==="false"')
                     expected=next(c['Id'] for c in channels['Items'] if c['Name']=='Lab France 2')
                     assert page.locator('.channelPrograms').get_attribute('data-channelid')==expected
                     page.screenshot(path=str(args.output/(label+'-intersection.png')))
                     select.select_option('');page.wait_for_function('document.querySelectorAll(".channelPrograms").length===2 && document.querySelector(".tvguide")?.getAttribute("aria-busy")==="false"')
-                    page.locator('.finGuideClear:visible').click();page.wait_for_function('document.querySelectorAll(".channelPrograms").length===50 && document.querySelector(".tvguide")?.getAttribute("aria-busy")==="false"')
+                    page.locator('.finGuideClear:visible').click();page.wait_for_function('document.querySelector(".tvguide")?.dataset.finGuideTotal==="128" && document.querySelector(".tvguide")?.getAttribute("aria-busy")==="false"')
                     assert all(0<len(ids)<=50 and all(ids) for ids in programmes)
                     assert not errors,errors
-                    receipt['checks'].append({'layout':label,'toolbar':geometry,'programmeScopes':list(map(len,programmes)),'errors':errors})
+                    receipt['checks'].append({'layout':label,'distinctChannels':len(seen),'pagerAbsent':True,'windowRows':window,'toolbar':geometry,'programmeScopes':list(map(len,programmes)),'errors':errors})
                     page.close()
             finally: browser.close()
         receipt['result']='PASS'

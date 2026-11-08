@@ -128,7 +128,8 @@ public sealed class HomeAdapterRegistration : IHostedService
             var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(html)));
             if (!string.Equals(hash, expectedSha256, StringComparison.Ordinal)) return html;
         }
-        var loader = (enabled ? "<script data-threepic-fin-adapter src=\"../3picFin/Web/home-adapter.js\"></script>" +
+        var loader = "<script data-threepic-fin-scroll src=\"../3picFin/Web/continuous-rail.js\"></script>" +
+            (enabled ? "<script data-threepic-fin-adapter src=\"../3picFin/Web/home-adapter.js\"></script>" +
             "<link data-threepic-fin-global-style rel=\"stylesheet\" href=\"../3picFin/Web/global-fin-nav.css\">" +
             "<script data-threepic-fin-global-nav src=\"../3picFin/Web/global-fin-nav.js\"></script>" : string.Empty) +
             (searchEnabled ? "<script data-threepic-fin-channel-search src=\"../3picFin/Web/channel-search.js\"></script>" +

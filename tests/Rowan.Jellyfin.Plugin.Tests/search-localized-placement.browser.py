@@ -32,6 +32,7 @@ with sync_playwright() as p:
     page.set_content('<main id="searchPage"><div><input id="searchTextInput"></div>'
                      '<div class="searchResults"></div></main>')
     page.add_style_tag(content=(web / 'global-search-addon.css').read_text())
+    page.add_script_tag(content=(web / 'continuous-rail.js').read_text())
     page.add_script_tag(content=(web / 'global-search-addon.js').read_text())
     page.evaluate('''() => { window.addon = ThreePicFinSearchAddon.createSearchAddon();
         window.render = html => { document.querySelector('.searchResults').innerHTML = html; addon.update(); };

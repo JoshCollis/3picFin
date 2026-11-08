@@ -23,7 +23,7 @@ const output=process.env.FIN_EVIDENCE_DIR || '.qa-tools/evidence';
      if(route==='3picFin/Search') {
       const q=params.get('query');
       if(q==='old') return new Promise(resolve=>searchResolvers.old=resolve);
-      if(q==='empty') return source([]);
+       if(q==='empty') return source([],page);
       if(q==='error') throw Error('Synthetic upstream failure');
       return source([{...tv(page),Title:`Search ${q} page ${page}`}],page);
      }
@@ -33,9 +33,9 @@ const output=process.env.FIN_EVIDENCE_DIR || '.qa-tools/evidence';
      }
      if(route.startsWith('3picFin/Discovery/')) {
       if(catalogMode==='failure' && route.endsWith('UpcomingMovies')) throw Error('Synthetic feed failure');
-      if(catalogMode==='sparse') return source([]);
+       if(catalogMode==='sparse') return source([],page);
       if(catalogMode==='stale' && route.endsWith('Trending')) return new Promise(resolve=>feedResolvers.trending=resolve);
-      if(route.endsWith('Trending')) return source(page===1 ? [movie(100),tv(100),movie(101)] : [tv(300),tv(301)],page);
+       if(route.endsWith('Trending')) return source(page===1 ? [movie(100),tv(100),movie(101),...Array.from({length:17},(_,i)=>movie(102+i))] : [tv(300),tv(301)],page);
       if(route.endsWith('UpcomingMovies')) return source([movie(500+page)],page);
       if(route.endsWith('UpcomingTV')) return source([tv(600+page)],page);
      }
@@ -43,7 +43,7 @@ const output=process.env.FIN_EVIDENCE_DIR || '.qa-tools/evidence';
     };
     mountFixture();
    });
-   await page.locator('#threepic-fin-upcoming-tv article').waitFor();
+   await page.locator('#threepic-fin-upcoming-tv article').first().waitFor();
    const geometry=await page.evaluate(()=>{
     const q=id=>document.querySelector('#threepic-fin-'+id),r=e=>e.getBoundingClientRect();
     const panel=r(q('discover-panel')),form=r(q('search-form')),input=r(q('search')),button=r(q('search-form').querySelector('button'));
@@ -58,39 +58,38 @@ const output=process.env.FIN_EVIDENCE_DIR || '.qa-tools/evidence';
    assert.deepEqual(geometry.order,['Search results','My Requests','All Requests','Trending','Popular Movies','Popular TV','Upcoming Movies','Upcoming TV']);
    assert.equal(geometry.overlap,false);
    assert(geometry.overflow<=1);
-   assert.deepEqual(await page.locator('#threepic-fin-trending .threepic-fin-discovery__title-button').allTextContents(),['Synthetic film 100','Synthetic series 100','Synthetic film 101']);
+   assert.deepEqual((await page.locator('#threepic-fin-trending .threepic-fin-discovery__title-button').allTextContents()).slice(0,3),['Synthetic film 100','Synthetic series 100','Synthetic film 101']);
    for(const [rail,type,id] of [['trending','movie',100],['upcoming-movies','movie',501],['upcoming-tv','tv',601]]) {
     await open(page,rail);
     const detail=await page.evaluate(()=>calls.filter(call=>call.url.startsWith('3picFin/TitleDetails')).at(-1).url);
     assert(detail.includes(`mediaType=${type}`)&&detail.includes(`mediaId=${id}`));await page.keyboard.press('Escape');
    }
-   await page.locator('#threepic-fin-trending-next').click();
-   await page.waitForFunction(()=>document.querySelector('#threepic-fin-trending-page').textContent==='Page 2 of 3');
-   assert.deepEqual(await page.locator('#threepic-fin-trending .threepic-fin-discovery__title-button').allTextContents(),['Synthetic series 300','Synthetic series 301']);
-   assert.equal(await page.evaluate(()=>catalogCalls.filter(url=>url.includes('/Trending')).length),2,'no requests to fill a type quota');
-   await open(page,'trending');
-   assert((await page.evaluate(()=>calls.filter(call=>call.url.startsWith('3picFin/TitleDetails')).at(-1).url)).includes('mediaType=tv&mediaId=300'));await page.keyboard.press('Escape');
    for(const rail of ['movies','tv','upcoming-movies','upcoming-tv']) {
-    await page.locator(`#threepic-fin-${rail}-next`).click();
-    await page.waitForFunction(name=>document.querySelector(`#threepic-fin-${name}-page`).textContent==='Page 2 of 3',rail);
+    await page.locator(`#threepic-fin-${rail}`).scrollIntoViewIfNeeded();
+    await page.locator(`#threepic-fin-${rail}`).evaluate(el=>{el.scrollLeft=el.scrollWidth;el.dispatchEvent(new Event('scroll'));});
    }
-   for(const rail of ['movies','tv','upcoming-movies','upcoming-tv','trending']) assert.equal(await page.locator(`#threepic-fin-${rail}-page`).innerText(),'Page 2 of 3');
+   const trending=page.locator('#threepic-fin-trending');await trending.scrollIntoViewIfNeeded();
+   await trending.evaluate(el=>{el.scrollLeft=el.scrollWidth;el.dispatchEvent(new Event('scroll'));});
+   await page.locator('#threepic-fin-trending [data-fin-index="20"]').waitFor();
+   assert.match(await trending.innerText(),/Synthetic series 300/);
+   assert.equal(await page.locator('#threepic-fin-discover-panel [id$="-next"], #threepic-fin-discover-panel [id$="-page"]').count(),0);
    const search=async q=>{await page.locator('#threepic-fin-search').fill(q);await page.locator('#threepic-fin-search').press('Enter');};
-   await search('old');await search('new');await page.locator('#threepic-fin-search-results article').waitFor();
+   await search('old');await search('new');await page.locator('#threepic-fin-search-results article').first().waitFor();
    await page.evaluate(()=>searchResolvers.old({Items:[{TmdbId:1,MediaType:'movie',Title:'STALE'}],TotalPages:99}));
-   assert.equal(await page.locator('#threepic-fin-search-results .threepic-fin-discovery__title-button').innerText(),'Search new page 1');
-   await page.locator('#threepic-fin-search-next').click();await page.waitForFunction(()=>document.querySelector('#threepic-fin-search-page').textContent==='Page 2 of 3');
+   assert.match(await page.locator('#threepic-fin-search-results').innerText(),/Search new page 1/);
+   await page.locator('#threepic-fin-search-results').evaluate(el=>{el.scrollLeft=el.scrollWidth;el.dispatchEvent(new Event('scroll'));});
+   await page.waitForFunction(()=>document.querySelector('#threepic-fin-search-results').textContent.includes('Search new page 2'));
    assert.match(await page.locator('#threepic-fin-search-results').innerText(),/Search new page 2/);
    if(width!==320) {await page.locator('#threepic-fin-search').scrollIntoViewIfNeeded();await page.screenshot({path:`${output}/catalog-${width}.png`,fullPage:true});}
    await search('empty');await page.waitForFunction(()=>document.querySelector('#threepic-fin-search-results').textContent.includes('No Search results'));
-   await search('error');await page.waitForFunction(()=>document.querySelector('#threepic-fin-search-results').textContent.includes('unavailable'));assert(await page.locator('#threepic-fin-search-next').isDisabled());
+   await search('error');await page.waitForFunction(()=>document.querySelector('#threepic-fin-search-results').textContent.includes('unavailable'));assert(await page.getByRole('button',{name:'Retry Search results',exact:true}).isVisible());
    await search('old');await search('');await page.evaluate(()=>searchResolvers.old({Items:[{TmdbId:1,MediaType:'movie',Title:'STALE CLEARED'}]}));
    assert.equal(await page.locator('#threepic-fin-search-results article').count(),0);
    for(const mode of ['failure','sparse']) {
     await page.evaluate(mode=>{dispose();catalogMode=mode;mountFixture();},mode);
     if(mode==='failure') {
      await page.waitForFunction(()=>document.querySelector('#threepic-fin-upcoming-movies').textContent.includes('unavailable'));
-     assert.equal(await page.locator('#threepic-fin-upcoming-tv article').count(),1);
+     assert((await page.locator('#threepic-fin-upcoming-tv article').count())>=1);
     } else {
      await page.waitForFunction(()=>document.querySelector('#threepic-fin-trending').textContent.includes('No Trending'));
      assert.equal(await page.locator('#threepic-fin-trending article').count(),0);
@@ -99,7 +98,7 @@ const output=process.env.FIN_EVIDENCE_DIR || '.qa-tools/evidence';
    await page.evaluate(()=>{dispose();catalogMode='stale';mountFixture();dispose();feedResolvers.trending({Items:[{TmdbId:8,MediaType:'tv',Title:'STALE FEED'}]});});
    assert.equal(await page.locator('#threepic-fin-trending article').count(),0);
    assert.deepEqual(errors,[]);
-   console.log(`PASS ${width}px: host-constrained search ${JSON.stringify(geometry)}; rail order, mixed identity, TV-only page, five independent pagers, search race/clear/error, feed failure and teardown`);
+   console.log(`PASS ${width}px: host-constrained search ${JSON.stringify(geometry)}; rail order, mixed identity, continuous scrolling without pagers, search race/clear/error, feed failure and teardown`);
    await page.close();
   }
  } finally {await browser.close();}

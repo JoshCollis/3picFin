@@ -5,7 +5,7 @@ from playwright.sync_api import sync_playwright, expect
 web = Path(__file__).resolve().parents[2] / 'src/Rowan.Jellyfin.Plugin/Web'
 fragment = (web / 'discovery.html').read_text()
 css = (web / 'discovery.css').read_text()
-script = (web / 'discovery.js').read_text()
+script = (web / 'continuous-rail.js').read_text() + '\n' + (web / 'discovery.js').read_text()
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)

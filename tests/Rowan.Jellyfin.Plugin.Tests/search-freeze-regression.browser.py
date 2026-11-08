@@ -78,7 +78,7 @@ def run(browser, version, width):
             },500);
         });
     }''', version)
-    for asset in ['global-search-addon.js', 'global-fin-nav.js', 'search-adapter.js']:
+    for asset in ['continuous-rail.js', 'global-search-addon.js', 'global-fin-nav.js', 'search-adapter.js']:
         page.add_script_tag(content=(WEB / asset).read_text())
     page.wait_for_function("document.querySelectorAll('.threepic-fin-global-nav').length===2")
     page.locator('#searchTextInput').press_sequentially('big buck bunny', delay=70)
@@ -169,7 +169,7 @@ def cold_search(browser, version, prefix):
             window.originalFetch=fetch;window.originalOpen=XMLHttpRequest.prototype.open;
             if(reload)document.body.innerHTML='<main id="searchPage"><input id="searchTextInput" value="fixture"><div class="searchResults"></div></main>';
         }''', {'version': version, 'prefix': prefix, 'reload': reload})
-        for asset in ['global-search-addon.js', 'search-adapter.js']:
+        for asset in ['continuous-rail.js', 'global-search-addon.js', 'search-adapter.js']:
             page.add_script_tag(content=(WEB / asset).read_text())
         if reload:
             # The addon's HTTP check has already started but is still slow when

@@ -21,6 +21,7 @@ with sync_playwright() as p:
             getJSON:async url=>url.includes('System/Info') ? {Version:'12.3.0'} : url.includes('Home/Mode') ? {DiscoveryEnabled:true} :
                 {Movies:{Items:[{Title:'Populated Fin',MediaType:'movie',TmdbId:9}]},Tv:{Items:[]},Requests:{Items:[]}}};
     }''')
+    page.add_script_tag(path=str(web / 'continuous-rail.js'))
     page.add_script_tag(path=str(web / 'home-adapter.js'))
     panel = page.locator('.current .threepic-fin-host__panel')
     expect(panel).to_be_visible()

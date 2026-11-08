@@ -23,6 +23,7 @@ with sync_playwright() as p:
         page.set_content('<html class="layout-desktop"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;font-family:Arial,sans-serif;background:#10151c">'+asset('discovery.html')+'</body></html>')
         for name in hashes: page.add_style_tag(path=str(theme/name))
         page.add_style_tag(content=asset('discovery.css'))
+        page.add_script_tag(content=(web / 'continuous-rail.js').read_text())
         page.add_script_tag(content=asset('discovery.js'))
         page.evaluate('''() => {
             window.calls=[]; window.navigated=[]; window.user='alice'; window.mode='present';
@@ -45,7 +46,7 @@ with sync_playwright() as p:
                   if(window.searchPending)return searchPending;
                   const q=new URL(url,'https://fixture.test').searchParams.get('query');
                   if(q==='failure')return Promise.reject(Error('fixture'));
-                  return Promise.resolve({Items:q==='empty'?[]:[movie,tv],Page:1,TotalPages:2});
+                   return Promise.resolve({Items:q==='empty'?[]:[movie,tv],Page:Number(new URL(url,'https://fixture.test').searchParams.get('page'))||1,TotalPages:2});
                 }
                 if(url.includes('Discovery/'))return Promise.resolve({Items:[movie,tv]});
                 return Promise.resolve({Movies:{Items:[movie]},Tv:{Items:[tv]},Requests:{Items:[{...movie,Id:7,Status:2,RequesterDisplayName:'Fixture'},{...tv,Id:8,Status:2,RequesterDisplayName:'Fixture'}]}});
@@ -89,7 +90,9 @@ with sync_playwright() as p:
             search.fill(query);search.press('Enter')
         submit('skywalker');expect(heading).to_be_visible()
         expect(page.locator('#threepic-fin-search-results article')).to_have_count(2)
-        page.locator('#threepic-fin-search-next').click();expect(heading).to_be_visible()
+        page.locator('#threepic-fin-search-results').evaluate('(el)=>{el.scrollLeft=el.scrollWidth;el.dispatchEvent(new Event("scroll"));}')
+        page.wait_for_function('calls.some(c=>c.url.includes("page=2"))');expect(heading).to_be_visible()
+        expect(page.locator('#threepic-fin-search-next')).to_have_count(0)
         assert any('page=2' in c['url'] for c in page.evaluate('calls'))
         # Search and request entry points both expose keyboard navigation.
         for selector,index in [(s,i) for s in ('#threepic-fin-search-results','#threepic-fin-requests') for i in (0,1)]:

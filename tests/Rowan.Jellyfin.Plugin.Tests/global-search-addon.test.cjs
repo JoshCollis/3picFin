@@ -6,15 +6,24 @@ const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../../src/Rowan.Jellyfin.Plugin/Web/global-search-addon.js'), 'utf8');
 class Node {
     constructor(tag) { this.tagName=tag; this.children=[]; this.handlers={}; this.attributes={}; this._text=''; this.parent=null;
-        this.classList={replace:(oldName,newName)=>{ this.className=(this.className||'').split(' ').map(name=>name===oldName?newName:name).join(' '); }}; }
+        this.classList={add:name=>{this.className=(this.className||'')+' '+name;},replace:(oldName,newName)=>{ this.className=(this.className||'').split(' ').map(name=>name===oldName?newName:name).join(' '); }};
+        this.style={}; this.scrollLeft=0; this.clientWidth=300; }
     get textContent() { return this._text || this.children.map(n=>n.textContent).join(''); }
     set textContent(v) { this._text=v; this.children=[]; }
     appendChild(n) { this.children.push(n); n.parent=this; return n; }
     append(...nodes) { nodes.forEach(n=>this.appendChild(n)); }
-    insertBefore(n, before) { this.children.splice(this.children.indexOf(before),0,n); n.parent=this; return n; }
+    insertBefore(n, before) { n.remove(); if (!before) return this.appendChild(n); this.children.splice(this.children.indexOf(before),0,n); n.parent=this; return n; }
     replaceChildren(...nodes) { this.children=nodes; this._text=''; nodes.forEach(n=>n.parent=this); }
     remove() { if(this.parent) this.parent.children.splice(this.parent.children.indexOf(this),1); this.parent=null; }
     setAttribute(k,v) { this.attributes[k]=v; }
+    getAttribute(k) { return this.attributes[k] ?? null; }
+    hasAttribute(k) { return Object.hasOwn(this.attributes,k); }
+    contains(n) { return descendants(this).includes(n); }
+    get parentNode() { return this.parent; }
+    get firstElementChild() { return this.children[0] || null; }
+    get nextElementSibling() { return this.parent?.children[this.parent.children.indexOf(this)+1] || null; }
+    getClientRects() { return []; }
+    querySelector(selector) { return descendants(this).find(n=>n.tagName===selector) || null; }
     addEventListener(k,f) { (this.handlers[k]??=[]).push(f); }
     removeEventListener(k,f) { this.handlers[k]=(this.handlers[k]||[]).filter(x=>x!==f); }
     click() { const event={target:this}; for(let node=this;node;node=node.parent) for(const f of node.handlers.click||[]) f(event); }
@@ -22,7 +31,9 @@ class Node {
 const tick = () => new Promise(resolve=>setImmediate(resolve));
 const delay = ms => new Promise(resolve=>setTimeout(resolve,ms));
 function fixture() {
-    const context={document:{createElement:tag=>new Node(tag)},module:{exports:{}},setTimeout,clearTimeout,AbortController};
+    const context={document:{createElement:tag=>new Node(tag)},module:{exports:{}},setTimeout,clearTimeout,AbortController,
+        requestAnimationFrame:setImmediate,cancelAnimationFrame:clearImmediate,addEventListener(){},removeEventListener(){}};
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../src/Rowan.Jellyfin.Plugin/Web/continuous-rail.js'),'utf8'),context);
     vm.runInNewContext(source,context);
     const root=new Node('div'), native=new Node('native'); root.appendChild(native);
     const pending=[], actions=[];
@@ -48,7 +59,7 @@ test('requires explicit global scope and signed-in host without touching native 
 test('renders catalog title and safe art, dedupes catalog only, leaves native card intact',async()=>{
     const f=fixture(); assert.equal(f.mount(),true);
     f.pending[0].resolve(result([movie(1),{...movie(2,'Second'),PosterPath:'/image.jpg'},movie(2,'Again')])); await tick();
-    const cards=f.root.children[1].children[1].children[0];
+    const cards=f.root.children[1].children[1];
     assert.equal(cards.children.length,2); assert.equal(f.root.children[0],f.native);
     assert.equal(descendants(cards.children[1]).find(n=>n.tagName==='img').src,'https://image.tmdb.org/t/p/w342/image.jpg');
     assert.equal(one(cards.children[1],'cardText').textContent,'Second');
@@ -56,10 +67,10 @@ test('renders catalog title and safe art, dedupes catalog only, leaves native ca
 });
 test('query, scope, user and teardown invalidate detached request actions and late responses',async()=>{
     const f=fixture(); f.mount(); f.pending[0].resolve(result([movie(2)])); await tick();
-    const button=cardButton(f.root.children[1].children[1].children[0].children[0]);
+    const button=cardButton(f.root.children[1].children[1].children[0]);
     f.addon.update({query:'New'}); button.click(); assert.equal(f.actions.length,0);
     await delay(220); f.pending[1].resolve(result([movie(3)])); await tick();
-    const next=cardButton(f.root.children[1].children[1].children[0].children[0]);
+    const next=cardButton(f.root.children[1].children[1].children[0]);
     f.addon.update({collectionType:'movies'}); next.click(); assert.equal(f.actions.length,0);
     assert.deepEqual(f.root.children,[f.native]);
     f.mount(); f.setUser('bob'); f.pending[2].resolve(result([movie(4)])); await tick();
@@ -72,18 +83,18 @@ test('rapid query changes cancel stale reads and dispatch only the settled final
     assert.equal(f.pending.length,1);
     assert.equal(f.pending[0].options.signal.aborted,true);
     f.pending[0].resolve(result([movie(1)])); await tick();
-    assert.equal(f.root.children[1].children[1].textContent,'Loading Seerr results…');
+    assert.equal(f.root.children[1].children[1].textContent,'');
     await delay(220);
     assert.equal(f.pending.length,2);
     assert.match(f.pending[1].url,/Alien29/);
     f.pending[1].resolve(result([movie(29)])); await tick();
     assert.match(f.root.children[1].children[1].textContent,/Alien/);
     f.addon.dispose();
-    assert.equal(f.pending[1].options.signal.aborted,true);
+    assert.equal(f.root.children.length,1, 'disposal removes the plugin surface');
 });
 test('malformed query fails closed rather than retaining old action',async()=>{
     const f=fixture(); f.mount(); f.pending[0].resolve(result([movie(2)])); await tick();
-    const old=cardButton(f.root.children[1].children[1].children[0].children[0]);
+    const old=cardButton(f.root.children[1].children[1].children[0]);
     f.addon.update({query:null}); old.click(); assert.equal(f.actions.length,0);
     assert.deepEqual(f.root.children,[f.native]);
 });

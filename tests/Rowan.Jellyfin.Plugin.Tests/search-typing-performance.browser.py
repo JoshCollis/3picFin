@@ -32,6 +32,7 @@ def run_case(browser, enabled, width):
         new PerformanceObserver(list=>longTasks.push(...list.getEntries().map(e=>e.duration))).observe({entryTypes:['longtask']});
     }''')
     if enabled:
+        page.add_script_tag(content=(WEB / 'continuous-rail.js').read_text())
         page.add_script_tag(content=(WEB / 'global-search-addon.js').read_text())
         page.add_script_tag(content=(WEB / 'search-adapter.js').read_text())
         page.wait_for_selector('.threepic-fin-search')

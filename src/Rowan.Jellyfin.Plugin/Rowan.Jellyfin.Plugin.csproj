@@ -21,6 +21,7 @@
     <EmbeddedResource Include="Web/discovery.html" />
     <EmbeddedResource Include="Web/discovery.css" />
     <EmbeddedResource Include="Web/discovery.js" />
+    <EmbeddedResource Include="Web/continuous-rail.js" />
     <EmbeddedResource Include="Web/home-tab-host.js" />
     <EmbeddedResource Include="Web/home-tab-host.css" />
     <EmbeddedResource Include="Web/global-search-addon.js" />

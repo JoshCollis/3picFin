@@ -12,7 +12,7 @@ with sync_playwright() as p:
         page.route('**/*',lambda r:r.abort())
         page.set_content('''<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#10151c;color:white"><div class="skinHeader"><div class="headerTabs"><div is="emby-tabs"><div class="emby-tabs-slider"><button class="emby-tab-button emby-tab-button-active" data-index="0">Home</button><button class="emby-tab-button" data-index="1">Favorites</button></div></div></div></div><div class="MuiToolbar-root"><div class="MuiStack-root"><a href="#/">Logo</a><a href="#/home?tab=1">Favorites</a></div></div><div id="home"><div class="sections">Native rows</div></div><div id="favorites"></div></body></html>''')
         for name in ('discovery.css','home-tab-host.css'):page.add_style_tag(content=(web/name).read_text())
-        for name in ('discovery.js','home-tab-host.js'):page.add_script_tag(content=(web/name).read_text())
+        for name in ('continuous-rail.js','discovery.js','home-tab-host.js'):page.add_script_tag(content=(web/name).read_text())
         page.evaluate('''async html=>{
           location.hash='#/home';window.user='alice';window.shown=[];window.reads=0;
           window.freshId='01234567-89ab-cdef-0123-456789abcdef';

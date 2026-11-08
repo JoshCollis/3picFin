@@ -21,7 +21,7 @@
 .threepic-fin-discovery__rail-nav { display: flex; gap: .35rem; margin-bottom: .5rem; }
 .threepic-fin-discovery .threepic-fin-discovery__rail-nav button { width: 2.5rem; min-height: 2.5rem; padding: 0; font-size: 1.7rem; line-height: 1; border-radius: 50%; }
 .threepic-fin-discovery h4 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
-.threepic-fin-discovery__pager, .threepic-fin-discovery__search-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.threepic-fin-discovery__search-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .threepic-fin-discovery button, .threepic-fin-discovery input {
     min-height: 44px; border: 1px solid var(--border-color, #777); border-radius: .4rem;
     color: inherit; background: var(--card-background, var(--background-secondary, #303030));
@@ -61,16 +61,15 @@
 .threepic-fin-discovery__downloads { grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); }
 .threepic-fin-discovery__calendar { grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); align-content: start; }
 .threepic-fin-discovery__calendar .threepic-fin-discovery__message { grid-column: 1 / -1; }
-.threepic-fin-discovery__pager span { overflow-wrap: anywhere; }
 .threepic-fin-discovery__download { min-width: 0; padding: .8rem 1rem; border: 1px solid var(--border-color, #666); border-radius: .6rem; background: var(--card-background, var(--background-secondary, #303030)); }
 .threepic-fin-discovery__download p { margin: .4rem 0 0; color: var(--secondary-text-color, #bbb); }
 .threepic-fin-discovery__download h4 { overflow-wrap: anywhere; }
 .threepic-fin-discovery__progress { height: .3rem; margin-top: .9rem; border-radius: 1rem; overflow: hidden; background: color-mix(in srgb, var(--textColor, #fff) 14%, transparent); }
 .threepic-fin-discovery__progress span { display: block; height: 100%; border-radius: inherit; background: var(--accentColor, #9690ff); }
-.threepic-fin-discovery__pager { margin-block: .4rem 1rem; color: var(--secondary-text-color, #bbb); }
-.threepic-fin-discovery__pager button { min-height: 36px; padding: .3rem .65rem; }
-.threepic-fin-discovery #threepic-fin-discover-panel .threepic-fin-discovery__pager button:disabled { display: none; }
-.threepic-fin-discovery #threepic-fin-discover-panel .threepic-fin-discovery__pager:has(button:disabled + span + button:disabled) { display: none; }
+.threepic-fin-discovery__feed-status { min-height: 1.3em; font-size: .8rem; color: var(--secondary-text-color, #bbb); }
+.threepic-fin-discovery .fin-continuous { gap: .75rem; scroll-snap-type: none; overflow-anchor: none; }
+.threepic-fin-discovery .fin-continuous > article { flex: 0 0 auto; margin: 0; }
+.threepic-fin-discovery .fin-continuous .cardText { min-height: 2.6em; line-height: 1.3; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .threepic-fin-discovery__dialog {
     width: min(38rem, calc(100vw - 2rem)); max-width: calc(100vw - 2rem);
     max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.5rem;
@@ -207,6 +206,13 @@
     padding-inline-start: .75rem;
 }
 .threepic-fin-discovery__row-heading:has(#threepic-fin-search-heading[hidden]) { display: none; }
+/* Native-theme controls: readable surfaces and a single clear focus treatment. */
+.threepic-fin-discovery :is(button,input,select) { border-color:var(--borderColor,#8994a3); border-radius:.5rem; }
+.threepic-fin-discovery :is(button,input,select):focus-visible { outline:3px solid var(--primary-accent-color,#a8d0ff); outline-offset:2px; }
+.threepic-fin-discovery__search-controls { gap:.6rem; }
+.threepic-fin-discovery #threepic-fin-search { min-height:48px; background:var(--drawerColor,#25292f); padding:.7rem .9rem; }
+.threepic-fin-discovery #threepic-fin-search::placeholder { color:var(--dimTextColor,#c6cdd6); opacity:1; }
+.threepic-fin-discovery .threepic-fin-discovery__search-button { min-height:48px; height:48px; width:48px; border-radius:.5rem; }
 .threepic-fin-discovery__dialog { overscroll-behavior: contain; }
 /* CSS owns the lock, including nested dialogs and removal during route teardown. */
 html:has(dialog.threepic-fin-discovery__dialog:modal) { overflow: hidden; }

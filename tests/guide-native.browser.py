@@ -31,6 +31,7 @@ parser.add_argument('--rapid', action='store_true')
 parser.add_argument('--search', action='store_true')
 parser.add_argument('--categories', action='store_true', help='Focused assigned-group intersection and toolbar regression')
 parser.add_argument('--toolbar-only', action='store_true', help='Capture toolbar geometry without the scaling benchmark')
+parser.add_argument('--continuous', action='store_true', help='Verify bounded native row windowing, not legacy result pages')
 parser.add_argument('--theme', type=Path, help='Captured public/custom CSS; not a claim about every deployed plugin')
 parser.add_argument('--route', default='/web/index.html#/livetv?tab=1')
 parser.add_argument('--user-agent')
@@ -41,7 +42,7 @@ os.umask(0o077)
 args.output.mkdir(parents=True, exist_ok=True, mode=0o700)
 cache = args.output.parent / 'public-web-cache'
 cache.mkdir(exist_ok=True, mode=0o700)
-ORIGIN = 'https://play.3pic.app'
+ORIGIN = 'https://guide.fixture.invalid'
 GUIDE = '14553.6ddb0da23f2698557d33.chunk.js'
 USER = '11111111111111111111111111111111'
 SECOND_USER = '44444444444444444444444444444444'
@@ -53,6 +54,9 @@ channels = [{'Id': f'{i:032x}', 'Name': f'Station {i:04d}', 'ChannelNumber': str
             for i in range(1, 1880)]
 for channel in channels[-52:]:
     channel['Name'] = 'French-tail fixture ' + channel['ChannelNumber']
+if args.continuous:
+    channels[16]['Name'] = 'A long synthetic channel name that must remain readable beside its logo'
+    for channel in channels[::11]: channel['ImageTags'] = {}
 for offset,name in enumerate(['France 2','France 24','beIN SPORTS 1 FR','DR 1','Télé Sport','Sky Sports','Sky Sports']):
     channels[1851+offset]['Name']=name
 dataset = json.loads(args.dataset.read_text()) if args.dataset else None
@@ -82,11 +86,17 @@ def phase(name):
 
 
 def public_asset(path):
+    path = unquote(path)
     if path == '/web/'+GUIDE and os.environ.get('FIN_GUIDE_NATIVE_ASSET'):
         return Path(os.environ['FIN_GUIDE_NATIVE_ASSET']).read_bytes()
+    web_root = os.environ.get('FIN_GUIDE_WEB_ROOT')
+    if web_root and path.startswith('/web/'):
+        local = (Path(web_root) / path.removeprefix('/web/')).resolve()
+        assert local.is_relative_to(Path(web_root).resolve())
+        return local.read_bytes()
     filename = cache / hashlib.sha256(path.encode()).hexdigest()
     if not filename.exists():
-        with urlopen(Request(ORIGIN + path, headers={'User-Agent': 'RowanMedia/1.0'}), timeout=40) as response:
+        with urlopen(Request(os.environ['FIN_GUIDE_PUBLIC_ORIGIN'] + path, headers={'User-Agent': 'GuideFixture/1.0'}), timeout=40) as response:
             filename.write_bytes(response.read())
     return filename.read_bytes()
 
@@ -111,7 +121,8 @@ def fixture_programs(query):
             result.append({'Id': f'p-{channel}-{hour}', 'ChannelId': channel, 'Name': f'Programme {hour:02d}',
                            'Type': 'Program', 'ServerId': SERVER, 'StartDate': a.isoformat(), 'EndDate': b.isoformat(),
                            'IsSeries': int(channel, 16) % 3 != 0, 'IsSports': int(channel, 16) % 3 == 0,
-                           'EpisodeTitle': 'Frozen representative hourly programme',
+                            'EpisodeTitle': 'Frozen representative hourly programme',
+                            'Overview': 'A synthetic synopsis describing this programme for the native guide fixture.',
                            'TimerId': 'fixture-timer' if hour == 4 else None})
     return result
 
@@ -223,7 +234,7 @@ with sync_playwright() as p:
     native_hash = hashlib.sha256(public_asset('/web/' + GUIDE)).hexdigest()
     assert native_hash == 'a613661f2a2bd541c694184c769ab168d7678ee677efcdae5e0eabf8d3acfe0d', 'Served web guide changed; review the new build before testing'
     phase('launch')
-    browser = p.chromium.launch(headless=True, executable_path=os.environ.get('FIN_GUIDE_CHROME'))
+    browser = p.chromium.launch(headless=True, executable_path=os.environ.get('FIN_GUIDE_CHROME'), env={**os.environ, 'TMPDIR':os.environ['TMPDIR']})
     context = browser.new_context(viewport={'width': args.width, 'height': 850}, timezone_id='UTC', service_workers='block', **({'user_agent':args.user_agent} if args.user_agent else {}))
     context.route('**/*', intercept)
     # A locally open mock socket (never connect_to_server). Closing it would make
@@ -306,6 +317,10 @@ with sync_playwright() as p:
         }''')
         (args.output/'first.json').write_text(json.dumps(first, indent=2))
         (args.output/'first-usable.cpuprofile').write_text(json.dumps(cdp.send('Profiler.stop')['profile']))
+        if args.continuous:
+            from guide_continuous_checks import check
+            check(page, args, channels, requests, errors, SECOND_USER)
+            raise SystemExit(0)
         if args.toolbar_only or args.categories:
             page.evaluate('''() => {const mark=document.createElement('div');mark.textContent='FIXTURE — synthetic identity, catalogue and programmes; native web renderer';
                 mark.style.cssText='position:fixed;bottom:0;left:0;z-index:100000;background:#111;color:white;font:12px sans-serif;padding:4px;pointer-events:none';document.body.appendChild(mark);}''')

@@ -89,8 +89,10 @@ function setup(config, folders, options = {}) {
 
 const folders = [{ Name: '<img src=x onerror=alert(1)>', ItemId: A }, { Name: 'Movies', ItemId: B }];
 
-test('native guide paging is independent, opt-in, saved and checked during pending saves', async () => {
+test('continuous native guide keeps the existing independent opt-in and pending-save contract', async () => {
     assert.match(html, /id="NativeGuidePagingEnabled"/);
+    assert.match(html, /Continuous native guide with channel search and categories/);
+    assert.doesNotMatch(html, /50 channels per page|First, Page\/Go, Previous\/Next/);
     const update = deferred();
     const app = setup({ HomeEnabled: false, RecentlyAddedLibraryIds: null }, folders, { update: () => update.promise });
     await app.load();

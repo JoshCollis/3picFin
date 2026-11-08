@@ -19,7 +19,7 @@
     });
     function createHost({ document,
         loadFragment = defaultFragment, loadScript = url => defaultScript(url, document) } = {}) {
-        let current = null, generation = 0, retryable = false;
+        let current = null, generation = 0, retryable = false, restoration = null;
         function clearFinUrl() {
             if (global.location?.hash !== '#/home?fin=1') return;
             try {
@@ -175,6 +175,9 @@
                 current.syncNav?.(); return true;
             }
             dispose();
+            const token = apiClient.accessToken?.();
+            if (restoration?.userId !== userId || restoration?.apiClient !== apiClient || restoration?.token !== token)
+                restoration = { userId, apiClient, token, feeds: {} };
             const ticket = generation;
             const url = path => apiClient.getUrl(`3picFin/Web/${path}`);
             try {
@@ -232,6 +235,7 @@
                     current.heroStarted = false;
                 }
                 panel.hidden = view !== 'discovery';
+                if (view === 'discovery') current?.cleanup?.resume?.();
                 if (view === 'discovery' && !activated && current?.panel === panel) {
                     activated = true;
                     current.cleanup?.activate?.();
@@ -345,12 +349,13 @@
                         id.replaceAll('-', '').toLowerCase() !== libraryItemId.replaceAll('-', '').toLowerCase()) return false;
                     const serverId = apiClient.serverId?.();
                     if (typeof serverId !== 'string' || !serverId) return false;
+                    current.cleanup?.capture?.();
                     global.Emby.Page.showItem({ Id: id, Type: mediaType === 'tv' ? 'Series' : 'Movie', ServerId: serverId });
                     return true;
                 };
                 current = { pane, userId, apiClient, panel, stylesheet, hostStyles, sections, syncNav,
                     heroEnabled, heroStarted: false, heroTicket: 0, rowsEnabled, rowKinds, rowsTicket: 0 };
-                current.cleanup = discovery.mount(panel, apiClient, { deferInitialLoad: true, openItem, userId, isCurrent: currentMount });
+                current.cleanup = discovery.mount(panel, apiClient, { deferInitialLoad: true, openItem, userId, isCurrent: currentMount, restoration });
                 if (global.location?.hash === '#/home?fin=1') select('discovery');
                 syncNav();
                 if (!current.nav && !global.__threePicFinGlobalNav) { dispose(); retryable = true; return false; }

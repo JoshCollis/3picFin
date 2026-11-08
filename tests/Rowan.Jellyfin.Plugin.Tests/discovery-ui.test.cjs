@@ -10,6 +10,14 @@ const script = () => fs.readFileSync(path.join(base, 'discovery.js'), 'utf8');
 class Element {
     constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.parentNode = null; this.attrs = {}; this.handlers = {}; this.observers = new Set(); this.textContent = ''; this.value = ''; this.style = {}; this.disabled = false; this.hidden = false; this.checked = false; this.clientWidth = 300; this.scrollWidth = 300; this.scrollLeft = 0; }
     setAttribute(key, value) { this.attrs[key] = String(value); }
+    get classList() { return { add: name => { this.className = `${this.className || ''} ${name}`; }, contains: name => (this.className || '').split(' ').includes(name) }; }
+    hasAttribute(key) { return Object.hasOwn(this.attrs, key); }
+    contains(node) { return node === this || this.descendants().includes(node); }
+    get firstElementChild() { return this.children[0] || null; }
+    get nextElementSibling() { return this.parentNode?.children[this.parentNode.children.indexOf(this) + 1] || null; }
+    insertBefore(node, reference) { if (!reference) return this.appendChild(node); node.remove(); this.children.splice(this.children.indexOf(reference), 0, node); node.parentNode = this; return node; }
+    replaceWith(node) { const parent = this.parentNode; parent.insertBefore(node, this); this.remove(); }
+    getClientRects() { return []; }
     removeAttribute(key) { delete this.attrs[key]; }
     getAttribute(key) { return this.attrs[key] ?? null; }
     addEventListener(key, fn) { (this.handlers[key] ??= []).push(fn); }
@@ -32,6 +40,8 @@ function deferred() { let resolve, reject; const promise = new Promise((yes, no)
 async function flush() { for (let i = 0; i < 6; i++) await new Promise(resolve => setImmediate(resolve)); }
 function setup(responses = [], posts = [], host = {}, details = [], shared = [], trending = []) {
     const ids = ['threepic-fin-search-heading', 'threepic-fin-trending', 'threepic-fin-upcoming-movies', 'threepic-fin-upcoming-tv', 'threepic-fin-details-dialog', 'threepic-fin-details-close', 'threepic-fin-details-body', 'threepic-fin-details-title', 'threepic-fin-details-meta', 'threepic-fin-details-overview', 'threepic-fin-details-status', 'threepic-fin-details-open', 'threepic-fin-details-request', 'threepic-fin-calendar-tab', 'threepic-fin-calendar-panel', 'threepic-fin-calendar-close', 'threepic-fin-calendar-filter', 'threepic-fin-calendar-filter-wrap', 'threepic-fin-calendar-movies', 'threepic-fin-calendar-tv', 'threepic-fin-calendar-movies-section', 'threepic-fin-calendar-tv-section', 'threepic-fin-calendar-date', 'threepic-fin-calendar-today', 'threepic-fin-calendar-prev', 'threepic-fin-calendar-next', 'threepic-fin-calendar-window', 'threepic-fin-calendar-radarr', 'threepic-fin-calendar-sonarr', 'threepic-fin-shared-requests-load', 'threepic-fin-shared-requests', 'threepic-fin-shared-requests-prev', 'threepic-fin-shared-requests-next', 'threepic-fin-shared-requests-page', 'threepic-fin-downloads-tab', 'threepic-fin-downloads-panel', 'threepic-fin-downloads-close', 'threepic-fin-downloads-refresh', 'threepic-fin-downloads-status', 'threepic-fin-downloads-radarr', 'threepic-fin-downloads-sonarr', 'threepic-fin-search-form', 'threepic-fin-search', 'threepic-fin-search-results', 'threepic-fin-movies', 'threepic-fin-tv', 'threepic-fin-requests', 'threepic-fin-search-prev', 'threepic-fin-search-next', 'threepic-fin-search-page', 'threepic-fin-discover-panel', 'threepic-fin-request-dialog', 'threepic-fin-request-form', 'threepic-fin-request-title', 'threepic-fin-request-art', 'threepic-fin-request-meta', 'threepic-fin-request-status', 'threepic-fin-request-seasons', 'threepic-fin-request-4k-wrap', 'threepic-fin-request-4k', 'threepic-fin-request-submit', 'threepic-fin-request-cancel', ...['movies', 'tv', 'requests', 'trending', 'upcoming-movies', 'upcoming-tv'].flatMap(name => [`threepic-fin-${name}-prev`, `threepic-fin-${name}-next`, `threepic-fin-${name}-page`])];
+    for (let i = ids.length - 1; i >= 0; i--) if (/-(prev|next|page)$/.test(ids[i]) && !ids[i].includes('calendar-')) ids.splice(i, 1);
+    ids.push(...['search', 'requests', 'shared-requests', 'trending', 'movies', 'tv', 'upcoming-movies', 'upcoming-tv'].map(name => `threepic-fin-${name}-status`));
     for (const id of ids) if (id !== 'threepic-fin-shared-requests-load') assert.match(fragment, new RegExp(`id="${id}"`));
     const nodes = Object.fromEntries(ids.map(id => [id, new Element()]));
     const root = new Element();
@@ -82,12 +92,14 @@ function setup(responses = [], posts = [], host = {}, details = [], shared = [],
         document: { createElement: tag => new Element(tag) }, URL, AbortController,
         matchMedia: () => ({ matches: false }),
         requestAnimationFrame: callback => setImmediate(callback),
+        cancelAnimationFrame: clearImmediate, addEventListener() {}, removeEventListener() {}, innerHeight: 800,
         MutationObserver: class {
             constructor(callback) { this.callback = callback; }
             observe(node, options) { assert.equal(options.childList, true); this.node = node; node.observers.add(this); }
             disconnect() { this.node?.observers.delete(this); this.node = null; }
         }
     };
+    vm.runInNewContext(fs.readFileSync(path.join(base, 'continuous-rail.js'), 'utf8'), context);
     vm.runInNewContext(script(), context);
     const cleanup = context.ThreePicFinDiscovery.mount(root, api, host);
     const el = id => nodes[`threepic-fin-${id}`];
@@ -101,7 +113,7 @@ async function requestFromCard(app, name) {
     assert.equal(app.el('details-request').hidden, false, 'verified details allow request');
     app.el('details-request').dispatch('click'); await app.flush();
 }
-test('Discovery rails scroll by a bounded page, reset after render, and restore headings on teardown', async () => {
+test('Discovery viewport arrows scroll without replacing pages and restore headings on teardown', async () => {
     const app = setup([bundle(source([{ TmdbId: 9, MediaType: 'movie', Title: 'Film' }]))]);
     const rail = app.el('movies'), section = rail.closest('section');
     const heading = section.querySelector('h3'), header = heading.parentNode;
@@ -116,7 +128,7 @@ test('Discovery rails scroll by a bounded page, reset after render, and restore 
     assert.equal(navigation.children[0].disabled, false);
     rail.replaceChildren(new Element('article'));
     await app.flush();
-    assert.equal(rail.scrollLeft, 0);
+    assert.equal(rail.scrollLeft, 240, 'rendering does not reset continuous scroll');
     app.cleanup();
     assert.equal(heading.parentNode, section);
     assert.equal(header.parentNode, null);
@@ -125,6 +137,15 @@ test('Discovery rails scroll by a bounded page, reset after render, and restore 
     navigation.children[1].dispatch('click');
     assert.equal(rail.scrollLeft, 0, 'removed controls cannot scroll after teardown');
 });
+
+async function loadMore(app, name) {
+    const rail = app.el(name);
+    let once = true;
+    rail.getClientRects = () => { const visible = once; once = false; return visible ? [{}] : []; };
+    rail.getBoundingClientRect = () => ({ top: 0, bottom: 100 });
+    rail.dispatch('scroll'); await app.flush();
+    rail.getClientRects = () => [];
+}
 
 const source = (Items = [], extra = {}) => ({ Items, Error: null, Page: 1, TotalPages: 1, ...extra });
 const bundle = (Movies = source(), Tv = source(), Requests = source()) => ({ Movies, Tv, Requests });
@@ -230,7 +251,7 @@ test('details without host callback never fall back to unverified navigation', a
     assert.match(app.text('details-status'), /In your library/);
 });
 
-test('enabled All Requests loads on activation as a separate paginated rail without exposing ownership', async () => {
+test('enabled All Requests auto-appends without pagination or exposing ownership', async () => {
     const pending = deferred(), second = deferred();
     const app = setup([bundle()], [], {}, [], [pending, second]); await app.flush();
     assert.equal(app.calls.filter(c => c[0] === 'getJSON').length, 1);
@@ -239,10 +260,9 @@ test('enabled All Requests loads on activation as a separate paginated rail with
     pending.resolve(source([{ Id: 4, Status: 2, Type: 'movie', TmdbId: 42, requestedBy: { name: 'secret' } }], { TotalPages: 2 })); await app.flush();
     assert.match(app.text('shared-requests'), /Title unavailable/);
     assert.doesNotMatch(app.text('shared-requests'), /secret/);
-    assert.equal(app.el('shared-requests-next').disabled, false);
-    app.el('shared-requests-next').dispatch('click');
+    await loadMore(app, 'shared-requests');
     assert.match(app.sharedCalls.at(-1), /\/jellyfin\/3picFin\/SharedRequests\?page=2/);
-    second.resolve(source([{ Id: 5, Status: 1, Type: 'tv', TmdbId: 44 }], { TotalPages: 2 })); await app.flush();
+    second.resolve(source([{ Id: 5, Status: 1, Type: 'tv', TmdbId: 44 }], { Page: 2, TotalPages: 2 })); await app.flush();
     assert.match(app.text('shared-requests'), /Title unavailable/);
     assert.match(app.text('requests'), /No Requests/);
     assert.match(fragment, /aria-label="All Requests"/);
@@ -339,7 +359,22 @@ test('per-source error, loading, and empty states stay independent', async () =>
     assert.match(app.text('tv'), /No TV/);
     assert.match(app.text('requests'), /Title unavailable.*Movie/);
 });
-test('search uses ApiClient subpath URL, pagination and suppresses stale responses', async () => {
+test('request metadata concurrency stays at three even when another page is appended', async () => {
+    const requests = start => Array.from({ length: 20 }, (_, n) => ({ Id: start + n, Type: 'movie', TmdbId: start + n, Status: 2 }));
+    const pending = Array.from({ length: 40 }, deferred);
+    const app = setup([bundle(source(), source(), source(requests(1), { TotalPages: 2 })),
+        bundle(source(), source(), source(requests(21), { Page: 2, TotalPages: 2 }))], [], {}, [...pending]);
+    await app.flush();
+    const reads = () => app.calls.filter(call => call[0] === 'getJSON' && call[1].includes('TitleDetails'));
+    assert.equal(reads().length, 3);
+    await loadMore(app, 'requests');
+    assert.equal(reads().length, 3, 'another page cannot multiply the metadata worker budget');
+    pending[0].resolve({ MediaType: 'movie', TmdbId: 1, Title: 'Resolved' }); await app.flush();
+    assert.equal(reads().length, 4);
+    app.cleanup();
+    assert.ok(reads().every(call => call[2].signal.aborted));
+});
+test('search uses ApiClient subpath URL, automatic append and suppresses stale responses', async () => {
     const first = deferred(), second = deferred();
     const app = setup([bundle(), first, second]); await app.flush();
     app.el('search').value = 'old'; app.el('search-form').dispatch('submit');
@@ -348,12 +383,11 @@ test('search uses ApiClient subpath URL, pagination and suppresses stale respons
     first.resolve(source([{ TmdbId: 1, MediaType: 'movie', Title: 'Old' }])); await app.flush();
     assert.match(app.text('search-results'), /New/);
     assert.doesNotMatch(app.text('search-results'), /Old/);
-    assert.equal(app.el('search-next').disabled, false);
-    app.el('search-next').dispatch('click'); await app.flush();
+    await loadMore(app, 'search-results');
     const urls = app.calls.filter(c => c[0] === 'getJSON').map(c => c[1]);
     assert.match(urls[2], /\/jellyfin\/3picFin\/Search\?query=new&page=1/);
     assert.match(urls[3], /query=new&page=2/);
-    assert.equal(app.el('search-next').disabled, true);
+    assert.equal(app.el('search-next'), undefined, 'pager markup is removed');
 });
 test('search failures are distinct and empty search does not make a request', async () => {
     const app = setup([bundle(), new Error('private upstream detail')]); await app.flush();
@@ -375,17 +409,16 @@ test('movie, TV and request pages advance independently without changing other s
         bundle(source([{ Title: 'Second movie', MediaType: 'movie', TmdbId: 4 }], { Page: 2, TotalPages: 3 }), source([{ Title: 'First TV', MediaType: 'tv', TmdbId: 2 }], { TotalPages: 1 }), source([{ Id: 3, Status: 2, Type: 'movie' }], { TotalPages: 2 })),
         bundle(source([{ Title: 'Second movie', MediaType: 'movie', TmdbId: 4 }], { Page: 2, TotalPages: 3 }), source([{ Title: 'First TV', MediaType: 'tv', TmdbId: 2 }], { TotalPages: 1 }), source([{ Id: 5, Status: 1, Type: 'tv' }], { Page: 2, TotalPages: 2 }))]);
     await app.flush();
-    assert.equal(app.el('tv-next').disabled, true);
-    app.el('movies-next').dispatch('click'); await app.flush();
+    assert.equal(app.el('tv-next'), undefined);
+    await loadMore(app, 'movies');
     assert.match(app.text('movies'), /Second movie/);
     assert.match(app.text('tv'), /First TV/);
     assert.match(app.calls.filter(c => c[0] === 'getJSON')[1][1], /moviePage=2&tvPage=1&requestsPage=1/);
-    app.el('requests-next').dispatch('click'); await app.flush();
-    assert.match(app.calls.filter(c => c[0] === 'getJSON')[2][1], /moviePage=2&tvPage=1&requestsPage=2/);
+    await loadMore(app, 'requests');
+    assert.match(app.calls.filter(c => c[0] === 'getJSON')[2][1], /moviePage=1&tvPage=1&requestsPage=2/);
     assert.match(app.text('requests'), /Pending/);
-    assert.equal(app.el('requests-next').disabled, true);
-    app.el('movies-prev').dispatch('click'); await app.flush();
-    assert.match(app.calls.filter(c => c[0] === 'getJSON')[3][1], /moviePage=1&tvPage=1&requestsPage=2/);
+    assert.equal(app.el('requests-next'), undefined);
+    assert.match(app.text('movies'), /First movie.*Second movie/, 'older loaded content is retained');
 });
 test('request status uses pinned Seerr labels and unknown values do not display raw numbers', async () => {
     const app = setup([bundle(source(), source(), source([1, 2, 3, 4, 5, 99].map((Status, Id) => ({ Status, Id, Type: 'movie' }))))]);
@@ -962,7 +995,8 @@ test('movie-heavy Trending preserves mixed media identities without an extra rec
     const tv = {TmdbId:1, MediaType:'tv', Title:'Same numeric identity, different media'};
     const app = setup([bundle(source(movies), source([tv]))], [], {}, [], [], [source([...movies,tv])]);
     await app.flush();
-    assert.equal(app.el('trending').children.length,20);
+    assert.ok(app.el('trending').children.filter(node => node.tagName === 'ARTICLE').length <= 20, 'only a window is mounted');
+    app.el('trending').scrollLeft = 19 * 160; app.el('trending').dispatch('scroll'); await app.flush();
     assert.match(app.text('trending'), /Same numeric identity/);
     assert.equal(app.calls.filter(call=>call[0]==='url'&&call[1]==='3picFin/Discovery/Trending').length,1);
     app.cleanup();

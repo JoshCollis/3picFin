@@ -28,6 +28,7 @@ with sync_playwright() as p:
               throw Error(url);}, ajax:()=>{posts++; return Promise.resolve({Id:17});} };
         }""")
         page.add_style_tag(content=(web / 'global-search-addon.css').read_text())
+        page.add_script_tag(content=(web / 'continuous-rail.js').read_text())
         page.add_script_tag(content=(web / 'global-search-addon.js').read_text())
         page.add_script_tag(content=(web / 'discovery.js').read_text())
         page.add_script_tag(content=(web / 'search-adapter.js').read_text())

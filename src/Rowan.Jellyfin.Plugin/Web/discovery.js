@@ -58,15 +58,6 @@
         box.appendChild(info);
         return article;
     }
-    function render(container, source, empty, request = false, openRequest = null, openDetails = null) {
-        container.replaceChildren();
-        if (!source || field(source, 'Error') || !Array.isArray(field(source, 'Items'))) {
-            message(container, `${empty} unavailable right now.`); return;
-        }
-        const items = list(field(source, 'Items'));
-        if (!items.length) { message(container, `No ${empty} found.`); return; }
-        for (const item of items) container.appendChild(card(item, request, openRequest, openDetails));
-    }
     // A nested Arr title is not proof of display-safe metadata: refuse release/file-shaped values.
     function safeDownloadTitle(value) {
         if (typeof value !== 'string' || !value.trim() || value.length > 200 || /[\\/\\\\]/.test(value)) return false;
@@ -144,52 +135,54 @@
         instances.get(root)?.();
         const el = name => root.querySelector(`#threepic-fin-${name}`);
         const controls = [], railControls = [];
-        let disposed = false, discoveryGeneration = 0, searchGeneration = 0, sharedGeneration = 0, downloadsGeneration = 0, downloadsAbort = null;
+        let disposed = false, discoveryGeneration = 0, downloadsGeneration = 0, downloadsAbort = null;
         let calendarGeneration = 0, calendarAbort = null, calendarOffset = 0, calendarLoading = false, calendarResult = null;
         let calendarEpoch = Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
         let calendarKind = 'movies';
-        let sharedPage = 1, sharedMax = 1;
-        let requestListGeneration = 0, sharedListGeneration = 0;
         const metadata = new Map(), metadataAbort = new AbortController();
+        const metadataQueue = [];
+        let metadataActive = 0;
+        function drainMetadata() {
+            while (!disposed && metadataActive < 3 && metadataQueue.length) {
+                const { key, type, id, valid, resolve } = metadataQueue.shift();
+                if (!valid()) { metadata.delete(key); resolve(null); continue; }
+                ++metadataActive;
+                ApiClient.getJSON(ApiClient.getUrl('3picFin/TitleDetails', { mediaType: type, mediaId: id }), { signal: metadataAbort.signal })
+                    .catch(() => null).then(resolve).finally(() => { --metadataActive; drainMetadata(); });
+            }
+        }
+        function readMetadata(type, id, valid) {
+            const key = `${type}:${id}`;
+            if (!metadata.has(key)) {
+                metadata.set(key, new Promise(resolve => metadataQueue.push({ key, type, id, valid, resolve })));
+                drainMetadata();
+            }
+            return metadata.get(key);
+        }
         // Request rows contain media identity, not TMDb presentation metadata. Only
         // this signed-in, mapped route may resolve titles; never use a public TMDb key.
-        async function requestCards(container, source, empty, shared = false) {
-            const generation = shared ? ++sharedListGeneration : ++requestListGeneration;
-            if (!source || field(source, 'Error') || !Array.isArray(field(source, 'Items'))) {
-                render(container, source, empty, true); return;
-            }
-            const original = field(source, 'Items');
-            const rows = original.map(item => ({ ...item }));
-            const paint = () => {
-                if (!currentUser() || generation !== (shared ? sharedListGeneration : requestListGeneration)) return;
-                render(container, { Items: rows }, empty, true, openRequest, openDetails);
-            };
+        async function enrichRequests(rows, valid, refresh) {
             for (const row of rows) {
                 const type = field(row, 'MediaType') || field(row, 'Type'), id = field(row, 'TmdbId');
                 if (type === 'movie' || type === 'tv') row.Title = Number.isInteger(id) && id > 0 ? 'Loading title…' : 'Title unavailable';
             }
-            paint();
             // Bound fan-out per mounted user. A title may appear in both personal
             // and explicitly enabled all-request lists; share only within this mount, never across users.
             const pending = rows.filter(row => ['movie', 'tv'].includes(field(row, 'MediaType') || field(row, 'Type')) && Number.isInteger(field(row, 'TmdbId')) && field(row, 'TmdbId') > 0);
             let next = 0;
             async function worker() {
-                while (!disposed && next < pending.length) {
+                while (valid() && next < pending.length) {
                     const row = pending[next++], type = field(row, 'MediaType') || field(row, 'Type'), id = field(row, 'TmdbId');
-                    const key = `${type}:${id}`;
-                    if (!metadata.has(key)) metadata.set(key, ApiClient.getJSON(ApiClient.getUrl('3picFin/TitleDetails', { mediaType: type, mediaId: id }), { signal: metadataAbort.signal }).catch(() => null));
-                    const detail = await metadata.get(key);
-                    if (!currentUser() || generation !== (shared ? sharedListGeneration : requestListGeneration)) return;
+                    const detail = await readMetadata(type, id, valid);
+                    if (!valid()) return;
                     row.Title = field(detail, 'MediaType') === type && field(detail, 'TmdbId') === id && typeof field(detail, 'Title') === 'string' && field(detail, 'Title').trim() ? field(detail, 'Title') : 'Title unavailable';
                     row.PosterPath = row.Title !== 'Title unavailable' ? field(detail, 'PosterPath') : null;
-                    paint();
+                    refresh(row);
                 }
             }
             await Promise.all(Array.from({ length: Math.min(3, pending.length) }, worker));
         }
-        const pages = { movies: 1, tv: 1, requests: 1 };
-        const maxima = { movies: 1, tv: 1, requests: 1 };
-        let searchPage = 1, searchQuery = '', searchMax = 1;
+        let searchQuery = '';
         let requestGeneration = 0, selection = null, options = null, submitting = false, locked = false, personal = null, trigger = null;
         const dialog = el('request-dialog');
         const detailsDialog = el('details-dialog');
@@ -198,7 +191,8 @@
         function closeDetails(restore = true) {
             invalidateDetails();
             if (detailsDialog.open) detailsDialog.close();
-            if (restore && !disposed) detailsTrigger?.focus();
+            if (restore && !disposed) detailsTrigger?.focus({ preventScroll: true });
+            detailsTrigger?.closest('article')?.removeAttribute('data-fin-pinned');
             detailsTrigger = null;
         }
         function mediaSummary(item, mediaType) {
@@ -224,6 +218,7 @@
             invalidateDetails();
             const generation = detailsGeneration;
             detailsAbort = new AbortController(); detailsBusy = true; detailsTrigger = button;
+            button?.closest('article')?.setAttribute('data-fin-pinned', 'true');
             el('details-body').replaceChildren();
             el('details-title').textContent = field(item, 'Title') || label(mediaType);
             el('details-meta').textContent = ''; el('details-overview').textContent = '';
@@ -328,12 +323,13 @@
             selection = null; options = null;
             el('request-submit').disabled = true;
             if (dialog.open) dialog.close();
-            trigger?.focus(); trigger = null;
+            trigger?.focus({ preventScroll: true }); trigger?.closest('article')?.removeAttribute('data-fin-pinned'); trigger = null;
         }
         async function openRequest(item, button, context = item) {
             if (disposed || submitting || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
             const generation = ++requestGeneration;
             trigger = button;
+            button?.closest('article')?.setAttribute('data-fin-pinned', 'true');
             const mediaType = field(item, 'MediaType') || field(item, 'Type'), mediaId = field(item, 'TmdbId');
             selection = { mediaType, mediaId };
             options = null; locked = false;
@@ -427,10 +423,10 @@
                 }
                 if (verified) {
                     status(`Request ${requestStatus(field(verified, 'Status'))}. Check My Requests for updates.`);
-                    requestCards(el('requests'), personal, 'Requests');
+                    feeds.requests.seed(personal);
                 } else if (found && !created) {
                     status('A matching request appears in My Requests, but this submission could not be verified. Do not retry without checking it.');
-                    requestCards(el('requests'), personal, 'Requests');
+                    feeds.requests.seed(personal);
                 } else if (failure?.status === 409) status('Seerr reports this title or selection is already tracked or unavailable. No request by you was verified; check Seerr before retrying.');
                 else status('Outcome unknown: could not verify the request. Check My Requests before trying again.');
             } catch (_) {
@@ -440,8 +436,7 @@
             } finally { submitting = false; }
         }
         const on = (element, event, handler) => { element.addEventListener(event, handler); controls.push(() => element.removeEventListener(event, handler)); };
-        // Keep a page of cards in one Home-style row. Rail arrows move within
-        // that page; the existing pager fetches the next bounded server page.
+        // These arrows move the continuous viewport, never switch server pages.
         for (const name of ['requests', 'shared-requests', 'search-results', 'movies', 'tv', 'trending', 'upcoming-movies', 'upcoming-tv']) {
             const rail = el(name), section = rail.closest('section'), heading = section.querySelector('h3');
             const header = document.createElement('div');
@@ -464,110 +459,64 @@
                 navigation.children[1].disabled = !overflow || rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 2;
             };
             on(rail, 'scroll', update);
-            const observer = new MutationObserver(() => { rail.scrollLeft = 0; requestAnimationFrame(update); });
-            observer.observe(rail, { childList: true });
-            controls.push(() => observer.disconnect());
-            railControls.push({ header, heading, update });
+            railControls.push({ rail, header, heading, update });
             requestAnimationFrame(update);
         }
-        function pager(prefix, page, max) {
-            el(`${prefix}-prev`).disabled = page <= 1;
-            el(`${prefix}-next`).disabled = page >= max;
-            el(`${prefix}-page`).textContent = `Page ${page} of ${max}`;
-        }
-        function maxPages(source) {
-            const n = field(source, 'TotalPages');
-            return Number.isInteger(n) && n > 0 ? Math.min(n, 100) : 1;
-        }
-        async function sharedRequests(page) {
-            if (disposed || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
-            const generation = ++sharedGeneration;
-            sharedPage = page;
-            const section = el('shared-requests').closest('section');
-            message(el('shared-requests'), 'Loading all requests…');
-            pager('shared-requests', page, 1);
-            try {
-                const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/SharedRequests', { page }));
-                if (disposed || generation !== sharedGeneration || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
-                section.hidden = false;
-                requestCards(el('shared-requests'), result, 'All requests', true);
-                sharedMax = field(result, 'Error') || !Array.isArray(field(result, 'Items')) ? 1 : maxPages(result);
-                pager('shared-requests', page, sharedMax);
-            } catch (error) {
-                if (disposed || generation !== sharedGeneration || host.isCurrent && !host.isCurrent() || host.userId && ApiClient.getCurrentUserId?.() !== host.userId) return;
-                if (error?.status === 404 || error?.statusCode === 404 || error?.status === 403 || error?.statusCode === 403) {
-                    section.hidden = true;
-                    el('shared-requests').replaceChildren();
-                }
-                else if (!section.hidden) message(el('shared-requests'), 'All requests unavailable right now.');
-                sharedMax = 1;
-                pager('shared-requests', page, 1);
-            }
-        }
         const catalogFeeds = {
-            trending: { route: 'Trending', title: 'Trending', page: 1, max: 1, generation: 0 },
-            'upcoming-movies': { route: 'UpcomingMovies', title: 'Upcoming Movies', page: 1, max: 1, generation: 0 },
-            'upcoming-tv': { route: 'UpcomingTV', title: 'Upcoming TV', page: 1, max: 1, generation: 0 }
+            trending: { route: 'Trending', title: 'Trending' },
+            'upcoming-movies': { route: 'UpcomingMovies', title: 'Upcoming Movies' },
+            'upcoming-tv': { route: 'UpcomingTV', title: 'Upcoming TV' }
         };
-        const catalogAbort = new AbortController();
+        const discoveryAbort = new AbortController();
         function currentUser() {
             return !disposed && (!host.isCurrent || host.isCurrent()) && (!host.userId || ApiClient.getCurrentUserId?.() === host.userId);
         }
-        async function catalog(name, page = 1) {
-            const feed = catalogFeeds[name], generation = ++feed.generation;
-            feed.page = page; feed.max = 1;
-            message(el(name), `Loading ${feed.title}…`);
-            pager(name, page, 1);
-            try {
-                const result = await ApiClient.getJSON(ApiClient.getUrl(`3picFin/Discovery/${feed.route}`, { page }), { signal: catalogAbort.signal });
-                if (!currentUser() || generation !== feed.generation) return;
-                render(el(name), result, feed.title, false, openRequest, openDetails);
-                feed.max = field(result, 'Error') || !Array.isArray(field(result, 'Items')) ? 1 : maxPages(result);
-            } catch (_) {
-                if (!currentUser() || generation !== feed.generation) return;
-                message(el(name), `${feed.title} unavailable right now.`);
-            }
-            pager(name, page, feed.max);
+        const feeds = {};
+        const bundleFields = { movies: 'Movies', tv: 'Tv', requests: 'Requests' };
+        for (const [name, title] of Object.entries({ movies: 'Movies', tv: 'TV', requests: 'Requests',
+            'shared-requests': 'All requests', 'search-results': 'Search results',
+            ...Object.fromEntries(Object.entries(catalogFeeds).map(([name, feed]) => [name, feed.title])) })) {
+            const request = name.includes('requests');
+            feeds[name] = global.ThreePicFinContinuousRail.create({
+                rail: el(name), status: el(`${name === 'search-results' ? 'search' : name}-status`), title,
+                isCurrent: currentUser,
+                renderItem: item => card(item, request, openRequest, openDetails),
+                ...(request ? { key: item => field(item, 'Id'), onItems: enrichRequests } : {}),
+                onRender: () => {
+                    railControls.find(control => control.rail === el(name))?.update();
+                    if (name === 'search-results') el('search-heading').hidden = !el(name).querySelector('article');
+                },
+                onDenied: () => { if (name === 'shared-requests') { el(name).closest('section').hidden = true; feeds[name].reset(); } },
+                loadPage: async (page, signal) => {
+                    if (bundleFields[name]) {
+                        const params = { moviePage: 1, tvPage: 1, requestsPage: 1 };
+                        params[{ movies: 'moviePage', tv: 'tvPage', requests: 'requestsPage' }[name]] = page;
+                        const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Discovery', params), { signal });
+                        const source = field(result, bundleFields[name]);
+                        if (name === 'requests' && currentUser() && !signal.aborted) personal = source;
+                        return source;
+                    }
+                    const route = name === 'shared-requests' ? '3picFin/SharedRequests' : name === 'search-results' ? '3picFin/Search' : `3picFin/Discovery/${catalogFeeds[name].route}`;
+                    const result = await ApiClient.getJSON(ApiClient.getUrl(route, { ...(name === 'search-results' ? { query: searchQuery } : {}), page }), { signal });
+                    if (name === 'shared-requests' && currentUser() && !signal.aborted) el(name).closest('section').hidden = false;
+                    return result;
+                }
+            });
         }
         async function discovery() {
             const generation = ++discoveryGeneration;
             for (const name of ['movies', 'tv', 'requests']) message(el(name), 'Loading…');
-            for (const name of Object.keys(pages)) pager(name, pages[name], 1);
             try {
-                const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Discovery', { moviePage: pages.movies, tvPage: pages.tv, requestsPage: pages.requests }));
+                const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Discovery', { moviePage: 1, tvPage: 1, requestsPage: 1 }), { signal: discoveryAbort.signal });
                 if (!currentUser() || generation !== discoveryGeneration) return;
                 const movies = field(result, 'Movies'), tv = field(result, 'Tv'), requests = field(result, 'Requests');
                 personal = requests;
-                render(el('movies'), movies, 'Movies', false, openRequest, openDetails);
-                render(el('tv'), tv, 'TV', false, openRequest, openDetails);
-                requestCards(el('requests'), requests, 'Requests');
                 for (const [name, source] of Object.entries({ movies, tv, requests })) {
-                    maxima[name] = field(source, 'Error') || !Array.isArray(field(source, 'Items')) ? 1 : maxPages(source);
-                    pager(name, pages[name], maxima[name]);
+                    feeds[name].seed(source);
                 }
             } catch (_) {
                 if (!currentUser() || generation !== discoveryGeneration) return;
-                for (const name of ['movies', 'tv', 'requests']) message(el(name), 'Content unavailable right now.');
-                for (const name of Object.keys(pages)) pager(name, pages[name], 1);
-            }
-        }
-        async function search(page) {
-            const generation = ++searchGeneration;
-            searchPage = page;
-            el('search-heading').hidden = true;
-            message(el('search-results'), 'Loading search results…');
-            pager('search', page, 1);
-            try {
-                const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Search', { query: searchQuery, page }));
-                if (!currentUser() || generation !== searchGeneration) return;
-                render(el('search-results'), result, 'Search results', false, openRequest, openDetails);
-                el('search-heading').hidden = !el('search-results').querySelector('article');
-                searchMax = field(result, 'Error') || !Array.isArray(field(result, 'Items')) ? 1 : maxPages(result);
-                pager('search', page, searchMax);
-            } catch (_) {
-                if (!currentUser() || generation !== searchGeneration) return;
-                message(el('search-results'), 'Search results unavailable right now.');
-                pager('search', page, 1);
+                for (const name of ['movies', 'tv', 'requests']) feeds[name].seed(null);
             }
         }
         function stopDownloads() {
@@ -771,45 +720,53 @@
         on(el('details-request'), 'click', () => { if (!detailsItem || detailsBusy || el('details-request').hidden || el('details-request').disabled) return; const item = detailsItem, button = detailsTrigger, context = detailsContext; closeDetails(false); openRequest(item, button, context); });
         on(el('request-4k'), 'change', () => { if (options && selection && !submitting && !locked) { renderRequestSeasons(); updateRequestStatus(); } });
         on(el('request-cancel'), 'click', closeRequest);
-        on(el('shared-requests-prev'), 'click', () => { if (sharedPage > 1) sharedRequests(sharedPage - 1); });
-        on(el('shared-requests-next'), 'click', () => { if (sharedPage < sharedMax) sharedRequests(sharedPage + 1); });
         on(dialog, 'close', () => { if (!dialog.open) closeRequest(); });
         function clearSearch() {
-            ++searchGeneration; searchQuery = ''; searchPage = searchMax = 1;
-            el('search-heading').hidden = true; el('search-results').replaceChildren(); pager('search', 1, 1);
+            searchQuery = ''; feeds['search-results'].reset(); el('search-heading').hidden = true;
         }
-        on(el('search'), 'input', () => { if (!el('search').value.trim()) clearSearch(); });
+        on(el('search'), 'input', () => { if (el('search').value.trim() !== searchQuery) clearSearch(); });
         on(el('search-form'), 'submit', e => {
             e.preventDefault();
             const query = el('search').value.trim();
             if (!query) { clearSearch(); return; }
             if (query.length > 200) return;
-            searchQuery = query; search(1);
+            if (query === searchQuery) return;
+            searchQuery = query; feeds['search-results'].reset(); feeds['search-results'].load();
         });
-        on(el('search-prev'), 'click', () => { if (searchPage > 1) search(searchPage - 1); });
-        on(el('search-next'), 'click', () => { if (searchPage < searchMax) search(searchPage + 1); });
-        for (const name of Object.keys(pages)) {
-            on(el(`${name}-prev`), 'click', () => { if (pages[name] > 1) { --pages[name]; discovery(); } });
-            on(el(`${name}-next`), 'click', () => { if (pages[name] < maxima[name]) { ++pages[name]; discovery(); } });
-        }
-        for (const [name, feed] of Object.entries(catalogFeeds)) {
-            on(el(`${name}-prev`), 'click', () => { if (feed.page > 1) catalog(name, feed.page - 1); });
-            on(el(`${name}-next`), 'click', () => { if (feed.page < feed.max) catalog(name, feed.page + 1); });
-        }
-        pager('search', 1, 1);
-        pager('shared-requests', 1, 1);
         let activated = false;
         const activate = () => {
             if (disposed || activated) return;
             activated = true;
-            discovery();
-            for (const name of Object.keys(catalogFeeds)) catalog(name);
-            sharedRequests(1);
+            if (host.restoration?.feeds?.movies?.page) {
+                searchQuery = host.restoration.query || ''; el('search').value = searchQuery;
+                for (const [name, saved] of Object.entries(host.restoration.feeds)) feeds[name]?.restore(saved);
+                el('shared-requests').closest('section').hidden = !host.restoration.sharedVisible;
+                personal = host.restoration.personal;
+            } else {
+                discovery();
+                for (const name of [...Object.keys(catalogFeeds), 'shared-requests']) feeds[name].load();
+            }
         };
         if (!deferInitialLoad) activate();
+        function capture() {
+            if (host.restoration && ApiClient.getCurrentUserId?.() === host.userId) {
+                host.restoration.feeds = Object.fromEntries(Object.entries(feeds).map(([name, feed]) => [name, feed.snapshot()]));
+                host.restoration.query = searchQuery; host.restoration.personal = personal;
+                host.restoration.sharedVisible = !el('shared-requests').closest('section').hidden;
+                if (!host.restoration.scroll || root.getClientRects().length) {
+                    host.restoration.scroll = { top: global.scrollY || 0, parents: [] };
+                    for (let node = root.parentElement; node; node = node.parentElement)
+                        host.restoration.scroll.parents.push(node.scrollTop);
+                }
+            }
+        }
         const cleanup = () => {
             if (disposed) return;
-            disposed = true; catalogAbort.abort(); metadataAbort.abort(); metadata.clear(); ++requestListGeneration; ++sharedListGeneration; closeDetails(false); stopDownloads(); stopCalendar(); calendarResult = null; ++searchGeneration; ++discoveryGeneration; ++requestGeneration; ++sharedGeneration;
+            capture();
+            disposed = true; discoveryAbort.abort(); metadataAbort.abort(); metadata.clear();
+            metadataQueue.splice(0).forEach(task => task.resolve(null));
+            Object.values(feeds).forEach(feed => feed.dispose());
+            closeDetails(false); stopDownloads(); stopCalendar(); calendarResult = null; ++discoveryGeneration; ++requestGeneration;
             el('search-heading').hidden = true;
             for (const name of ['movies', 'tv', 'requests', 'trending', 'upcoming-movies', 'upcoming-tv', 'shared-requests', 'search-results', 'downloads-radarr', 'downloads-sonarr', 'calendar-radarr', 'calendar-sonarr']) el(name).replaceChildren();
             el('shared-requests').closest('section').hidden = true;
@@ -820,6 +777,23 @@
             instances.delete(root);
         };
         cleanup.activate = activate;
+        cleanup.capture = capture;
+        cleanup.resume = () => {
+            requestAnimationFrame(() => {
+                if (!currentUser()) return;
+                const saved = host.restoration?.scroll;
+                if (saved) {
+                    let index = 0;
+                    for (let node = root.parentElement; node; node = node.parentElement) {
+                        if (saved.parents[index] !== undefined) node.scrollTop = saved.parents[index];
+                        ++index;
+                    }
+                    global.scrollTo?.(0, saved.top);
+                    host.restoration.scroll = null;
+                }
+                Object.values(feeds).forEach(feed => feed.update());
+            });
+        };
         // Search reuses this exact dialog/options/POST/read-back controller; the
         // caller owns the fragment and must dispose it on route/user teardown.
         cleanup.openRequest = (item, button) => {

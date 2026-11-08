@@ -31,6 +31,7 @@ with sync_playwright() as p:
         if theme:
             for i in (0, 1):
                 page.add_style_tag(content=(theme / f'elegant-source-{i}.css').read_text())
+        page.add_script_tag(content=(web / 'continuous-rail.js').read_text())
         page.add_script_tag(content=(web / 'global-search-addon.js').read_text())
         page.add_script_tag(content=(web / 'search-adapter.js').read_text())
         page.evaluate('''() => { window.ApiClient = {

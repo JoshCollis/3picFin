@@ -51,7 +51,8 @@ public sealed class DiscoveryPageController : ControllerBase
         var homeAsset = asset is "home-adapter.js" or "home-tab-host.js" or "home-tab-host.css";
         var navAsset = asset is "global-fin-nav.js" or "global-fin-nav.css";
         var heroAsset = asset is "static-hero.js" or "static-hero.css";
-        if (asset is "native-home-rows.js" or "native-home-rows.css" ? !_homeEnabled() :
+        if (asset == "continuous-rail.js" ? !(_enabled() || _searchEnabled() || _homeEnabled()) :
+            asset is "native-home-rows.js" or "native-home-rows.css" ? !_homeEnabled() :
             searchAsset ? !_searchEnabled() : heroAsset ? !(_homeEnabled() && _heroEnabled()) :
             navAsset ? !(_enabled() && _homeEnabled()) :
             homeAsset ? !(_enabled() || (_homeEnabled() && (_heroEnabled() || _rowsEnabled()))) :
@@ -65,6 +66,7 @@ public sealed class DiscoveryPageController : ControllerBase
             "discovery.html" => "text/html; charset=utf-8",
             "discovery.css" => "text/css; charset=utf-8",
             "discovery.js" => "text/javascript; charset=utf-8",
+            "continuous-rail.js" => "text/javascript; charset=utf-8",
             "home-tab-host.js" => "text/javascript; charset=utf-8",
             "home-tab-host.css" => "text/css; charset=utf-8",
             "static-hero.js" => "text/javascript; charset=utf-8",
