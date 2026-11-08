@@ -42,12 +42,109 @@ public sealed class AssistantTests : IDisposable
     public void OptionsAreDefaultOffAndSupportLanSubpathsWithoutCredentialsInUrls()
     {
         Assert.Null(AiOptions.From(new()));
-        Assert.Equal("http://ollama.test:11434/v1/chat/completions", Options.CompletionsUri.AbsoluteUri);
+        Assert.Equal("http://ollama.test:11434/v1/chat/completions", Options.EndpointUri.AbsoluteUri);
         var config = Config; config.AiBaseUrl = "https://proxy.test/jellyfin/ai/v1/"; config.AiApiKey = "fake-test-key";
-        Assert.Equal("https://proxy.test/jellyfin/ai/v1/chat/completions", AiOptions.From(config)!.CompletionsUri.AbsoluteUri);
+        Assert.Equal("https://proxy.test/jellyfin/ai/v1/chat/completions", AiOptions.From(config)!.EndpointUri.AbsoluteUri);
         config.AiDailyTurnLimit = 0; Assert.Equal(1, AiOptions.From(config)!.DailyLimit);
         Assert.DoesNotContain("fake-test-key", AiJson.Write(AiOptions.From(config)!));
         Assert.DoesNotContain("fake-test-key", AiOptions.From(config)!.ToString());
+    }
+
+    [Theory]
+    [InlineData("gpt-6-sol", "auto", true)]
+    [InlineData("gpt-6.1-sol", "auto", true)]
+    [InlineData("gpt-6-luna", "chat", false)]
+    [InlineData("gateway-model", "responses", true)]
+    [InlineData("gpt-5.4-mini", "auto", false)]
+    public void ApiModeSelectsTheEndpointAndDefaultsToLowReasoning(string model, string mode, bool responses)
+    {
+        var config = Config; config.AiModel = model; config.AiApiMode = mode;
+        var options = AiOptions.From(config)!;
+        Assert.Equal(responses, options.UseResponses);
+        Assert.Equal(responses ? "/v1/responses" : "/v1/chat/completions", options.EndpointUri.AbsolutePath);
+        Assert.Equal("low", options.ReasoningEffort);
+        config.AiReasoningEffort = "default";
+        Assert.Null(AiOptions.From(config)!.ReasoningEffort);
+        config.AiReasoningEffort = "not-supported"; Assert.Null(AiOptions.From(config));
+        config.AiReasoningEffort = "low"; config.AiApiMode = "unknown"; Assert.Null(AiOptions.From(config));
+    }
+
+    [Theory]
+    [InlineData(false, "low")]
+    [InlineData(false, "none")]
+    [InlineData(false, null)]
+    [InlineData(true, "low")]
+    [InlineData(true, "high")]
+    [InlineData(true, null)]
+    public async Task ReasoningEffortIsSentInTheSelectedProtocolOrExplicitlyOmitted(bool responses, string? effort)
+    {
+        using var http = Http(async request =>
+        {
+            var body = JsonSerializer.Deserialize<JsonElement>(await request.Content!.ReadAsStringAsync());
+            if (responses)
+            {
+                Assert.False(body.TryGetProperty("reasoning_effort", out _));
+                Assert.Equal(effort is not null, body.TryGetProperty("reasoning", out var reasoning));
+                if (effort is not null) Assert.Equal(effort, reasoning.GetProperty("effort").GetString());
+                Assert.Equal(8192, body.GetProperty("max_output_tokens").GetInt32());
+                return Json("""{"status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hello"}]}]}""");
+            }
+            Assert.False(body.TryGetProperty("reasoning", out _));
+            Assert.Equal(effort is not null, body.TryGetProperty("reasoning_effort", out var parameter));
+            if (effort is not null) Assert.Equal(effort, parameter.GetString());
+            return Json("""{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"Hello"}}]}""");
+        });
+        Assert.Equal("Hello", (await new AiClient(http).Complete(Options with { UseResponses = responses, ReasoningEffort = effort }, [], AiTools.Definitions, default)).GetProperty("content").GetString());
+    }
+
+    [Fact]
+    public async Task ResponsesToolLoopReplaysEncryptedReasoningAndCallIdsButNeverPersistsProviderState()
+    {
+        var config = Config; config.AiModel = "gpt-6-sol";
+        var options = AiOptions.From(config)!; var step = 0;
+        using var http = Http(async request =>
+        {
+            Assert.Equal("/v1/responses", request.RequestUri!.AbsolutePath);
+            var body = JsonSerializer.Deserialize<JsonElement>(await request.Content!.ReadAsStringAsync());
+            Assert.False(body.GetProperty("store").GetBoolean()); Assert.False(body.GetProperty("stream").GetBoolean());
+            Assert.False(body.TryGetProperty("messages", out _)); Assert.False(body.TryGetProperty("previous_response_id", out _));
+            Assert.False(body.TryGetProperty("conversation", out _)); Assert.False(body.TryGetProperty("max_completion_tokens", out _));
+            var tool = body.GetProperty("tools")[0];
+            Assert.Equal("search_library", tool.GetProperty("name").GetString()); Assert.False(tool.GetProperty("strict").GetBoolean());
+            Assert.False(tool.TryGetProperty("function", out _));
+            Assert.Equal("reasoning.encrypted_content", body.GetProperty("include")[0].GetString());
+            if (++step == 1) return Json("""
+                {"status":"completed","output":[{"type":"reasoning","id":"rs_1","summary":[],"encrypted_content":"cipher-do-not-persist"},
+                {"type":"function_call","id":"fc_distinct_from_call_id","call_id":"taste_call","name":"remember_taste","arguments":"{\"preference\":\"Likes comedy\"}"}]}
+                """);
+            var input = body.GetProperty("input").EnumerateArray().ToArray();
+            Assert.Contains(input, i => i.TryGetProperty("encrypted_content", out var cipher) && cipher.GetString() == "cipher-do-not-persist");
+            var output = Assert.Single(input, i => i.TryGetProperty("type", out var type) && type.GetString() == "function_call_output");
+            Assert.Equal("taste_call", output.GetProperty("call_id").GetString()); Assert.Contains("remembered", output.GetProperty("output").GetString());
+            return Json("""{"status":"completed","output":[{"type":"message","role":"assistant","phase":"final_answer","content":[{"type":"output_text","text":"A comedy tonight?"}]}]}""");
+        });
+        var store = Store; var engine = new AiConversation(new(http), new(null!, null!, null!, null!), null!, store);
+        await store.Use(Alice, async data =>
+        {
+            data.Personalization = false; var thread = new AiThread(); data.Threads.Add(thread);
+            await engine.Reply(Alice, data, thread, "Something funny", options, () => true, default);
+            Assert.Equal("A comedy tonight?", thread.Messages.Last().Text); Assert.Single(data.Memory);
+            return 0;
+        }, default);
+        Assert.Equal(2, step);
+        var saved = await File.ReadAllTextAsync(Path.Combine(_directory, Alice.ToString("N") + ".json"));
+        foreach (var secret in new[] { "cipher-do-not-persist", "fc_distinct", "rs_1", "response_output", "encrypted_content" }) Assert.DoesNotContain(secret, saved);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"status\":\"completed\"}")]
+    [InlineData("{\"status\":\"incomplete\",\"output\":[]}")]
+    [InlineData("{\"status\":\"completed\",\"output\":[{\"type\":\"web_search_call\"}]}")]
+    public async Task ResponsesRejectsMalformedIncompleteAndUnconfiguredProviderTools(string json)
+    {
+        using var http = Http(_ => Task.FromResult(Json(json)));
+        await Assert.ThrowsAsync<AiException>(() => new AiClient(http).Complete(Options with { UseResponses = true }, [], AiTools.Definitions, default));
     }
 
     [Theory]

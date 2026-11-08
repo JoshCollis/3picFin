@@ -72,8 +72,10 @@ public sealed class AiConversation(AiClient client, AiTools tools, AiLibrary lib
                     }
                     if (calls.ValueKind != JsonValueKind.Array || calls.GetArrayLength() > 4 || callIds.Count + calls.GetArrayLength() > 16)
                         throw new AiException("The model exceeded the tool safety limit. Try a more specific question.");
-                    // Replay only the documented assistant fields, never provider-specific reasoning or metadata.
-                    messages.Add(new { role = "assistant", content, tool_calls = calls.Clone() });
+                    // Responses requires the complete output (including encrypted reasoning) within a tool turn.
+                    // Chat Completions replays only documented assistant fields. Neither persists provider state.
+                    messages.Add(options.UseResponses ? new AiClient.ResponseReplay(message.GetProperty("response_output").Clone()) :
+                        (object)new { role = "assistant", content, tool_calls = calls.Clone() });
                     foreach (var call in calls.EnumerateArray())
                     {
                         var id = call.GetProperty("id").GetString();

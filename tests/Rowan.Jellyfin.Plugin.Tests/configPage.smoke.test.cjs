@@ -43,7 +43,7 @@ function setup(config, folders, options = {}) {
         'Enable4kRequests', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'ClearSeerrApiKey', 'GlobalSearchEnabled', 'ClearRadarrApiKey', 'ClearSonarrApiKey', 'NativeGuidePagingEnabled',
         'NativeHomeRowsEnabled', 'NativeRowContinueWatching', 'NativeRowNextUp', 'NativeRowLatestMovies', 'NativeRowLatestShows', 'NativeRowMyMedia', 'NativeRowContinueWatchingNextUp', 'NativeRowCollections', 'NativeRowBecauseYouWatched', 'NativeRowMyRequests',
         'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey', 'RecentlyAddedAll',
-        'RecentlyAddedSelected', 'RecentlyAddedNone', 'AiEnabled', 'AiLegacyTokenLimit', 'AiBaseUrl', 'AiModel', 'AiApiKey', 'ClearAiApiKey', 'AiDailyTurnLimit', 'AiTestButton', 'AiTestStatus'];
+        'RecentlyAddedSelected', 'RecentlyAddedNone', 'AiEnabled', 'AiLegacyTokenLimit', 'AiBaseUrl', 'AiModel', 'AiApiMode', 'AiReasoningEffort', 'AiApiKey', 'ClearAiApiKey', 'AiDailyTurnLimit', 'AiTestButton', 'AiTestStatus'];
     const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
     const page = elements.RowanConfigPage;
     const list = elements.RecentlyAddedLibraries;
@@ -95,6 +95,8 @@ test('AI is independently opt-in, preserves blank saved keys and snapshots provi
     assert.equal(app.elements.AiEnabled.checked, false);
     assert.equal(app.elements.AiApiKey.value, '');
     assert.equal(app.elements.AiDailyTurnLimit.value, '50');
+    assert.equal(app.elements.AiApiMode.value, 'auto');
+    assert.equal(app.elements.AiReasoningEffort.value, 'low');
     app.elements.AiEnabled.checked = true;
     app.elements.AiLegacyTokenLimit.checked = true;
     app.elements.AiBaseUrl.value = 'http://ollama:11434/v1';
@@ -102,6 +104,8 @@ test('AI is independently opt-in, preserves blank saved keys and snapshots provi
     await app.save();
     assert.equal(app.writes[0].AiApiKey, 'saved-fixture-key');
     assert.equal(app.writes[0].AiLegacyTokenLimit, true);
+    assert.equal(app.writes[0].AiApiMode, 'auto');
+    assert.equal(app.writes[0].AiReasoningEffort, 'low');
     assert.equal(app.writes[0].HomeEnabled, false);
     assert.equal(app.writes[0].DiscoveryPageEnabled, false);
     app.elements.ClearAiApiKey.checked = true;
@@ -119,6 +123,30 @@ test('AI rejects incomplete settings and catches model edits during a pending sa
     app.elements.AiModel.value = 'two'; pending.resolve({}); await app.flush();
     assert.match(app.elements.RowanConfigError.textContent, /changed during save/);
 });
+
+test('AI API mode and reasoning effort round-trip and validate independently', async () => {
+    const app = setup({ RecentlyAddedLibraryIds:null, AiApiMode:'responses', AiReasoningEffort:'medium' }, folders);
+    await app.load();
+    assert.equal(app.elements.AiApiMode.value, 'responses');
+    assert.equal(app.elements.AiReasoningEffort.value, 'medium');
+    app.elements.AiReasoningEffort.value = 'default';
+    await app.save();
+    assert.equal(app.writes[0].AiReasoningEffort, 'default');
+    assert.equal(app.writes[0].AiApiMode, 'responses');
+    app.elements.AiReasoningEffort.value = 'invalid';
+    await app.save(); assert.equal(app.writes.length, 1);
+});
+
+for (const [field, value] of [['AiApiMode', 'responses'], ['AiReasoningEffort', 'high']]) {
+    test(`AI ${field} locks and detects edits during save`, async () => {
+        const pending = deferred();
+        const app = setup({RecentlyAddedLibraryIds:null}, folders, {update:()=>pending.promise});
+        await app.load(); app.form.dispatch('submit'); await app.flush();
+        assert.equal(app.elements[field].disabled, true);
+        app.elements[field].value = value; pending.resolve({}); await app.flush();
+        assert.match(app.elements.RowanConfigError.textContent, /changed during save/);
+    });
+}
 
 test('continuous native guide keeps the existing independent opt-in and pending-save contract', async () => {
     assert.match(html, /id="NativeGuidePagingEnabled"/);

@@ -14,7 +14,8 @@ public static class AiJson
     public static string Clip(string? value, int length) => (value ?? string.Empty)[..Math.Min(value?.Length ?? 0, length)];
 }
 
-public sealed record AiOptions(Uri CompletionsUri, [property: System.Text.Json.Serialization.JsonIgnore] string? ApiKey, string Model, int DailyLimit, bool LegacyTokenLimit = false)
+public sealed record AiOptions(Uri EndpointUri, [property: System.Text.Json.Serialization.JsonIgnore] string? ApiKey, string Model, int DailyLimit,
+    bool LegacyTokenLimit = false, bool UseResponses = false, string? ReasoningEffort = "low")
 {
     public override string ToString() => "AiOptions { credentials = [REDACTED] }";
     public static AiOptions? From(PluginConfiguration? config)
@@ -24,8 +25,15 @@ public sealed record AiOptions(Uri CompletionsUri, [property: System.Text.Json.S
             !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment) ||
             string.IsNullOrWhiteSpace(config.AiModel) || config.AiModel.Length > 200 || config.AiModel.Any(char.IsControl) ||
             (config.AiApiKey?.Any(char.IsControl) ?? false)) return null;
+        var mode = config.AiApiMode ?? "auto";
+        var effort = config.AiReasoningEffort ?? "low";
+        if (mode is not ("auto" or "chat" or "responses") || effort is not ("default" or "none" or "minimal" or "low" or "medium" or "high" or "xhigh" or "max")) return null;
+        var model = config.AiModel.Trim();
+        var gpt6 = model.Equals("gpt-6", StringComparison.OrdinalIgnoreCase) || model.StartsWith("gpt-6-", StringComparison.OrdinalIgnoreCase) || model.StartsWith("gpt-6.", StringComparison.OrdinalIgnoreCase);
+        var responses = mode == "responses" || mode == "auto" && gpt6;
         // The administrator deliberately chooses a trusted endpoint. LAN HTTP supports local Ollama.
-        return new(new Uri(uri, "chat/completions"), config.AiApiKey?.Trim(), config.AiModel.Trim(), Math.Clamp(config.AiDailyTurnLimit, 1, 1000), config.AiLegacyTokenLimit);
+        return new(new Uri(uri, responses ? "responses" : "chat/completions"), config.AiApiKey?.Trim(), model,
+            Math.Clamp(config.AiDailyTurnLimit, 1, 1000), config.AiLegacyTokenLimit, responses, effort == "default" ? null : effort);
     }
 }
 

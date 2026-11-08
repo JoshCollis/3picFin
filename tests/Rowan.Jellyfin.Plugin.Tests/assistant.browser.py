@@ -216,6 +216,29 @@ try:
             expect(page.locator('.fin-ai')).to_have_count(0)
             assert not errors, errors
             page.close()
+            # Exercise the real admin markup and persisted selectors without any live configuration writes.
+            admin = browser.new_page(viewport={'width': width, 'height': 900})
+            admin.add_init_script('''
+                window.adminConfig={RecentlyAddedLibraryIds:null,AiEnabled:true,AiBaseUrl:'https://provider.test/v1',AiModel:'gpt-6-sol'};
+                window.ApiClient={getUrl:p=>p,getJSON:async()=>[],getPluginConfiguration:async()=>structuredClone(adminConfig),
+                    updatePluginConfiguration:async(_id,c)=>{window.adminConfig=structuredClone(c);return {};}};
+                window.Dashboard={showLoadingMsg(){},hideLoadingMsg(){},processPluginConfigurationUpdateResult(){}};
+            ''')
+            admin.goto(f'http://127.0.0.1:{server.server_port}/src/Rowan.Jellyfin.Plugin/Configuration/configPage.html')
+            admin.locator('#RowanConfigPage').dispatch_event('pageshow')
+            expect(admin.locator('#RowanSaveButton')).to_be_enabled()
+            admin.locator('details').filter(has=admin.locator('#AiApiMode')).first.locator('summary').first.click()
+            expect(admin.locator('#AiApiMode')).to_have_value('auto')
+            expect(admin.locator('#AiReasoningEffort')).to_have_value('low')
+            admin.locator('#AiApiMode').select_option('responses')
+            admin.locator('#AiReasoningEffort').select_option('medium')
+            admin.locator('#RowanSaveButton').click()
+            expect(admin.locator('#RowanConfigStatus')).to_have_text('Configuration saved.')
+            assert admin.evaluate('({mode:adminConfig.AiApiMode,effort:adminConfig.AiReasoningEffort})') == {'mode':'responses','effort':'medium'}
+            admin.locator('#RowanConfigPage').dispatch_event('pageshow')
+            expect(admin.locator('#AiApiMode')).to_have_value('responses')
+            expect(admin.locator('#AiReasoningEffort')).to_have_value('medium')
+            admin.close()
             print(f'assistant {width}px: confirmation, navigation, modal, preferences, account isolation PASS', flush=True)
         browser.close()
 finally:

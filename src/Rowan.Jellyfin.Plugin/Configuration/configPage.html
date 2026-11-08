@@ -31,7 +31,7 @@
 #RowanConfigPage .fin-options { display: grid; gap: .1rem; }
 #RowanConfigPage .fin-help { margin: .2rem 0 .45rem; font-size: .9rem; }
 #RowanConfigPage .fin-field { display: grid; gap: .3rem; min-width: 0; }
-#RowanConfigPage .fin-field input { box-sizing: border-box; width: 100%; min-width: 0; padding: .65rem; border: 1px solid rgba(128,128,128,.7); border-radius: .4rem; background: var(--input-background, rgba(128,128,128,.1)); color: inherit; }
+#RowanConfigPage .fin-field input, #RowanConfigPage .fin-field select { box-sizing: border-box; width: 100%; min-width: 0; padding: .65rem; border: 1px solid rgba(128,128,128,.7); border-radius: .4rem; background: var(--input-background, rgba(128,128,128,.1)); color: inherit; }
 #RowanConfigPage .fin-grid { display: grid; gap: .8rem; }
 #RowanConfigPage .fin-note { border-inline-start: .2rem solid #d6a248; padding: .15rem .7rem; line-height: 1.45; }
 #RowanConfigPage .fin-note summary { cursor: pointer; min-height: 2.5rem; display: flex; align-items: center; }
@@ -56,11 +56,14 @@
 <label class="fin-choice"><input id="AiEnabled" type="checkbox" /><span>Enable the floating web assistant</span></label>
 <label class="fin-field" for="AiBaseUrl">OpenAI-compatible API base URL<input id="AiBaseUrl" type="url" placeholder="https://api.openai.com/v1 or http://ollama:11434/v1" autocomplete="off" /></label>
 <label class="fin-field" for="AiModel">Model<input id="AiModel" type="text" placeholder="A model that supports function/tool calling" maxlength="200" autocomplete="off" /></label>
+<label class="fin-field" for="AiApiMode">API mode<select id="AiApiMode"><option value="auto">Automatic — Responses for GPT-6</option><option value="responses">Responses</option><option value="chat">Chat Completions (compatible providers)</option></select></label>
+<label class="fin-field" for="AiReasoningEffort">Reasoning effort<select id="AiReasoningEffort"><option value="low">Low (default)</option><option value="default">Provider default (omit parameter)</option><option value="none">None</option><option value="minimal">Minimal</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra high</option><option value="max">Maximum</option></select></label>
+<p class="fin-help">GPT-6 reasoning with tools uses Responses. Choose Responses explicitly for gateway model aliases. Higher effort can be slower and use more tokens; support varies by model. Choose Provider default for models that reject the reasoning parameter.</p>
 <label class="fin-field" for="AiApiKey">AI API key<input id="AiApiKey" type="password" autocomplete="new-password" /></label>
 <label class="fin-choice"><input id="ClearAiApiKey" type="checkbox" /><span>Clear saved AI key</span></label>
-<label class="fin-choice"><input id="AiLegacyTokenLimit" type="checkbox" /><span>Use legacy max_tokens (Ollama and older compatible models)</span></label>
+<label class="fin-choice"><input id="AiLegacyTokenLimit" type="checkbox" /><span>Use legacy max_tokens (Chat Completions only; Ollama and older models)</span></label>
 <label class="fin-field" for="AiDailyTurnLimit">AI chat turns per user per UTC day<input id="AiDailyTurnLimit" type="number" min="1" max="1000" step="1" /></label>
-<p class="fin-help">Default off. Requires File Transformation and a tool-capable Chat Completions model. Leave the key blank to retain it; local Ollama may need no key. Use an endpoint reachable from the Jellyfin server, not just your browser. Save first, then test. Seerr powers missing-title discovery and normal user/quota-bound requests; enable Household requests above to answer who requested a title.</p>
+<p class="fin-help">Default off. Requires File Transformation and a tool-capable model. Leave the key blank to retain it; local Ollama may need no key. Use an endpoint reachable from the Jellyfin server, not just your browser. Save first, then test. Seerr powers missing-title discovery and normal user/quota-bound requests; enable Household requests above to answer who requested a title.</p>
 <button id="AiTestButton" type="button">Test saved AI connection &amp; tool support</button>
 <p id="AiTestStatus" class="fin-help" role="status"></p>
 <details class="fin-note"><summary>Privacy, memory and safeguards</summary><p>Disabled for accounts with parental-rating, tag or unrated-content restrictions. The assistant searches all of the signed-in user's visible movie/show libraries. Each account has private saved chats (30 days of inactivity), automatic own-history/favourites/progress personalisation and inspectable, editable taste memory. Users can disable personalisation/learning and delete chats/preferences. Chats and relevant metadata are sent to your chosen provider; its retention policy still applies. Local files and backups remain accessible to the server operator. Provider credentials stay server-side; configure a trusted URL only. Confirm/Cancel poster cards precede all chat requests; existing Seerr permissions, quotas, duplicates, season eligibility and 4K settings are rechecked. Model output cannot confirm requests. Daily chat limits are separate from media quotas. No native mobile/TV app UI is added.</p></details>
@@ -301,7 +304,7 @@
                 const guidKey = value => value.replaceAll('-', '').toLowerCase();
                 const nativeRowKinds = ['ContinueWatching', 'NextUp', 'LatestMovies', 'LatestShows', 'MyMedia',
                     'ContinueWatchingNextUp', 'Collections', 'BecauseYouWatched', 'MyRequests'];
-                const aiFields = ['AiEnabled', 'AiBaseUrl', 'AiModel', 'AiApiKey', 'AiLegacyTokenLimit', 'AiDailyTurnLimit'];
+                const aiFields = ['AiEnabled', 'AiBaseUrl', 'AiModel', 'AiApiMode', 'AiReasoningEffort', 'AiApiKey', 'AiLegacyTokenLimit', 'AiDailyTurnLimit'];
                 const keyFields = ['AiApiKey', 'SeerrApiKey', 'RadarrApiKey', 'SonarrApiKey'];
                 let ready = false;
                 let saving = false;
@@ -446,6 +449,8 @@
                         const config = results[0];
                         ['AiEnabled', 'AiLegacyTokenLimit'].forEach(id => { page.querySelector('#' + id).checked = config[id] === true; });
                         ['AiBaseUrl', 'AiModel'].forEach(id => { page.querySelector('#' + id).value = config[id] || ''; });
+                        page.querySelector('#AiApiMode').value = config.AiApiMode ?? 'auto';
+                        page.querySelector('#AiReasoningEffort').value = config.AiReasoningEffort ?? 'low';
                         page.querySelector('#AiDailyTurnLimit').value = String(config.AiDailyTurnLimit ?? 50);
                         page.querySelector('#AiApiKey').value = '';
                         page.querySelector('#AiApiKey').placeholder = config.AiApiKey ? 'Saved key — leave blank to keep' : 'No key saved (optional for local Ollama)';
@@ -581,12 +586,15 @@
                         AiLegacyTokenLimit: page.querySelector('#AiLegacyTokenLimit').checked,
                         AiBaseUrl: page.querySelector('#AiBaseUrl').value.trim(),
                         AiModel: page.querySelector('#AiModel').value.trim(),
+                        AiApiMode: page.querySelector('#AiApiMode').value,
+                        AiReasoningEffort: page.querySelector('#AiReasoningEffort').value,
                         AiApiKey: page.querySelector('#AiApiKey').value.trim(),
                         AiDailyTurnLimit: Number(page.querySelector('#AiDailyTurnLimit').value)
                     };
-                    if (!Number.isInteger(ai.AiDailyTurnLimit) || ai.AiDailyTurnLimit < 1 || ai.AiDailyTurnLimit > 1000 ||
+                    if (!['auto', 'chat', 'responses'].includes(ai.AiApiMode) || !['default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(ai.AiReasoningEffort) ||
+                        !Number.isInteger(ai.AiDailyTurnLimit) || ai.AiDailyTurnLimit < 1 || ai.AiDailyTurnLimit > 1000 ||
                         ai.AiEnabled && (!/^https?:\/\//i.test(ai.AiBaseUrl) || !ai.AiModel)) {
-                        showMessage(error, 'Provide a valid AI URL, model and a daily chat limit from 1 to 1000.'); return;
+                        showMessage(error, 'Provide a valid AI URL, model, API mode, reasoning effort and a daily chat limit from 1 to 1000.'); return;
                     }
                     const seerr = {
                         Enable4kRequests: page.querySelector('#Enable4kRequests').checked,

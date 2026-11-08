@@ -17,8 +17,11 @@ window.Emby={Page:{showItem:item=>{fixture.opened=item;location.hash='#/details?
 const nativeFetch=window.fetch.bind(window);
 window.fetch=async function(path,options={}){
 const endpoint=new URL(path,location.href).pathname; if(!endpoint.startsWith('/jellyfin/3picFin/'))return nativeFetch(path,options);
-const user=(options.headers?.['X-Emby-Token']||'fixture-'+fixture.user).replace('fixture-','');const state=data(user);const body=options.body?JSON.parse(options.body):null;
 const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
+// Match servers with EnableLegacyAuthorization=false: X-Emby-Token is not authentication.
+const auth=/^MediaBrowser Token="fixture-([a-f0-9]{32})"$/.exec(options.headers?.Authorization||'');
+if(!auth)return json({error:'Modern authorization required'},401);
+const user=auth[1];const state=data(user);const body=options.body?JSON.parse(options.body):null;
 if(endpoint.endsWith('/Ai/State')){if(fixture.failState)return json({error:'State unavailable'},503);const response=json({...state,threads:state.threads.map(({id,title})=>({id,title}))});if(fixture.holdNextState){fixture.holdNextState=false;return new Promise(resolve=>fixture.releaseState=()=>resolve(response));}return response;}
 if(endpoint.endsWith('/Ai/Message')){
  if(fixture.failMessage)return json({error:'Could not reach the assistant. Try again.'},503);

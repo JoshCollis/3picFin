@@ -68,7 +68,7 @@
             if (!current(s)) throw Error('Session changed.');
             const response = await world.fetch(s.api.getUrl('3picFin/' + path), {
                 method, signal: s.abort.signal, credentials: 'same-origin', cache: 'no-store',
-                headers: { 'X-Emby-Token': s.token, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+                headers: { 'Authorization': 'MediaBrowser Token="' + s.token + '"', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
                 ...(body === undefined ? {} : { body: JSON.stringify(body) })
             });
             if (!current(s)) throw Error('Session changed.');

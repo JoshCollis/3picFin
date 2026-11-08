@@ -38,10 +38,13 @@ def norm(value):
     if isinstance(value, dict): return {k[0].lower()+k[1:]: norm(v) for k,v in value.items()}
     return value
 
-def call(base, path, method='GET', body=None, token=None):
+def call(base, path, method='GET', body=None, token=None, legacy=False):
     auth = 'MediaBrowser Client="AssistantLab", Device="Lab", DeviceId="ai-lab", Version="1"'
     if token: auth += f', Token="{token}"'
-    req = urllib.request.Request(base+path, method=method, headers={'Authorization':auth,'Content-Type':'application/json'}, data=None if body is None else json.dumps(body).encode())
+    headers = {'Authorization':auth,'Content-Type':'application/json'}
+    if legacy:
+        headers.pop('Authorization'); headers['X-Emby-Token'] = token
+    req = urllib.request.Request(base+path, method=method, headers=headers, data=None if body is None else json.dumps(body).encode())
     try:
         with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=110) as response:
             raw = response.read()
@@ -78,23 +81,40 @@ class Stub(http.server.BaseHTTPRequestHandler):
             if (SHARED/'quota').exists(): return self.respond({},403)
             created = {'id':42,'status':2,'is4k':body['is4k'],'type':body['mediaType'],'media':{'tmdbId':body['mediaId'],'mediaType':body['mediaType']},'seasons':[{'seasonNumber':n} for n in body.get('seasons',[])],'requestedBy':{'id':acting,'displayName':'Synthetic Alice','email':'NEVER_EXPOSE@example.test'}}
             record('created.jsonl',created); return self.respond({'id':42,'status':2},201)
-        if self.path != '/v1/chat/completions' or self.headers.get('Authorization') != 'Bearer disposable-only': return self.respond({},403)
+        responses = self.path == '/v1/responses'
+        if self.path not in ('/v1/chat/completions','/v1/responses') or self.headers.get('Authorization') != 'Bearer disposable-only': return self.respond({},403)
         record('models.jsonl',1)
         assert body['store'] is False and body['stream'] is False
-        messages = body['messages']; text = next(m['content'] for m in reversed(messages) if m['role']=='user')
+        if responses:
+            assert body['reasoning']['effort'] == 'low' and body['max_output_tokens'] == 8192
+            assert body['include'] == ['reasoning.encrypted_content']
+            messages = [({'role':'tool','tool_call_id':m['call_id'],'content':m['output']} if m.get('type')=='function_call_output' else m) for m in body['input']]
+            assert all(t['strict'] is False and 'function' not in t for t in body['tools'])
+        else:
+            assert body['reasoning_effort'] == 'low'
+            messages = body['messages']
+        text = next(m['content'] for m in reversed(messages) if m.get('role')=='user')
         def tool(name, arguments, ident):
+            if responses:
+                return self.respond({'status':'completed','output':[
+                    {'type':'reasoning','id':'rs_'+ident,'summary':[],'encrypted_content':'disposable-cipher'},
+                    {'type':'function_call','id':'fc_'+ident,'call_id':ident,'name':name,'arguments':json.dumps(arguments)}]})
             self.respond({'choices':[{'finish_reason':'tool_calls','message':{'role':'assistant','content':None,'tool_calls':[{'id':ident,'type':'function','function':{'name':name,'arguments':json.dumps(arguments)}}]}}]})
-        if body['tools'][0]['function']['name'] == 'connection_probe': return tool('connection_probe',{},'probe')
-        if messages[-1]['role'] != 'tool':
+        first_tool = body['tools'][0] if responses else body['tools'][0]['function']
+        if first_tool['name'] == 'connection_probe': return tool('connection_probe',{},'probe')
+        if messages[-1].get('role') != 'tool':
             if text.startswith('native-search'): return tool('search_library',{'query':'fixture','page':1},'search')
             if text.startswith('request-seasons'): return tool('prepare_request',{'key':'tv:9','seasons':[2,3]},'prepare')
             if text.startswith('remember'): return tool('remember_taste',{'preference':'Likes gentle science fiction'},'remember')
         elif messages[-1]['tool_call_id'] == 'search':
             items = json.loads(messages[-1]['content'])['items']; return tool('show_titles',{'keys':[i['key'] for i in items]},'show')
+        if responses:
+            return self.respond({'status':'completed','output':[{'type':'message','role':'assistant','content':[{'type':'output_text','text':'Verified lab reply for '+text}]}]})
         self.respond({'choices':[{'finish_reason':'stop','message':{'role':'assistant','content':'Verified lab reply for '+text}}]})
 
 def main():
     assert DLL.is_file(), 'Build Release first'
+    api_mode = os.environ.get('AI_API_MODE','chat'); assert api_mode in ('chat','responses')
     network = docker('network','create','--internal','3pic-fin-ai-'+uuid.uuid4().hex[:12])
     cid = None; sidecar = None
     def stop_container():
@@ -111,7 +131,7 @@ def main():
             shutil.copy2(DLL,plugins/DLL.name)
             settings = plugins.parent/'configurations'; settings.mkdir()
             endpoint = 'http://127.0.0.1:19879'
-            (settings/'Rowan.Jellyfin.Plugin.xml').write_text(f'<PluginConfiguration><HomeEnabled>false</HomeEnabled><DiscoveryPageEnabled>false</DiscoveryPageEnabled><AiEnabled>true</AiEnabled><AiBaseUrl>{endpoint}/v1</AiBaseUrl><AiModel>synthetic-tools</AiModel><AiApiKey>disposable-only</AiApiKey><SeerrEnabled>true</SeerrEnabled><SeerrBaseUrl>{endpoint}</SeerrBaseUrl><SeerrApiKey>disposable-only</SeerrApiKey><SharedRequestsEnabled>true</SharedRequestsEnabled></PluginConfiguration>')
+            (settings/'Rowan.Jellyfin.Plugin.xml').write_text(f'<PluginConfiguration><HomeEnabled>false</HomeEnabled><DiscoveryPageEnabled>false</DiscoveryPageEnabled><AiEnabled>true</AiEnabled><AiBaseUrl>{endpoint}/v1</AiBaseUrl><AiModel>synthetic-tools</AiModel><AiApiMode>{api_mode}</AiApiMode><AiReasoningEffort>low</AiReasoningEffort><AiApiKey>disposable-only</AiApiKey><SeerrEnabled>true</SeerrEnabled><SeerrBaseUrl>{endpoint}</SeerrBaseUrl><SeerrApiKey>disposable-only</SeerrApiKey><SharedRequestsEnabled>true</SharedRequestsEnabled></PluginConfiguration>')
             for owner in ('alice','bob'):
                 folder = tmp/'media'/owner; folder.mkdir(parents=True)
                 subprocess.run(['ffmpeg','-nostdin','-loglevel','error','-f','lavfi','-i','color=c=black:s=160x90:r=1','-t','1','-c:v','mpeg4',str(folder/'fixture.mp4')],check=True)
@@ -130,6 +150,10 @@ def main():
             passwords = {name:secrets.token_urlsafe(18) for name in ('alice','bob')}
             ok(call(base,'/Startup/User','POST',{'Name':'alice','Password':passwords['alice']})); ok(call(base,'/Startup/Complete','POST',{}))
             login = ok(call(base,'/Users/AuthenticateByName','POST',{'Username':'alice','Pw':passwords['alice']})); alice = login['user']['id']; at = login['accessToken']
+            config = ok(call(base,'/System/Configuration',token=at)); config['enableLegacyAuthorization'] = False
+            ok(call(base,'/System/Configuration','POST',config,at))
+            assert ok(call(base,'/System/Configuration',token=at))['enableLegacyAuthorization'] is False
+            assert call(base,'/3picFin/Ai/State',token=at,legacy=True)[0] == 401
             bob = ok(call(base,'/Users/New','POST',{'Name':'bob','Password':passwords['bob']},at))['id']
             bt = ok(call(base,'/Users/AuthenticateByName','POST',{'Username':'bob','Pw':passwords['bob']}))['accessToken']
             (tmp/'users.json').write_text(json.dumps({str(uuid.UUID(alice)):71,str(uuid.UUID(bob)):72}))
@@ -178,7 +202,7 @@ def main():
             assert call(base,'/3picFin/Ai/Message','POST',{'text':'bypass restriction'},bt)[0]==403
             assert len(records(tmp,'models.jsonl'))==before
             assert call(base,'/3picFin/Web/assistant.js')[0]==200
-            print('Disposable Jellyfin: DI/auth, disjoint library search/cards, private history/memory, tool probe, partial confirmation, quota denial, replay prevention and restricted-account rejection PASS')
+            print(f'Disposable Jellyfin ({api_mode}): modern-only auth, DI/auth, disjoint library search/cards, private history/memory, tool probe, partial confirmation, quota denial, replay prevention and restricted-account rejection PASS')
     finally:
         stop_container()
         subprocess.run(['docker','network','rm',network],stdout=subprocess.DEVNULL,check=True)
