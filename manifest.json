@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.2.1",
+        "changelog": "Fix Guide indicator clearance and consistent channel logo slots",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v1.0.2.1/3pic-fin_1.0.2.1.zip",
+        "checksum": "4d9ac3187b5313f9e7b35e3d582fa310",
+        "timestamp": "2026-11-08T07:32:01Z"
+      },
+      {
         "version": "1.0.2.0",
         "changelog": "Add assigned Live TV categories and compact 50-channel guide",
         "targetAbi": "12.1.0.0",
