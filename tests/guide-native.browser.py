@@ -33,6 +33,7 @@ parser.add_argument('--categories', action='store_true', help='Focused assigned-
 parser.add_argument('--toolbar-only', action='store_true', help='Capture toolbar geometry without the scaling benchmark')
 parser.add_argument('--continuous', action='store_true', help='Verify bounded native row windowing, not legacy result pages')
 parser.add_argument('--refinement', action='store_true', help='Mixed programme states and scoped live-screenshot geometry gates')
+parser.add_argument('--now-offset-minutes', type=int, default=0, help='Exercise the current-time marker inside programme bodies, not just their boundary')
 parser.add_argument('--theme', type=Path, help='Captured public/custom CSS; not a claim about every deployed plugin')
 parser.add_argument('--route', default='/web/index.html#/livetv?tab=1')
 parser.add_argument('--user-agent')
@@ -265,7 +266,7 @@ with sync_playwright() as p:
     page.on('pageerror', lambda error: errors.append(str(error)))
     # Anchor wall time to the same UTC guide slot, but KEEP IT ADVANCING: native
     # animations/debounces use Date.now(). performance, RAF and timers stay native.
-    page.add_init_script('''{ const NativeDate=Date, anchor=NativeDate.parse(''' + json.dumps(START) + '''), realStart=NativeDate.now();
+    page.add_init_script('''{ const NativeDate=Date, anchor=NativeDate.parse(''' + json.dumps(START) + ''')+''' + str(args.now_offset_minutes * 60000) + ''', realStart=NativeDate.now();
         const now=()=>anchor+NativeDate.now()-realStart;
         window.Date=new Proxy(NativeDate, {construct:(target,args,newTarget)=>Reflect.construct(target,args.length?args:[now()],newTarget),
             apply:()=>new NativeDate(now()).toString(), get:(target,key)=>key==='now'?now:Reflect.get(target,key)}); }''')

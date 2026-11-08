@@ -51,8 +51,10 @@
 .tvguide.finGuideContinuous .timeslotHeader { height:48px; border-left:1px solid var(--fin-guide-separator); padding-left:.5rem; text-indent:0; box-sizing:border-box; }
 .tvguide.finGuideContinuous .channelPrograms { background:#191c20; }
 /* The button retains native left/width and its sticky child retains native transforms.
-   Body paint must not live on that translated, content-height child. */
-.tvguide.finGuideContinuous .programCell { z-index:2; height:100%; box-sizing:border-box; background:transparent !important; color:var(--fin-guide-text); border:0; border-radius:0; align-items:center; }
+   Body paint must not live on that translated, content-height child. Share the
+   row's body/Now/text layers (0/1/2); per-cell paint isolation would hide Now.
+   Explicit sizes and native overflow clipping remain; rows keep paint containment. */
+.tvguide.finGuideContinuous .programCell { z-index:auto; contain:size style; height:100%; box-sizing:border-box; background:transparent !important; color:var(--fin-guide-text); border:0; border-radius:0; align-items:center; }
 .tvguide.finGuideContinuous .programCell::before { content:""; position:absolute; inset:4px 2px; z-index:0; border-radius:.4rem; background:var(--fin-guide-program-surface,var(--fin-guide-card)); pointer-events:none; }
 .tvguide.finGuideContinuous .programCell-movie { --fin-guide-program-surface:#393347; }
 .tvguide.finGuideContinuous .programCell-sports { --fin-guide-program-surface:#2f4147; }
@@ -61,11 +63,12 @@
 .tvguide.finGuideContinuous .programCell-active { --fin-guide-program-surface:#364852; }
 .tvguide.finGuideContinuous .programCell-active::before { box-shadow:inset 2px 0 #c6e9ef; }
 .tvguide.finGuideContinuous .programCell:hover { --fin-guide-program-surface:#434c59; }
-.tvguide.finGuideContinuous .guideProgramName { position:relative; z-index:1; height:calc(100% - 8px); flex:1 0 100%; max-width:100%; margin:0; padding:.4rem .75rem; box-sizing:border-box; border-radius:0; background:transparent !important; min-width:0; }
+.tvguide.finGuideContinuous .guideProgramName { position:relative; z-index:2; height:calc(100% - 8px); flex:1 0 100%; max-width:100%; margin:0; padding:.4rem .75rem; box-sizing:border-box; border-radius:0; background:transparent !important; min-width:0; }
 .tvguide.finGuideContinuous .guideProgramNameText { font-size:1.05rem; font-weight:650; line-height:1.35; min-width:0; }
+.tvguide.finGuideHasNow .guideProgramNameText { text-shadow:-1px 0 var(--fin-guide-program-surface,var(--fin-guide-card)),1px 0 var(--fin-guide-program-surface,var(--fin-guide-card)),0 -1px var(--fin-guide-program-surface,var(--fin-guide-card)),0 1px var(--fin-guide-program-surface,var(--fin-guide-card)); }
 .tvguide.finGuideContinuous :is(.guideProgramSecondaryInfo,.finGuideSynopsis) { color:var(--fin-guide-secondary); font-size:.94rem; font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:.25rem; }
 .tvguide.finGuideContinuous .finGuideProgramTime { font-size:.9rem; font-weight:500; margin-top:.4rem; white-space:nowrap; color:var(--fin-guide-text); }
-.tvguide.finGuideContinuous .guideProgramIndicator { font-size:.8rem; border-radius:.25rem; }
+.tvguide.finGuideContinuous .guideProgramIndicator { font-size:.8rem; border-radius:.25rem; text-shadow:none; }
 .tvguide.finGuideHasNow .channelPrograms::after { content:""; position:absolute; left:var(--fin-guide-now); top:0; bottom:0; border-left:2px solid #c6e9ef; z-index:1; pointer-events:none; }
 .tvguide .finGuideNowMarker { display:none; position:absolute; left:var(--fin-guide-now); top:0; height:24px; box-sizing:border-box; border-left:2px solid #c6e9ef; font-size:.85rem; font-weight:700; line-height:20px; padding:2px .35rem; color:#fff; background:#243d48; pointer-events:none; }
 .tvguide.finGuideHasNow .finGuideNowMarker { display:block; }

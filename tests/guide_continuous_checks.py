@@ -45,6 +45,9 @@ def check(page, args, channels, requests, errors, second_user):
         return measure()
 
     first = measure()
+    if args.now_offset_minutes:
+        from guide_now_marker_checks import check_now_marker
+        check_now_marker(page, root, args)
     if args.refinement:
         from guide_refinement_checks import check_refinement
         check_refinement(page, root, args)
@@ -101,7 +104,7 @@ def check(page, args, channels, requests, errors, second_user):
             slots=Array.from(el.querySelectorAll('.timeslotHeader')).map(slot=>slot.getBoundingClientRect());
           const intersections=slots.filter(r=>m.left<r.right&&m.right>r.left&&m.top<r.bottom&&m.bottom>r.top).length;
           const row=el.querySelector('.channelPrograms'),cell=el.querySelector('.programCell'),
-            line=getComputedStyle(row,'::after'),text=getComputedStyle(cell),body=getComputedStyle(cell,'::before'),field=el.querySelector('.finGuideSearchInput'),
+            line=getComputedStyle(row,'::after'),text=getComputedStyle(cell.querySelector('.guideProgramName')),body=getComputedStyle(cell,'::before'),field=el.querySelector('.finGuideSearchInput'),
             input=getComputedStyle(field),canvas=document.createElement('canvas'),context=canvas.getContext('2d');
           context.font=input.font;
           return {channels,nowLabel:marker.getAttribute('aria-label'),marker:[m.x,m.y,m.width,m.height],

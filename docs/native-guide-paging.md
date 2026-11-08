@@ -40,6 +40,9 @@ bodies own a consistent inset fill and current-state edge, separate from native
 translated text wrappers; the duration positions and sticky text offsets remain
 native. Thin neutral separators avoid doubled borders while keyboard focus stays
 strong. Channel names and secondary numbers are centered together beside logos.
+The current-time stroke paints above programme bodies but below their text; cell
+paint isolation must not bury it. Native overflow clipping and row containment
+remain, and a rendered-pixel regression checks the line inside programme bodies.
 Only the controls/metadata gutter is aligned to the measured native header;
 the Guide grid is not inset. The selected date uses one container-level indicator
 and an accessible pressed state instead of separate weekday/day underlines. Channels without
