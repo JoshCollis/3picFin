@@ -54,7 +54,7 @@ public sealed class DiscoveryPageController : ControllerBase
         var homeAsset = asset is "home-adapter.js" or "home-tab-host.js" or "home-tab-host.css";
         var navAsset = asset is "global-fin-nav.js" or "global-fin-nav.css";
         var heroAsset = asset is "static-hero.js" or "static-hero.css";
-        if (asset is "assistant.js" or "assistant.css" ? !_aiEnabled() :
+        if (asset is "assistant.js" or "assistant.css" or "assistant-marked.js" or "assistant-purify.js" ? !_aiEnabled() :
             asset == "continuous-rail.js" ? !(_enabled() || _searchEnabled() || _homeEnabled() || _aiEnabled()) :
             asset is "native-home-rows.js" or "native-home-rows.css" ? !_homeEnabled() :
             searchAsset ? !_searchEnabled() : heroAsset ? !(_homeEnabled() && _heroEnabled()) :
@@ -64,6 +64,7 @@ public sealed class DiscoveryPageController : ControllerBase
         var contentType = asset switch
         {
             "assistant.js" => "text/javascript; charset=utf-8",
+            "assistant-marked.js" or "assistant-purify.js" => "text/javascript; charset=utf-8",
             "assistant.css" => "text/css; charset=utf-8",
             "global-search-addon.js" => "text/javascript; charset=utf-8",
             "search-adapter.js" => "text/javascript; charset=utf-8",

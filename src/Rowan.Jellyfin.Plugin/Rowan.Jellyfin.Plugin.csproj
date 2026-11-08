@@ -21,6 +21,10 @@
     <EmbeddedResource Include="Web/discovery.js" />
     <EmbeddedResource Include="Web/assistant.js" />
     <EmbeddedResource Include="Web/assistant.css" />
+    <EmbeddedResource Include="Web/assistant-marked.js" />
+    <EmbeddedResource Include="Web/assistant-purify.js" />
+    <EmbeddedResource Include="Web/assistant-marked.LICENSE" />
+    <EmbeddedResource Include="Web/assistant-purify.LICENSE" />
     <EmbeddedResource Include="Web/continuous-rail.js" />
     <EmbeddedResource Include="Web/home-tab-host.js" />
     <EmbeddedResource Include="Web/home-tab-host.css" />

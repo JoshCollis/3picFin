@@ -6,6 +6,8 @@
     z-index:1040; color:var(--ai-ink); font-family:inherit; font-size:15px; line-height:1.6; text-align:left;
     -webkit-font-smoothing:antialiased; color-scheme:dark;
 }
+/* Open chat sits above native app bars/drawers (1100/1200), below modal surfaces (1300). */
+.fin-ai--open { z-index:1250; }
 .fin-ai *, .fin-ai *::before, .fin-ai *::after { box-sizing:border-box; }
 .fin-ai [hidden], .fin-ai[hidden] { display:none !important; }
 .fin-ai :is(button,textarea,input) { font:inherit; color:inherit; letter-spacing:normal; }
@@ -42,6 +44,31 @@
 .fin-ai-message--user { align-self:flex-end; width:fit-content; max-width:88%; }
 .fin-ai-text { padding:12px 16px; border-radius:16px 16px 16px 4px; background:var(--ai-raised); color:var(--ai-ink); white-space:pre-wrap; overflow-wrap:anywhere; font-size:15px; line-height:1.65; }
 .fin-ai-message--user .fin-ai-text { background:var(--ai-user); border-radius:16px 16px 4px 16px; }
+.fin-ai .fin-ai-markdown { white-space:normal; }
+.fin-ai .fin-ai-markdown p { color:inherit; margin:0 0 12px; }
+.fin-ai .fin-ai-markdown :is(h1,h2,h3,h4,h5,h6) { margin:20px 0 10px; font-weight:650; line-height:1.4; letter-spacing:normal; }
+.fin-ai .fin-ai-markdown h1 { font-size:22px; }
+.fin-ai .fin-ai-markdown h2 { font-size:20px; }
+.fin-ai .fin-ai-markdown h3 { font-size:18px; }
+.fin-ai .fin-ai-markdown :is(h4,h5,h6) { font-size:16px; }
+.fin-ai .fin-ai-markdown :is(ul,ol) { display:block; margin:12px 0; padding-inline-start:24px; }
+.fin-ai .fin-ai-markdown ul { list-style:disc; }
+.fin-ai .fin-ai-markdown ol { list-style:decimal; }
+.fin-ai .fin-ai-markdown li { display:list-item; margin:6px 0; padding:0; }
+.fin-ai .fin-ai-markdown li > :is(ul,ol) { margin:6px 0; }
+.fin-ai .fin-ai-markdown blockquote { margin:12px 0; padding:4px 0 4px 12px; border-inline-start:3px solid var(--ai-accent); color:var(--ai-muted); }
+.fin-ai .fin-ai-markdown code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.875em; padding:2px 5px; border-radius:4px; background:#0003; overflow-wrap:anywhere; }
+.fin-ai .fin-ai-markdown pre { margin:12px 0; padding:12px; border-radius:8px; background:#0003; overflow:auto; white-space:pre; max-width:100%; }
+.fin-ai .fin-ai-markdown pre code { padding:0; background:none; white-space:pre; overflow-wrap:normal; }
+.fin-ai .fin-ai-markdown a { color:var(--ai-accent); text-decoration:underline; text-underline-offset:3px; }
+.fin-ai .fin-ai-markdown hr { margin:16px 0; border:0; border-top:1px solid var(--ai-line); }
+.fin-ai-table { overflow-x:auto; max-width:100%; margin:12px 0; }
+.fin-ai .fin-ai-markdown table { border-collapse:collapse; font-size:13px; text-align:left; width:100%; }
+.fin-ai .fin-ai-markdown :is(th,td) { padding:8px 10px; border:1px solid var(--ai-line); min-width:80px; vertical-align:top; }
+.fin-ai .fin-ai-markdown th { background:#0002; font-weight:600; }
+.fin-ai .fin-ai-markdown input { appearance:auto !important; position:static !important; opacity:1; width:14px; height:14px; margin:0 6px 0 0; accent-color:var(--ai-accent); }
+.fin-ai .fin-ai-markdown > :first-child { margin-top:0; }
+.fin-ai .fin-ai-markdown > :last-child, .fin-ai .fin-ai-markdown blockquote > :last-child { margin-bottom:0; }
 .fin-ai-card { display:grid; grid-template-columns:64px minmax(0,1fr); gap:0 12px; padding:12px; margin-top:12px; background:var(--ai-card); border:1px solid var(--ai-line); border-radius:14px; }
 .fin-ai-poster { position:relative; display:grid; place-items:center; align-self:start; aspect-ratio:2/3; overflow:hidden; border-radius:6px; background:var(--ai-raised); color:var(--ai-muted); }
 .fin-ai-poster img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }

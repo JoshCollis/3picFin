@@ -461,7 +461,7 @@ public sealed class AssistantTests : IDisposable
         Assert.Contains("data-threepic-fin-ai", transformed); Assert.DoesNotContain("data-threepic-fin-adapter", transformed);
         Assert.Equal(transformed, HomeAdapterRegistration.TransformIndex(new JObject { ["contents"] = transformed }, enabled: false, aiEnabled: true));
         var assets = new DiscoveryPageController(() => false, () => false, () => false, () => false, () => false, () => true);
-        foreach (var name in new[] { "assistant.js", "assistant.css", "discovery.js", "discovery.html", "continuous-rail.js" })
+        foreach (var name in new[] { "assistant.js", "assistant.css", "assistant-marked.js", "assistant-purify.js", "discovery.js", "discovery.html", "continuous-rail.js" })
         {
             var asset = Assert.IsType<FileStreamResult>(assets.GetAsset(name)); asset.FileStream.Dispose();
         }

@@ -1,4 +1,4 @@
-/* Account-private, web-wide 3pic Fin concierge. Model text is never HTML or an executable link. */
+/* Account-private concierge. Assistant Markdown is sanitized; user messages remain plain text. */
 (function (global) {
     'use strict';
     const guid = value => typeof value === 'string' && /^(?:[a-f\d]{32}|[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12})$/i.test(value) && !/^0+$/.test(value.replaceAll('-', ''));
@@ -16,6 +16,7 @@
         let flow = null, flowPromise = null, originalLogout = null, logoutWrapper = null;
         let nextCheck = 0, checking = false, loggingOut = false, interval;
         let settingsEpoch = 0;
+        let markdownReady = null, markdownParser = null;
         const styles = [];
         function current(s = session) {
             return !stopped && !!s && session === s && world.ApiClient === s.api &&
@@ -63,6 +64,50 @@
         function style(path) {
             const link = node('link'); link.rel = 'stylesheet'; link.href = session.api.getUrl('3picFin/Web/' + path);
             document.head.appendChild(link); styles.push(link);
+        }
+        async function loadMarkdown(s) {
+            if (!markdownReady) markdownReady = (async () => {
+                for (const [name, file] of [['marked', 'assistant-marked.js'], ['DOMPurify', 'assistant-purify.js']]) {
+                    if (world[name]) continue;
+                    await new Promise((resolve, reject) => {
+                        const script = node('script'); script.src = s.api.getUrl('3picFin/Web/' + file);
+                        script.onload = () => { script.remove(); resolve(); };
+                        script.onerror = () => { script.remove(); reject(Error('Markdown renderer unavailable.')); };
+                        document.head.appendChild(script);
+                    });
+                }
+                const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                markdownParser = new world.marked.Marked({ gfm: true, breaks: false, renderer: {
+                    html: token => escape(token.text),
+                    // Images remain explicit links, avoiding arbitrary model-controlled network fetches.
+                    image: token => '<a href="' + escape(token.href) + '">Image: ' + escape(token.text) + '</a>'
+                } });
+            })().catch(error => { markdownReady = null; throw error; });
+            return markdownReady;
+        }
+        function renderMarkdown(text, parent) {
+            if (!markdownParser || !world.DOMPurify) { parent.textContent = text; return; }
+            try {
+                const fragment = world.DOMPurify.sanitize(markdownParser.parse(text), {
+                    RETURN_DOM_FRAGMENT: true,
+                    ALLOWED_TAGS: ['p','br','strong','em','del','h1','h2','h3','h4','h5','h6','ul','ol','li','blockquote','pre','code','hr','a','table','thead','tbody','tr','th','td','input'],
+                    ALLOWED_ATTR: ['href','title','start','align','type','checked','disabled'], ALLOW_DATA_ATTR: false, ALLOW_ARIA_ATTR: false
+                });
+                for (const a of fragment.querySelectorAll('a')) {
+                    try {
+                        const url = new URL(a.getAttribute('href'));
+                        if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw Error();
+                        a.target = '_blank'; a.rel = 'noopener noreferrer'; a.referrerPolicy = 'no-referrer';
+                    } catch (_) { a.replaceWith(...a.childNodes); }
+                }
+                for (const box of fragment.querySelectorAll('input')) { box.type = 'checkbox'; box.disabled = true; }
+                for (const table of [...fragment.querySelectorAll('table')]) {
+                    const wrapper = node('div', undefined, 'fin-ai-table'); wrapper.tabIndex = 0;
+                    wrapper.setAttribute('role', 'region'); wrapper.setAttribute('aria-label', 'Markdown table');
+                    table.replaceWith(wrapper); wrapper.appendChild(table);
+                }
+                parent.replaceChildren(fragment);
+            } catch (_) { parent.textContent = text; }
         }
         async function request(path, method = 'GET', body, s = session) {
             if (!current(s)) throw Error('Session changed.');
@@ -219,7 +264,10 @@
         function renderMessage(role, text) {
             const entry = node('section', undefined, 'fin-ai-message fin-ai-message--' + role, transcript);
             entry.setAttribute('aria-label', role === 'user' ? 'You' : '3pic Fin');
-            if (text) node('p', text, 'fin-ai-text', entry);
+            if (text) {
+                const bubble = node('div', undefined, 'fin-ai-text' + (role === 'assistant' ? ' fin-ai-markdown' : ''), entry);
+                if (role === 'assistant') renderMarkdown(text, bubble); else bubble.textContent = text;
+            }
             return entry;
         }
         function renderThread() {
@@ -398,6 +446,8 @@
                 const data = await request('Ai/State', 'GET', undefined, s);
                 if (!current(s) || epoch !== settingsEpoch) return;
                 state = data;
+                try { await loadMarkdown(s); } catch (_) { /* Plain text remains usable if a dependency fails. */ }
+                if (!current(s)) return;
                 if (!root) build();
                 root.hidden = hiddenRoute(world.location.hash) || !!document.fullscreenElement;
             } catch (error) { if (current(s) && [401, 403, 404].includes(error.status)) destroy(); }
