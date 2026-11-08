@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>3pic Fin assistant — synthetic browser fixture</title>
+<style>body{margin:0;background:#10151c;color:#ebf1f9;font-family:Arial,sans-serif}main{max-width:900px;margin:8vh auto;padding:32px}h1{font-size:36px;font-weight:500}p{color:#aeb9cb;line-height:1.6}.shelf{display:flex;gap:20px;opacity:.5}.shelf div{width:140px;height:210px;background:#283243;border-radius:8px;display:grid;place-items:center}</style></head>
+<body><main><p>Jellyfin / Movies</p><h1>Your next watch</h1><p>Synthetic test library. No real accounts, provider calls, downloads or media requests.</p><div class="shelf"><div>Science fiction</div><div>Comedy</div><div>Drama</div></div></main>
+<script>
+window.fixture = { user:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', posts:[], ordinaryPosts:[], states:new Map(), holdNext:false, release:null, opened:null };
+const ALICE='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', BOB='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const LOCAL='cccccccccccccccccccccccccccccccc', THREAD='dddddddddddddddddddddddddddddddd', PROPOSAL='eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+const localCard={key:'library:'+LOCAL,title:'Arrival',mediaType:'movie',tmdbId:329865,libraryItemId:LOCAL,date:'2016-11-11',overview:'A linguist tries to understand visitors whose language changes everything. A thoughtful, human science-fiction film.'};
+const remoteCard={key:'tv:95396',title:'Severance',mediaType:'tv',tmdbId:95396,date:'2022-02-18',posterPath:'/fixture.jpg',overview:'A sharply unsettling workplace mystery. Request only the seasons you want; no spoilers here.'};
+function data(user){if(!fixture.states.has(user))fixture.states.set(user,{threads:[],memory:[],personalization:true,learnMemory:true,dailyLimit:50,turnsToday:0});return fixture.states.get(user);}
+function url(path,query){if(path.startsWith('3picFin/Web/'))return '/src/Rowan.Jellyfin.Plugin/Web/'+path.split('/').pop();if(path.startsWith('Items/'))return '/tests/fixtures/assistant-poster.svg';return '/jellyfin/'+path+(query?'?'+new URLSearchParams(query):'');}
+window.ApiClient={getCurrentUserId:()=>fixture.user,accessToken:()=>fixture.user?'fixture-'+fixture.user:null,serverId:()=> 'fixture-server',getUrl:url,
+getJSON:async path=>path.includes('System/Info/Public')?{Version:'12.3.0'}:path.includes('TitleDetails')?{...remoteCard,LibraryStatus:'absent',MediaStatus:1,CanRequest:true,CanRequest4k:false,Seasons:[1,2,3]}:path.includes('RequestOptions')?{CanRequest:true,CanRequest4k:false,Seasons:[2,3]}:path.includes('Discovery')?{Movies:{Items:[]},Tv:{Items:[]},Requests:{Items:[]}}:{},
+ajax:async args=>{fixture.ordinaryPosts.push(JSON.parse(args.data));return {Id:99,Status:1};},logout:async()=>{fixture.user=null;}};
+window.Emby={Page:{showItem:item=>{fixture.opened=item;location.hash='#/details?id='+item.Id;}}};
+const nativeFetch=window.fetch.bind(window);
+window.fetch=async function(path,options={}){
+const endpoint=new URL(path,location.href).pathname; if(!endpoint.startsWith('/jellyfin/3picFin/'))return nativeFetch(path,options);
+const user=(options.headers?.['X-Emby-Token']||'fixture-'+fixture.user).replace('fixture-','');const state=data(user);const body=options.body?JSON.parse(options.body):null;
+const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
+if(endpoint.endsWith('/Ai/State')){if(fixture.failState)return json({error:'State unavailable'},503);const response=json({...state,threads:state.threads.map(({id,title})=>({id,title}))});if(fixture.holdNextState){fixture.holdNextState=false;return new Promise(resolve=>fixture.releaseState=()=>resolve(response));}return response;}
+if(endpoint.endsWith('/Ai/Message')){
+ if(fixture.failMessage)return json({error:'Could not reach the assistant. Try again.'},503);
+ const reply={id:THREAD,title:body.text,messages:[{role:'user',text:body.text},{role:'assistant',text:'Start with Arrival if you want something thoughtful tonight. For a longer watch, Severance is a new option. Confirm the selected seasons below if you want to request them.',cards:[localCard,remoteCard],proposals:[{id:PROPOSAL,card:remoteCard,selection:{mediaType:'tv',mediaId:95396,seasons:[2,3],is4k:false},state:'pending',expiresAt:new Date(Date.now()+600000).toISOString()}]}]};
+ state.threads=[reply];state.turnsToday++;if(fixture.delayMessage){fixture.delayMessage=false;return new Promise(resolve=>fixture.releaseMessage=()=>resolve(json(reply)));}if(fixture.holdNext){fixture.holdNext=false;return new Promise(resolve=>fixture.release=()=>resolve(json({...reply,messages:[{role:'assistant',text:'Alice private delayed reply'}]})));}return json(reply);
+}
+if(endpoint.endsWith('/Ai/Confirm')){fixture.posts.push({user,...body});const thread=state.threads.find(t=>t.id===body.threadId);const p=thread.messages.flatMap(m=>m.proposals||[]).find(p=>p.id===body.proposalId);p.state=body.confirm?'submitted':'cancelled';p.result=body.confirm?'Request recorded in Seerr.':'Cancelled. No request submitted.';return json(thread);}
+if(endpoint.includes('/Ai/Threads/')){if(options.method==='DELETE'){state.threads=[];return json({deleted:true});}return json(state.threads.find(t=>t.id===endpoint.split('/').pop())||{},state.threads.length?200:404);}
+if(endpoint.includes('/Ai/Library/'))return json(localCard);
+if(endpoint.endsWith('/Ai/Settings')){fixture.lastSettings=body;if(fixture.failSettings)return json({error:'Settings unavailable'},503);Object.assign(state,body);if(fixture.loseSettingsResponse)return json({error:'Response lost'},503);return json({personalization:state.personalization,learnMemory:state.learnMemory});}
+if(endpoint.endsWith('/Ai/Memory')){state.memory=[{id:'ffffffffffffffffffffffffffffffff',text:body.text}];return json(state.memory);}
+if(endpoint.includes('/Ai/Memory/')){state.memory=[];return json({deleted:true});}
+if(endpoint.includes('/TitleDetails'))return json({...remoteCard,LibraryStatus:'absent',MediaStatus:1,CanRequest:true,CanRequest4k:false,Seasons:[1,2,3]});
+return json({Error:'Unknown synthetic endpoint'},404);
+};
+location.hash='#/home';
+</script>
+<script src="../../src/Rowan.Jellyfin.Plugin/Web/continuous-rail.js"></script>
+<script src="../../src/Rowan.Jellyfin.Plugin/Web/assistant.js"></script>
+</body></html>

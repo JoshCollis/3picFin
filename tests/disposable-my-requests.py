@@ -51,7 +51,7 @@ def main():
             folder = tmp / 'libraries' / owner / label; folder.mkdir(parents=True)
             subprocess.run(['ffmpeg', '-nostdin', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=160x90:r=1', '-t', '1', '-c:v', 'mpeg4', str(folder / (label + '.mp4'))], check=True)
             if label == 'restricted': (folder / (label + '.nfo')).write_text('<movie><title>restricted</title><mpaa>Rated R</mpaa></movie>')
-        cid = docker('run', '-d', '--user', f'{os.getuid()}:{os.getgid()}', '-p', '127.0.0.1::8096', '-v', f'{tmp}/config:/config', '-v', f'{tmp}/cache:/cache', '-v', f'{tmp}/libraries:/libraries:ro', 'jellyfin/jellyfin:12.1')
+        cid = docker('run', '-d', '--user', f'{os.getuid()}:{os.getgid()}', '-p', '127.0.0.1::8096', '-v', f'{tmp}/config:/config', '-v', f'{tmp}/cache:/cache', '-v', f'{tmp}/libraries:/libraries:ro', 'jellyfin/jellyfin:12.3')
         stub = None
         try:
             base = 'http://127.0.0.1:' + docker('port', cid, '8096/tcp').rsplit(':', 1)[1]

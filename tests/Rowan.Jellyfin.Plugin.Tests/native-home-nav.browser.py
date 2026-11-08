@@ -28,7 +28,7 @@ with sync_playwright() as p:
               loadScript: async () => ({mount: () => ({activate: () => activations++})})});
             if (!await host.mount({pane:document.querySelector('#homeTab'),
               favorites:document.querySelector('#favoritesTab'), apiClient:api,
-              fingerprint:'12.1', userId:user, enabled:true})) throw Error('mount failed');
+              fingerprint:'12.3', userId:user, enabled:true})) throw Error('mount failed');
         }''')
         nav = page.locator('.MuiStack-root > .threepic-fin-host__nav')
         assert nav.count() == 1
@@ -53,7 +53,7 @@ with sync_playwright() as p:
         }''')
         page.evaluate('''async () => host.mount({pane:document.querySelector('#homeTab'),
             favorites:document.querySelector('#favoritesTab'), apiClient:api,
-            fingerprint:'12.1', userId:user, enabled:true})''')
+            fingerprint:'12.3', userId:user, enabled:true})''')
         page.evaluate('host.sync()')
         if nav.get_attribute('aria-pressed') != 'true':
             nav.click()

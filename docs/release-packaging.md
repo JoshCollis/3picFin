@@ -1,6 +1,6 @@
 # Jellyfin plugin catalog
 
-This repository targets **Jellyfin 12.1 / net10.0**. Plugin `3pic Fin` (`bd36ab75-0f4a-49b6-92ef-3a93da040c7a`) has catalog ABI `12.1.0.0`. The release workflow packages the portable Home adapter; it does not install on a server or approve removal of existing UI plugins.
+This repository targets **Jellyfin 12.3 / net10.0**, Controller/Model **12.3.0**, catalog ABI **12.3.0.0**. Plugin `3pic Fin` (`bd36ab75-0f4a-49b6-92ef-3a93da040c7a`) retains its GUID and older catalog entries. There is no separate 12.1 build. The release workflow packages the plugin; it does not install it on a server.
 
 ## Publishing
 
@@ -30,6 +30,6 @@ dotnet run --project tools/VerifyAssembly -- \
 (cd dist && sha256sum -c SHA256SUMS)
 ```
 
-The actual release uses `catalog`'s current manifest as package input rather than `manifest.json` from source. The package ZIP contains DLL and meta.json at root with fixed member times/modes; identical DLL, version, changelog and epoch reproduce the ZIP. Source builds are not asserted bit-for-bit reproducible. Test actual activation and signed-in Home/Favorites/browser behavior in a disposable Jellyfin 12.1 runtime, including customized web, HSS rows, subpaths and mobile, before any live rollout.
+The actual release uses `catalog`'s current manifest as package input rather than `manifest.json` from source. The package ZIP contains DLL and meta.json at root with fixed member times/modes; identical DLL, version, changelog and epoch reproduce the ZIP. Source builds are not asserted bit-for-bit reproducible. Test actual activation and signed-in Home/Favorites/browser behavior in a disposable Jellyfin 12.3 runtime, including customized web, HSS rows, subpaths and mobile, before any live rollout.
 
 Sources: [Jellyfin plugin repository format](https://jellyfin.org/posts/plugin-updates/), [JPRM manifest implementation](https://github.com/oddstr13/jellyfin-plugin-repository-manager/blob/master/jprm/__init__.py).

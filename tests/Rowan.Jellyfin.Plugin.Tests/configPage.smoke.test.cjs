@@ -43,7 +43,7 @@ function setup(config, folders, options = {}) {
         'Enable4kRequests', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'ClearSeerrApiKey', 'GlobalSearchEnabled', 'ClearRadarrApiKey', 'ClearSonarrApiKey', 'NativeGuidePagingEnabled',
         'NativeHomeRowsEnabled', 'NativeRowContinueWatching', 'NativeRowNextUp', 'NativeRowLatestMovies', 'NativeRowLatestShows', 'NativeRowMyMedia', 'NativeRowContinueWatchingNextUp', 'NativeRowCollections', 'NativeRowBecauseYouWatched', 'NativeRowMyRequests',
         'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey', 'RecentlyAddedAll',
-        'RecentlyAddedSelected', 'RecentlyAddedNone'];
+        'RecentlyAddedSelected', 'RecentlyAddedNone', 'AiEnabled', 'AiLegacyTokenLimit', 'AiBaseUrl', 'AiModel', 'AiApiKey', 'ClearAiApiKey', 'AiDailyTurnLimit', 'AiTestButton', 'AiTestStatus'];
     const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
     const page = elements.RowanConfigPage;
     const list = elements.RecentlyAddedLibraries;
@@ -88,6 +88,37 @@ function setup(config, folders, options = {}) {
 }
 
 const folders = [{ Name: '<img src=x onerror=alert(1)>', ItemId: A }, { Name: 'Movies', ItemId: B }];
+
+test('AI is independently opt-in, preserves blank saved keys and snapshots provider settings', async () => {
+    const app = setup({ HomeEnabled: false, DiscoveryPageEnabled: false, RecentlyAddedLibraryIds: null, AiApiKey: 'saved-fixture-key' }, folders);
+    await app.load();
+    assert.equal(app.elements.AiEnabled.checked, false);
+    assert.equal(app.elements.AiApiKey.value, '');
+    assert.equal(app.elements.AiDailyTurnLimit.value, '50');
+    app.elements.AiEnabled.checked = true;
+    app.elements.AiLegacyTokenLimit.checked = true;
+    app.elements.AiBaseUrl.value = 'http://ollama:11434/v1';
+    app.elements.AiModel.value = 'tool-fixture-model';
+    await app.save();
+    assert.equal(app.writes[0].AiApiKey, 'saved-fixture-key');
+    assert.equal(app.writes[0].AiLegacyTokenLimit, true);
+    assert.equal(app.writes[0].HomeEnabled, false);
+    assert.equal(app.writes[0].DiscoveryPageEnabled, false);
+    app.elements.ClearAiApiKey.checked = true;
+    await app.save(); assert.equal(app.writes[1].AiApiKey, null);
+    assert.equal(app.elements.RowanConfigStatus.textContent, 'Configuration saved.');
+});
+test('AI rejects incomplete settings and catches model edits during a pending save', async () => {
+    const pending = deferred();
+    const app = setup({ RecentlyAddedLibraryIds: null }, folders, { update: () => pending.promise });
+    await app.load(); app.elements.AiEnabled.checked = true;
+    await app.save(); assert.equal(app.writes.length, 0);
+    app.elements.AiBaseUrl.value = 'https://provider.test/v1'; app.elements.AiModel.value = 'one';
+    app.form.dispatch('submit'); await app.flush();
+    assert.equal(app.elements.AiModel.disabled, true);
+    app.elements.AiModel.value = 'two'; pending.resolve({}); await app.flush();
+    assert.match(app.elements.RowanConfigError.textContent, /changed during save/);
+});
 
 test('continuous native guide keeps the existing independent opt-in and pending-save contract', async () => {
     assert.match(html, /id="NativeGuidePagingEnabled"/);

@@ -191,21 +191,7 @@ public sealed class DiscoveryController : ControllerBase
     {
         if (!TryUser(out var id)) return Forbid();
         if (!TrySelection(body, out var selection)) return BadRequest("Invalid request selection.");
-        // A uniquely resolved movie in this user's visible library is already available
-        // even when Seerr has not synchronized its media status. Series ID proves no seasons.
-        SeerrFailure? LocalEligibility()
-        {
-            if (selection!.MediaType != "movie") return null;
-            try
-            {
-                var local = (selection.Is4k ? _movie4kResolution : _movieResolution)(id, selection.MediaId);
-                return local.ItemId.HasValue ? SeerrFailure.AlreadyRequested : local.Status == "absent" ? null : SeerrFailure.UpstreamUnavailable;
-            }
-            catch (Exception) { return SeerrFailure.UpstreamUnavailable; }
-        }
-        var localFailure = LocalEligibility();
-        var result = localFailure is not null ? new SeerrCreateResult(null, localFailure) :
-            await _client.CreateRequestAsync(id, selection!, cancellationToken, LocalEligibility).ConfigureAwait(false);
+        var result = await SubmitAsync(_client, id, selection!, _movieResolution, _movie4kResolution, cancellationToken).ConfigureAwait(false);
         return result.Failure switch
         {
             null => Created((string?)null, result.Value),
@@ -215,6 +201,28 @@ public sealed class DiscoveryController : ControllerBase
             SeerrFailure.CsrfUnsupported => StatusCode(StatusCodes.Status502BadGateway, "Seerr CSRF protection is enabled; API-key request creation is unsupported."),
             _ => StatusCode(StatusCodes.Status502BadGateway)
         };
+    }
+
+    /// <summary>One write policy for modal and confirmed assistant requests; Seerr remains the quota authority.</summary>
+    internal static async Task<SeerrCreateResult> SubmitAsync(SeerrClient client, Guid id, CreateSeerrRequest selection,
+        Func<Guid, int, TitleLibraryResolution> movieResolution, Func<Guid, int, TitleLibraryResolution> movie4kResolution, CancellationToken cancellationToken, Func<bool>? allowed = null)
+    {
+        // A uniquely resolved movie in this user's visible library is already available
+        // even when Seerr has not synchronized its media status. Series ID proves no seasons.
+        SeerrFailure? LocalEligibility()
+        {
+            if (allowed is not null && !allowed()) return SeerrFailure.PermissionDenied;
+            if (selection!.MediaType != "movie") return null;
+            try
+            {
+                var local = (selection.Is4k ? movie4kResolution : movieResolution)(id, selection.MediaId);
+                return local.ItemId.HasValue ? SeerrFailure.AlreadyRequested : local.Status == "absent" ? null : SeerrFailure.UpstreamUnavailable;
+            }
+            catch (Exception) { return SeerrFailure.UpstreamUnavailable; }
+        }
+        var localFailure = LocalEligibility();
+        return localFailure is not null ? new(null, localFailure) :
+            await client.CreateRequestAsync(id, selection, cancellationToken, LocalEligibility).ConfigureAwait(false);
     }
 
     private static bool TrySelection(JsonElement body, out CreateSeerrRequest? selection)

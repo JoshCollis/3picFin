@@ -1,7 +1,7 @@
 /* Home host; loaded by the version/structure-gated adapter, never mutates native tabs. */
 (function (global) {
     'use strict';
-    const SUPPORTED_WEB_CONTRACT = '12.1';
+    const SUPPORTED_WEB_CONTRACT = '12.3';
     const field = (item, name) => item?.[name] ?? item?.[name[0].toLowerCase() + name.slice(1)];
     const guid = id => typeof id === 'string' && /^(?:[a-f\d]{32}|[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12})$/i.test(id);
     const defaultFragment = async url => {

@@ -15,9 +15,9 @@ from urllib.parse import urlparse
 GUID = "bd36ab75-0f4a-49b6-92ef-3a93da040c7a"
 NAME = "3pic Fin"
 DLL = "Rowan.Jellyfin.Plugin.dll"
-ABI = "12.1.0.0"  # Minimum ABI: the same DLL is exercised on both 12.1 and 12.3.
+ABI = "12.3.0.0"  # One build/release stream; Jellyfin 12.1 is no longer supported.
 VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\Z")
-DESCRIPTION = "Jellyfin 12.1 and 12.3 Home, discovery and media-request integration."
+DESCRIPTION = "Jellyfin 12.3 Home, discovery and media-request integration."
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 
 
@@ -85,6 +85,7 @@ def merge_catalog(catalog, row, meta):
         catalog.append(entry)
     else:
         require(entry["name"] == NAME, "catalog name mismatch")
+        entry["description"] = meta["description"]
     existing = next((v for v in entry["versions"] if v["version"] == row["version"]), None)
     require(existing is None or existing == row, "published version conflict")
     if existing is None:

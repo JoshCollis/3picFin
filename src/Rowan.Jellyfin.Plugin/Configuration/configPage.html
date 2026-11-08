@@ -51,6 +51,22 @@
 <p class="fin-intro">Choose Home and household features. Reload the client after saving; newly enabled web features may need a Jellyfin restart.</p>
 <form id="RowanConfigForm">
 <details class="fin-section">
+<summary>AI film &amp; TV assistant</summary>
+<div class="fin-section-body">
+<label class="fin-choice"><input id="AiEnabled" type="checkbox" /><span>Enable the floating web assistant</span></label>
+<label class="fin-field" for="AiBaseUrl">OpenAI-compatible API base URL<input id="AiBaseUrl" type="url" placeholder="https://api.openai.com/v1 or http://ollama:11434/v1" autocomplete="off" /></label>
+<label class="fin-field" for="AiModel">Model<input id="AiModel" type="text" placeholder="A model that supports function/tool calling" maxlength="200" autocomplete="off" /></label>
+<label class="fin-field" for="AiApiKey">AI API key<input id="AiApiKey" type="password" autocomplete="new-password" /></label>
+<label class="fin-choice"><input id="ClearAiApiKey" type="checkbox" /><span>Clear saved AI key</span></label>
+<label class="fin-choice"><input id="AiLegacyTokenLimit" type="checkbox" /><span>Use legacy max_tokens (Ollama and older compatible models)</span></label>
+<label class="fin-field" for="AiDailyTurnLimit">AI chat turns per user per UTC day<input id="AiDailyTurnLimit" type="number" min="1" max="1000" step="1" /></label>
+<p class="fin-help">Default off. Requires File Transformation and a tool-capable Chat Completions model. Leave the key blank to retain it; local Ollama may need no key. Use an endpoint reachable from the Jellyfin server, not just your browser. Save first, then test. Seerr powers missing-title discovery and normal user/quota-bound requests; enable Household requests above to answer who requested a title.</p>
+<button id="AiTestButton" type="button">Test saved AI connection &amp; tool support</button>
+<p id="AiTestStatus" class="fin-help" role="status"></p>
+<details class="fin-note"><summary>Privacy, memory and safeguards</summary><p>Disabled for accounts with parental-rating, tag or unrated-content restrictions. The assistant searches all of the signed-in user's visible movie/show libraries. Each account has private saved chats (30 days of inactivity), automatic own-history/favourites/progress personalisation and inspectable, editable taste memory. Users can disable personalisation/learning and delete chats/preferences. Chats and relevant metadata are sent to your chosen provider; its retention policy still applies. Local files and backups remain accessible to the server operator. Provider credentials stay server-side; configure a trusted URL only. Confirm/Cancel poster cards precede all chat requests; existing Seerr permissions, quotas, duplicates, season eligibility and 4K settings are rechecked. Model output cannot confirm requests. Daily chat limits are separate from media quotas. No native mobile/TV app UI is added.</p></details>
+</div>
+</details>
+<details class="fin-section">
 <summary>Native Live TV guide</summary>
 <div class="fin-section-body">
 <label class="fin-choice"><input id="NativeGuidePagingEnabled" type="checkbox" /><span>Continuous native guide with channel search and categories</span></label>
@@ -285,6 +301,8 @@
                 const guidKey = value => value.replaceAll('-', '').toLowerCase();
                 const nativeRowKinds = ['ContinueWatching', 'NextUp', 'LatestMovies', 'LatestShows', 'MyMedia',
                     'ContinueWatchingNextUp', 'Collections', 'BecauseYouWatched', 'MyRequests'];
+                const aiFields = ['AiEnabled', 'AiBaseUrl', 'AiModel', 'AiApiKey', 'AiLegacyTokenLimit', 'AiDailyTurnLimit'];
+                const keyFields = ['AiApiKey', 'SeerrApiKey', 'RadarrApiKey', 'SonarrApiKey'];
                 let ready = false;
                 let saving = false;
                 let libraries = [];
@@ -310,6 +328,7 @@
 
                 function updateControls() {
                     const locked = !ready || saving;
+                    [...aiFields, 'ClearAiApiKey', 'AiTestButton'].forEach(id => { page.querySelector('#' + id).disabled = locked; });
                     page.querySelector('#HomeEnabled').disabled = locked;
                     page.querySelector('#NativeHomeRowsEnabled').disabled = locked;
                     nativeRowKinds.forEach(function (kind) { page.querySelector('#NativeRow' + kind).disabled = locked; });
@@ -425,6 +444,12 @@
                     ]).then(function (results) {
                         if (sequence !== loadSequence) { return; }
                         const config = results[0];
+                        ['AiEnabled', 'AiLegacyTokenLimit'].forEach(id => { page.querySelector('#' + id).checked = config[id] === true; });
+                        ['AiBaseUrl', 'AiModel'].forEach(id => { page.querySelector('#' + id).value = config[id] || ''; });
+                        page.querySelector('#AiDailyTurnLimit').value = String(config.AiDailyTurnLimit ?? 50);
+                        page.querySelector('#AiApiKey').value = '';
+                        page.querySelector('#AiApiKey').placeholder = config.AiApiKey ? 'Saved key — leave blank to keep' : 'No key saved (optional for local Ollama)';
+                        page.querySelector('#ClearAiApiKey').checked = false;
                         const ids = config.RecentlyAddedLibraryIds;
                         if (ids !== null && ids !== undefined && (!Array.isArray(ids) || !ids.every(validId))) {
                             throw new Error('Invalid saved library selection');
@@ -489,6 +514,17 @@
                 });
 
                 form.addEventListener('change', updateLibraryAvailability);
+                page.querySelector('#AiTestButton').addEventListener('click', async function () {
+                    if (!ready || saving) return;
+                    const testButton = page.querySelector('#AiTestButton');
+                    const testStatus = page.querySelector('#AiTestStatus');
+                    testButton.disabled = true; testStatus.textContent = 'Testing saved endpoint and function calling…';
+                    try {
+                        const result = await ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('3picFin/Ai/Test'), dataType: 'json' });
+                        testStatus.textContent = (result?.Ready ?? result?.ready) === true ? 'Connected. The model supports tool calls.' : 'Tool support was not confirmed.';
+                    } catch (_) { testStatus.textContent = 'Test failed. Check saved endpoint, model, key and token-limit setting. The model must support tools.'; }
+                    finally { testButton.disabled = !ready || saving; }
+                });
                 form.addEventListener('submit', function (event) {
                     event.preventDefault();
                     if (saving) { return; }
@@ -540,6 +576,18 @@
                     const heroTrustedFilesystemEnabled = page.querySelector('#HeroTrustedFilesystemEnabled').checked;
                     const discoveryPageEnabled = page.querySelector('#DiscoveryPageEnabled').checked;
                     const sharedRequestsEnabled = page.querySelector('#SharedRequestsEnabled').checked;
+                    const ai = {
+                        AiEnabled: page.querySelector('#AiEnabled').checked,
+                        AiLegacyTokenLimit: page.querySelector('#AiLegacyTokenLimit').checked,
+                        AiBaseUrl: page.querySelector('#AiBaseUrl').value.trim(),
+                        AiModel: page.querySelector('#AiModel').value.trim(),
+                        AiApiKey: page.querySelector('#AiApiKey').value.trim(),
+                        AiDailyTurnLimit: Number(page.querySelector('#AiDailyTurnLimit').value)
+                    };
+                    if (!Number.isInteger(ai.AiDailyTurnLimit) || ai.AiDailyTurnLimit < 1 || ai.AiDailyTurnLimit > 1000 ||
+                        ai.AiEnabled && (!/^https?:\/\//i.test(ai.AiBaseUrl) || !ai.AiModel)) {
+                        showMessage(error, 'Provide a valid AI URL, model and a daily chat limit from 1 to 1000.'); return;
+                    }
                     const seerr = {
                         Enable4kRequests: page.querySelector('#Enable4kRequests').checked,
                         SeerrEnabled: page.querySelector('#SeerrEnabled').checked,
@@ -559,7 +607,7 @@
                     ['RadarrApiKey', 'SonarrApiKey'].forEach(function (id) {
                         downloads[id] = page.querySelector('#' + id).value.trim();
                     });
-                    const clearKeys = Object.fromEntries(['SeerrApiKey', 'RadarrApiKey', 'SonarrApiKey'].map(function (id) {
+                    const clearKeys = Object.fromEntries(keyFields.map(function (id) {
                         return [id, page.querySelector('#Clear' + id).checked];
                     }));
                     const selectedMode = mode.value;
@@ -585,13 +633,14 @@
                         config.HeroLibraryIds = heroIds;
                         config.DiscoveryPageEnabled = discoveryPageEnabled;
                         config.SharedRequestsEnabled = sharedRequestsEnabled;
-                        const savedKeys = Object.fromEntries(['SeerrApiKey', 'RadarrApiKey', 'SonarrApiKey'].map(function (id) { return [id, config[id]]; }));
-                        Object.assign(config, seerr, downloads);
-                        ['SeerrApiKey', 'RadarrApiKey', 'SonarrApiKey'].forEach(function (id) {
+                        const savedKeys = Object.fromEntries(keyFields.map(function (id) { return [id, config[id]]; }));
+                        Object.assign(config, seerr, downloads, ai);
+                        keyFields.forEach(function (id) {
                             config[id] = clearKeys[id] ? null : config[id] || savedKeys[id] || null;
                         });
                         config.RecentlyAddedLibraryIds = selectedIds;
                         submitted = Object.fromEntries(Object.keys(config).filter(function (id) {
+                            if (aiFields.includes(id)) return true;
                             return ['HomeEnabled', 'NativeHomeRowsEnabled', 'NativeHomeRowKinds', 'CombinedPlaybackRowEnabled', 'DiscoverRowEnabled', 'DiscoverMoviesRowEnabled', 'DiscoverTvRowEnabled', 'CombinedPlaybackHideWatched', 'MyRequestsRowEnabled', 'MyRequestsHideWatched', 'CollectionsRowEnabled', 'LiveTvRowEnabled', 'NativeGuidePagingEnabled', 'BecauseYouWatchedRowEnabled', 'BecauseYouWatchedHideWatched', 'HeroTrustedFilesystemEnabled', 'HeroLibraryIds', 'DiscoveryPageEnabled', 'GlobalSearchEnabled', 'Enable4kRequests', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'SharedRequestsEnabled', 'DownloadsEnabled', 'CalendarEnabled', 'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey', 'RecentlyAddedLibraryIds'].includes(id);
                         }).map(function (id) { return [id, config[id]]; }));
                         return ApiClient.updatePluginConfiguration(pluginId, config);
@@ -608,6 +657,8 @@
                             .map(function (checkbox) { return checkbox.value; })
                             .filter(function (id) { return validId(id) && allowed.has(guidKey(id)); });
                         if (page.querySelector('#HomeEnabled').checked !== homeEnabled ||
+                            aiFields.some(id => id === 'AiEnabled' || id === 'AiLegacyTokenLimit' ? page.querySelector('#' + id).checked !== ai[id] :
+                                id === 'AiDailyTurnLimit' ? Number(page.querySelector('#' + id).value) !== ai[id] : page.querySelector('#' + id).value.trim() !== ai[id]) ||
                             page.querySelector('#NativeHomeRowsEnabled').checked !== nativeHomeRowsEnabled ||
                             nativeRowKinds.some(function (kind) { return page.querySelector('#NativeRow' + kind).checked !== nativeHomeRowKinds.includes(kind); }) ||
                             page.querySelector('#CombinedPlaybackRowEnabled').checked !== combinedPlaybackRowEnabled ||
@@ -644,7 +695,7 @@
                                 currentIds.some(function (id, index) { return id !== ids[index]; })))) {
                             showMessage(error, 'Form changed during save; saved values may differ from what is shown. Review and save again.');
                         } else {
-                            ['SeerrApiKey', 'RadarrApiKey', 'SonarrApiKey'].forEach(function (id) {
+                            keyFields.forEach(function (id) {
                                 page.querySelector('#' + id).value = '';
                                 page.querySelector('#' + id).placeholder = persisted[id] ? 'Saved key — leave blank to keep' : 'No key saved';
                                 page.querySelector('#Clear' + id).checked = false;

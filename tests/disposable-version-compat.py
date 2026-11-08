@@ -1,7 +1,7 @@
 """Unchanged Release DLL acceptance on loopback-only disposable Jellyfin.
 
 Requires Docker, ffmpeg, Playwright/Chromium. No production services/credentials.
-Use --image jellyfin/jellyfin:12.1 to recheck the minimum supported runtime.
+The sole supported runtime is Jellyfin 12.3; --image selects a 12.3 distribution.
 Search results are a browser-local Seerr DTO fixture, not an upstream integration test.
 """
 import argparse

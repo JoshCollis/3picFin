@@ -49,7 +49,7 @@ with sync_playwright() as p:
           Promise.resolve({Movies:{Items:[movie]}, Tv:{Items:[]}, Requests:{Items:[]}})};
       window.host = ThreePicFinHomeHost.createHost({document, loadFragment: async () => html,
         loadScript: async () => ThreePicFinDiscovery});
-      if (!await host.mount({pane, favorites, apiClient:api, fingerprint:'12.1', userId:user, enabled:true})) throw Error('host did not mount');
+      if (!await host.mount({pane, favorites, apiClient:api, fingerprint:'12.3', userId:user, enabled:true})) throw Error('host did not mount');
       document.querySelector('.threepic-fin-host__nav').click();
     }""", fragment_html)
     page.locator('#threepic-fin-movies .threepic-fin-discovery__title-button').click()
@@ -93,7 +93,7 @@ with sync_playwright() as p:
             loadFragment: async () => '<div>Discovery</div>',
             loadScript: async route => route.endsWith('static-hero.js')
               ? RowanStaticHero : {mount: () => () => {}}});
-          if (!await host.mount({pane, favorites, apiClient:api, fingerprint:'12.1',
+          if (!await host.mount({pane, favorites, apiClient:api, fingerprint:'12.3',
               userId:identity, enabled:true, heroEnabled:true})) throw Error('mount failed');
         }""")
         page.wait_for_selector('#home > .threepic-fin-host__hero .rowan-static-hero')
@@ -123,7 +123,7 @@ with sync_playwright() as p:
         page.evaluate("""async () => {
           identity = 'bob'; token = 'new-token'; api.getJSON = async route => route === 'Rowan/Home/Hero' ? [] : {};
           await host.mount({pane:document.querySelector('#home'), favorites:document.querySelector('#favorites'),
-            apiClient:api, fingerprint:'12.1', userId:identity, enabled:true, heroEnabled:true});
+            apiClient:api, fingerprint:'12.3', userId:identity, enabled:true, heroEnabled:true});
         }""")
         assert page.locator('#home > .threepic-fin-host__hero').count() == 0
         assert page.locator('link[href="static-hero.css"]').count() == 0

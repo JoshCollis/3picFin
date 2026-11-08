@@ -77,7 +77,7 @@ def main():
         jpeg = tmp / 'backdrop.jpg'
         subprocess.run(['ffmpeg', '-nostdin', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=blue:s=320x180', '-frames:v', '1', '-update', '1', str(jpeg)], check=True)
         cid = docker('run', '-d', '--user', f'{os.getuid()}:{os.getgid()}', '-p', '127.0.0.1::8096',
-                     '-v', f'{tmp}/config:/config', '-v', f'{tmp}/cache:/cache', '-v', f'{tmp}/libraries:/libraries:ro', 'jellyfin/jellyfin:12.1')
+                     '-v', f'{tmp}/config:/config', '-v', f'{tmp}/cache:/cache', '-v', f'{tmp}/libraries:/libraries:ro', 'jellyfin/jellyfin:12.3')
         try:
             base = 'http://127.0.0.1:' + docker('port', cid, '8096/tcp').rsplit(':', 1)[1]
             for _ in range(90):

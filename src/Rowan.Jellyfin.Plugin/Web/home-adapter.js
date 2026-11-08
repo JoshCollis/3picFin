@@ -1,7 +1,7 @@
-/* Portable Jellyfin 12.1/12.3 Home adapter. No distribution-specific fingerprints. */
+/* Jellyfin 12.3 Home adapter. No distribution-specific fingerprints. */
 (function (global) {
     'use strict';
-    const COMPATIBILITY = '12.1'; // Shared structural contract, not the detected server version.
+    const COMPATIBILITY = '12.3'; // Structural contract, not the detected patch version.
     function homeRoute(route) {
         return /^#\/home(?:\?(?:tab=0|fin=1))?$/.test(route || '');
     }
@@ -135,7 +135,7 @@
                     rejected = true; return;
                 }
                 const info = await api.getJSON(api.getUrl('System/Info/Public'));
-                if (!/^12\.(?:1|3)\.\d+(?:\.\d+)?$/.test(info?.Version || '')) { rejected = true; return; }
+                if (!/^12\.3\.\d+(?:\.\d+)?$/.test(info?.Version || '')) { rejected = true; return; }
                 if (!stopped && api === global.ApiClient && api.getCurrentUserId?.() === userId &&
                     homeRoute(global.location.hash) && resolveHomeNodes(uniqueIndexPage()).pane === pane)
                     bundleHash = COMPATIBILITY;

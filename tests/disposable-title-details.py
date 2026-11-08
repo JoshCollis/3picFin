@@ -81,7 +81,7 @@ def main():
                 (folder/'tvshow.nfo').write_text(f'<tvshow><title>{label}</title><uniqueid type="tmdb" default="true">{tmdb}</uniqueid></tvshow>')
                 season = folder/'Season 01'; season.mkdir()
                 video(season/'S01E01.mp4')
-        cid = home.docker('run','-d','--user',f'{os.getuid()}:{os.getgid()}','-p','127.0.0.1::8096','-v',f'{tmp}/config:/config','-v',f'{tmp}/cache:/cache','-v',f'{tmp}/libraries:/libraries:ro','jellyfin/jellyfin:12.1')
+        cid = home.docker('run','-d','--user',f'{os.getuid()}:{os.getgid()}','-p','127.0.0.1::8096','-v',f'{tmp}/config:/config','-v',f'{tmp}/cache:/cache','-v',f'{tmp}/libraries:/libraries:ro','jellyfin/jellyfin:12.3')
         sidecar = None
         try:
             base = 'http://127.0.0.1:' + home.docker('port',cid,'8096/tcp').rsplit(':',1)[1]

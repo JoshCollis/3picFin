@@ -28,7 +28,7 @@ with sync_playwright() as playwright:
             loadScript: async () => ThreePicFinDiscovery });
         const ok = await window.host.mount({ pane: document.querySelector('#home'),
             favorites: document.querySelector('#favorites'), apiClient: window.api,
-            fingerprint: '12.1', userId: 'alice', enabled: true });
+            fingerprint: '12.3', userId: 'alice', enabled: true });
         if (!ok) throw Error('test host failed to mount');
     }""", fragment)
     assert page.evaluate('discoveryCalls.length') == 0

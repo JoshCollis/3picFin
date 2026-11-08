@@ -51,7 +51,7 @@ def main():
             folder.mkdir(parents=True, exist_ok=True)
             subprocess.run(['ffmpeg', '-nostdin', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=160x90:r=1', '-t', '1', '-c:v', 'mpeg4', str(folder / (label + '.mp4'))], check=True)
             (folder / (label + '.nfo')).write_text(f'<movie><title>{label}</title><year>2020</year><genre>Action</genre><studio>Probe Studio</studio><tag>probe</tag></movie>')
-        cid = docker('run', '-d', '--user', f'{os.getuid()}:{os.getgid()}', '-p', '127.0.0.1::8096', '-v', f'{tmp}/config:/config', '-v', f'{tmp}/cache:/cache', '-v', f'{tmp}/libraries:/libraries:ro', 'jellyfin/jellyfin:12.1')
+        cid = docker('run', '-d', '--user', f'{os.getuid()}:{os.getgid()}', '-p', '127.0.0.1::8096', '-v', f'{tmp}/config:/config', '-v', f'{tmp}/cache:/cache', '-v', f'{tmp}/libraries:/libraries:ro', 'jellyfin/jellyfin:12.3')
         try:
             base = 'http://127.0.0.1:' + docker('port', cid, '8096/tcp').rsplit(':', 1)[1]
             for _ in range(90):

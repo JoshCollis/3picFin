@@ -16,7 +16,7 @@ def run_case(browser, enabled, width):
     page.evaluate('''() => {
         window.identity = 'alice'; window.requests = []; window.pending = [];
         window.ApiClient = { getCurrentUserId:()=>identity, getUrl:(path,params)=>'/jellyfin/'+path+(params?'?'+new URLSearchParams(params):''),
-            getJSON:url => url.includes('System/Info/Public') ? Promise.resolve({Version:'12.1.0'}) :
+            getJSON:url => url.includes('System/Info/Public') ? Promise.resolve({Version:'12.3.0'}) :
                 new Promise(resolve => { requests.push(url); pending.push(resolve); }), logout:()=>Promise.resolve() };
         const native = document.querySelector('#native-results');
         const fragment = document.createDocumentFragment();

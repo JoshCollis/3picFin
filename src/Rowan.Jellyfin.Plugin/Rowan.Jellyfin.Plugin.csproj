@@ -3,14 +3,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Rowan.Jellyfin.Plugin</RootNamespace>
     <Nullable>enable</Nullable>
-    <!-- Ship against the minimum supported ABI; CI also compiles against 12.3. -->
-    <JellyfinApiVersion Condition="'$(JellyfinApiVersion)' == ''">12.1.0</JellyfinApiVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Controller" Version="$(JellyfinApiVersion)">
+    <PackageReference Include="Jellyfin.Controller" Version="12.3.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
-    <PackageReference Include="Jellyfin.Model" Version="$(JellyfinApiVersion)">
+    <PackageReference Include="Jellyfin.Model" Version="12.3.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
@@ -21,6 +19,8 @@
     <EmbeddedResource Include="Web/discovery.html" />
     <EmbeddedResource Include="Web/discovery.css" />
     <EmbeddedResource Include="Web/discovery.js" />
+    <EmbeddedResource Include="Web/assistant.js" />
+    <EmbeddedResource Include="Web/assistant.css" />
     <EmbeddedResource Include="Web/continuous-rail.js" />
     <EmbeddedResource Include="Web/home-tab-host.js" />
     <EmbeddedResource Include="Web/home-tab-host.css" />

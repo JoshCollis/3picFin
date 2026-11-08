@@ -47,7 +47,7 @@ with tempfile.TemporaryDirectory(prefix='rowan-live-tv-', dir=scratch) as tmp:
     (settings / 'Rowan.Jellyfin.Plugin.xml').write_text(
         '<PluginConfiguration><HomeEnabled>true</HomeEnabled><LiveTvRowEnabled>true</LiveTvRowEnabled></PluginConfiguration>')
     container = docker('run', '-d', '--user', f'{os.getuid()}:{os.getgid()}', '-p', '127.0.0.1::8096',
-        '-v', f'{config}:/config', '-v', f'{cache}:/cache', 'jellyfin/jellyfin:12.1')
+        '-v', f'{config}:/config', '-v', f'{cache}:/cache', 'jellyfin/jellyfin:12.3')
     try:
         base = 'http://127.0.0.1:' + docker('port', container, '8096/tcp').rsplit(':', 1)[1]
         for _ in range(90):

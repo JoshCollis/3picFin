@@ -22,7 +22,7 @@ with tempfile.TemporaryDirectory(prefix='rowan-shared-', dir=scratch) as tmp:
     (plugins/dll.name).write_bytes(dll.read_bytes())
     settings = conf/'plugins'/'configurations'; settings.mkdir()
     (settings/'Rowan.Jellyfin.Plugin.xml').write_text('<PluginConfiguration><SeerrEnabled>true</SeerrEnabled><SharedRequestsEnabled>true</SharedRequestsEnabled><SeerrBaseUrl>http://127.0.0.1:19876/</SeerrBaseUrl><SeerrApiKey>test-only</SeerrApiKey></PluginConfiguration>')
-    cid = docker('run','-d','--user',f'{os.getuid()}:{os.getgid()}','-p','127.0.0.1::8096','-v',f'{conf}:/config','-v',f'{cache}:/cache','jellyfin/jellyfin:12.1')
+    cid = docker('run','-d','--user',f'{os.getuid()}:{os.getgid()}','-p','127.0.0.1::8096','-v',f'{conf}:/config','-v',f'{cache}:/cache','jellyfin/jellyfin:12.3')
     sidecar = None
     try:
         sidecar = docker('run','-d','--network',f'container:{cid}','--user',f'{os.getuid()}:{os.getgid()}', '-v',f'{root}/tests/disposable-seerr-stub.py:/stub.py:ro','-v',f'{tmp}:/shared','python:3.11-alpine','python','/stub.py')

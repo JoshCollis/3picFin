@@ -13,13 +13,15 @@ public sealed class DiscoveryPageController : ControllerBase
     private readonly Func<bool> _homeEnabled;
     private readonly Func<bool> _heroEnabled;
     private readonly Func<bool> _rowsEnabled;
+    private readonly Func<bool> _aiEnabled;
 
     /// <summary>Jellyfin activation path; no external service or network access.</summary>
     public DiscoveryPageController() : this(() => Plugin.Current?.Configuration.DiscoveryPageEnabled == true,
         () => Plugin.Current?.Configuration.GlobalSearchEnabled == true,
         () => Plugin.Current?.Configuration.HomeEnabled == true,
         () => HomeAdapterRegistration.HeroConfigured(Plugin.Current?.Configuration),
-        () => Plugin.Current?.Configuration is { HomeEnabled: true, NativeHomeRowsEnabled: true, NativeHomeRowKinds.Length: > 0 }) { }
+        () => Plugin.Current?.Configuration is { HomeEnabled: true, NativeHomeRowsEnabled: true, NativeHomeRowKinds.Length: > 0 },
+        () => Plugin.Current?.Configuration.AiEnabled == true) { }
 
     /// <summary>Enables isolated route tests without a live Jellyfin plugin instance.</summary>
     public DiscoveryPageController(Func<bool> enabled) : this(enabled, () => false, () => false, () => false) { }
@@ -34,13 +36,14 @@ public sealed class DiscoveryPageController : ControllerBase
     public DiscoveryPageController(Func<bool> enabled, Func<bool> searchEnabled, Func<bool> homeEnabled, Func<bool> heroEnabled)
         : this(enabled, searchEnabled, homeEnabled, heroEnabled, () => false) { }
 
-    public DiscoveryPageController(Func<bool> enabled, Func<bool> searchEnabled, Func<bool> homeEnabled, Func<bool> heroEnabled, Func<bool> rowsEnabled)
+    public DiscoveryPageController(Func<bool> enabled, Func<bool> searchEnabled, Func<bool> homeEnabled, Func<bool> heroEnabled, Func<bool> rowsEnabled, Func<bool>? aiEnabled = null)
     {
         _enabled = enabled;
         _searchEnabled = searchEnabled;
         _homeEnabled = homeEnabled;
         _heroEnabled = heroEnabled;
         _rowsEnabled = rowsEnabled;
+        _aiEnabled = aiEnabled ?? (() => false);
     }
 
     /// <summary>Returns only allowlisted resources, gated by independent disabled-by-default UI flags.</summary>
@@ -51,14 +54,17 @@ public sealed class DiscoveryPageController : ControllerBase
         var homeAsset = asset is "home-adapter.js" or "home-tab-host.js" or "home-tab-host.css";
         var navAsset = asset is "global-fin-nav.js" or "global-fin-nav.css";
         var heroAsset = asset is "static-hero.js" or "static-hero.css";
-        if (asset == "continuous-rail.js" ? !(_enabled() || _searchEnabled() || _homeEnabled()) :
+        if (asset is "assistant.js" or "assistant.css" ? !_aiEnabled() :
+            asset == "continuous-rail.js" ? !(_enabled() || _searchEnabled() || _homeEnabled() || _aiEnabled()) :
             asset is "native-home-rows.js" or "native-home-rows.css" ? !_homeEnabled() :
             searchAsset ? !_searchEnabled() : heroAsset ? !(_homeEnabled() && _heroEnabled()) :
             navAsset ? !(_enabled() && _homeEnabled()) :
             homeAsset ? !(_enabled() || (_homeEnabled() && (_heroEnabled() || _rowsEnabled()))) :
-            asset is "discovery.html" or "discovery.js" or "discovery.css" ? !(_enabled() || _searchEnabled()) : !_enabled()) return NotFound();
+            asset is "discovery.html" or "discovery.js" or "discovery.css" ? !(_enabled() || _searchEnabled() || _aiEnabled()) : !_enabled()) return NotFound();
         var contentType = asset switch
         {
+            "assistant.js" => "text/javascript; charset=utf-8",
+            "assistant.css" => "text/css; charset=utf-8",
             "global-search-addon.js" => "text/javascript; charset=utf-8",
             "search-adapter.js" => "text/javascript; charset=utf-8",
             "channel-search.js" => "text/javascript; charset=utf-8",

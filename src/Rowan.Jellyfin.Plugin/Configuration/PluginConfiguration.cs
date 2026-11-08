@@ -6,6 +6,16 @@ namespace Rowan.Jellyfin.Plugin.Configuration;
 /// <summary>Saved configuration. A null library selection means all eligible libraries; an empty array means none.</summary>
 public sealed class PluginConfiguration : BasePluginConfiguration
 {
+    /// <summary>Independent server-side assistant opt-in. Requires a tool-capable Chat Completions model.</summary>
+    public bool AiEnabled { get; set; }
+    public string? AiBaseUrl { get; set; }
+    public string? AiApiKey { get; set; }
+    public string? AiModel { get; set; }
+    /// <summary>Ollama and older compatible servers use max_tokens instead of max_completion_tokens.</summary>
+    public bool AiLegacyTokenLimit { get; set; }
+    /// <summary>Separate from Seerr's authoritative media request quotas.</summary>
+    public int AiDailyTurnLimit { get; set; } = 50;
+
     /// <summary>Enable portable Home integration on new installs. Existing saved choices remain unchanged.</summary>
     public bool HomeEnabled { get; set; } = true;
 

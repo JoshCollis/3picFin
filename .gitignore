@@ -7,3 +7,6 @@
 # Workspace-local synthetic browser tooling and evidence
 .qa-tools/
 .qa-venv/
+/output/playwright/
+/playwright-report/
+/test-results/

@@ -100,7 +100,7 @@ public sealed class HomeAdapterRegistration : IHostedService
     public static bool HeroConfigured(PluginConfiguration? config) => HeroPolicy.Enabled(config) &&
         HeroPolicy.TrySelectLibraryIds(config!.HeroLibraryIds, config.HeroLibraryIds ?? [], out var ids) && ids.Count > 0;
 
-    public static bool ShouldInject(PluginConfiguration? config) => config?.GlobalSearchEnabled == true ||
+    public static bool ShouldInject(PluginConfiguration? config) => config?.AiEnabled == true || config?.GlobalSearchEnabled == true ||
         config?.HomeEnabled == true && (config.DiscoveryPageEnabled || HeroConfigured(config) ||
             (config.NativeHomeRowsEnabled && config.NativeHomeRowKinds?.Length > 0));
 
@@ -108,14 +108,16 @@ public sealed class HomeAdapterRegistration : IHostedService
         enabled: Plugin.Current?.Configuration is { } config && config.HomeEnabled &&
             (config.DiscoveryPageEnabled || HeroConfigured(config) ||
                 (config.NativeHomeRowsEnabled && config.NativeHomeRowKinds?.Length > 0)),
-        searchEnabled: Plugin.Current?.Configuration.GlobalSearchEnabled == true);
+        searchEnabled: Plugin.Current?.Configuration.GlobalSearchEnabled == true,
+        aiEnabled: Plugin.Current?.Configuration.AiEnabled == true);
 
-    public static string TransformIndex(JObject input, string? expectedSha256 = null, bool enabled = true, bool searchEnabled = false)
+    public static string TransformIndex(JObject input, string? expectedSha256 = null, bool enabled = true, bool searchEnabled = false, bool aiEnabled = false)
     {
         var html = (string?)input["contents"] ?? string.Empty;
-        if (!enabled && !searchEnabled) return html;
+        if (!enabled && !searchEnabled && !aiEnabled) return html;
         if (html.Contains("data-threepic-fin-adapter", StringComparison.Ordinal) ||
-            html.Contains("data-threepic-fin-search", StringComparison.Ordinal)) return html;
+            html.Contains("data-threepic-fin-search", StringComparison.Ordinal) ||
+            html.Contains("data-threepic-fin-ai", StringComparison.Ordinal)) return html;
         // Only inject a complete, unambiguous HTML document; runtime checks the
         // server/web contract and native Home structure before mounting anything.
         if (!html.Contains("<html", StringComparison.OrdinalIgnoreCase) ||
@@ -134,7 +136,8 @@ public sealed class HomeAdapterRegistration : IHostedService
             "<script data-threepic-fin-global-nav src=\"../3picFin/Web/global-fin-nav.js\"></script>" : string.Empty) +
             (searchEnabled ? "<script data-threepic-fin-channel-search src=\"../3picFin/Web/channel-search.js\"></script>" +
                 "<script data-threepic-fin-search src=\"../3picFin/Web/global-search-addon.js\"></script>" +
-                "<script data-threepic-fin-search-host src=\"../3picFin/Web/search-adapter.js\"></script>" : string.Empty);
+                 "<script data-threepic-fin-search-host src=\"../3picFin/Web/search-adapter.js\"></script>" : string.Empty) +
+            (aiEnabled ? "<script data-threepic-fin-ai src=\"../3picFin/Web/assistant.js\"></script>" : string.Empty);
         return html.Replace(anchor, loader + anchor, StringComparison.Ordinal);
     }
 }

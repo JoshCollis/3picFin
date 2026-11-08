@@ -33,7 +33,7 @@ with sync_playwright() as p:
             loadScript:async path => path.endsWith('static-hero.js') ? RowanStaticHero :
               {mount:()=>{const cleanup=()=>{}; cleanup.activate=()=>{}; return cleanup;}}});
           if (!await host.mount({pane:document.querySelector('#homeTab'), favorites:document.querySelector('#favoritesTab'),
-            apiClient:api, fingerprint:'12.1',userId:user,enabled:true,mode:{DiscoveryEnabled:true,HeroEnabled:true}})) throw Error('mount');
+            apiClient:api, fingerprint:'12.3',userId:user,enabled:true,mode:{DiscoveryEnabled:true,HeroEnabled:true}})) throw Error('mount');
           window.addEventListener('hashchange', () => host.sync());
           window.beforeY = document.querySelector('.sections').getBoundingClientRect().top;
         }''')
@@ -59,7 +59,7 @@ with sync_playwright() as p:
         nav.click()
         page.evaluate('host.dispose()')
         assert page.evaluate('''async () => host.mount({pane:document.querySelector('#homeTab'),
-          favorites:document.querySelector('#favoritesTab'),apiClient:api,fingerprint:'12.1',
+          favorites:document.querySelector('#favoritesTab'),apiClient:api,fingerprint:'12.3',
           userId:user,enabled:true,mode:{DiscoveryEnabled:true,HeroEnabled:true}})''') is True
         assert page.locator('#homeTab > .threepic-fin-host__panel').is_visible()
         page.evaluate('''() => { document.querySelector('.MuiStack-root').outerHTML =

@@ -39,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix='rowan-discover-', dir=scratch) as direc
     settings = conf/'plugins'/'configurations'; settings.mkdir()
     (settings/'Rowan.Jellyfin.Plugin.xml').write_text('<PluginConfiguration><SeerrEnabled>true</SeerrEnabled><SeerrBaseUrl>http://127.0.0.1:19877/</SeerrBaseUrl><SeerrApiKey>disposable-only</SeerrApiKey></PluginConfiguration>')
     (tmp/'libraries'/'alice').mkdir(parents=True); (tmp/'libraries'/'bob').mkdir(parents=True)
-    cid = docker('run','-d','--user',f'{os.getuid()}:{os.getgid()}','-p','127.0.0.1::8096','-v',f'{conf}:/config','-v',f'{cache}:/cache','-v',f'{tmp}/libraries:/libraries:ro','jellyfin/jellyfin:12.1')
+    cid = docker('run','-d','--user',f'{os.getuid()}:{os.getgid()}','-p','127.0.0.1::8096','-v',f'{conf}:/config','-v',f'{cache}:/cache','-v',f'{tmp}/libraries:/libraries:ro','jellyfin/jellyfin:12.3')
     sidecar = None
     try:
         sidecar = docker('run','-d','--network',f'container:{cid}','--user',f'{os.getuid()}:{os.getgid()}', '-v',f'{root}/tests/disposable-discover-stub.py:/stub.py:ro','-v',f'{tmp}:/shared','python:3.11-alpine','python','/stub.py')

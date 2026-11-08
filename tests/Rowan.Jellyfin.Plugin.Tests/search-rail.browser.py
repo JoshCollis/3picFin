@@ -31,7 +31,7 @@ with sync_playwright() as p:
         page.add_script_tag(content=(web / 'global-search-addon.js').read_text())
         page.add_script_tag(content=(web / 'search-adapter.js').read_text())
         page.evaluate('''() => { window.ApiClient={getCurrentUserId:()=> 'alice',getUrl:(p,q)=>'/'+p+(q?'?'+new URLSearchParams(q):''),
-           getJSON:async url=>url.includes('System/Info/Public')?{Version:'12.1.0'}:
+           getJSON:async url=>url.includes('System/Info/Public')?{Version:'12.3.0'}:
            {Items:Array.from({length:20},(_,i)=>({TmdbId:(Number(new URL(url,location.href).searchParams.get('page')||1)-1)*20+i+1,MediaType:'movie',Title:'Title '+i,
             PosterPath:i===1?null:'/poster.jpg'})),TotalPages:6}} }''')
         page.wait_for_selector('.threepic-fin-search__card')

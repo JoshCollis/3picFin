@@ -189,7 +189,7 @@ def cold_search(browser, version, prefix):
                 xhr.onload=resolve;xhr.send();});
         }''', prefix)
         assert page.evaluate('publicResolved') is False
-        expected = [50, 50] if version in ['12.1.0', '12.3.0'] else [800, 100]
+        expected = [50, 50] if version == '12.3.0' else [800, 100]
         assert [r['limit'] for r in requests[-2:]] == expected, requests
         assert [r['header'] for r in requests[-2:]] == ['cold-fetch', 'cold-xhr']
         page.evaluate('resolvePublic();__threePicFinSearchAdapter.dispose()')
@@ -230,7 +230,7 @@ def toolbar_visibility(browser):
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     try:
-        result = [run(browser, version, width) for version, width in [('12.1.0', 390), ('12.3.0', 1280)]]
+        result = [run(browser, '12.3.0', width) for width in [390, 1280]]
         cold = [cold_search(browser, version, prefix) for version in ['12.1.0','12.3.0','12.2.0'] for prefix in ['', '/jellyfin']]
         visibility = toolbar_visibility(browser)
     finally:

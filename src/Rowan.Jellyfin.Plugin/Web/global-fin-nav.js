@@ -90,7 +90,7 @@
                 (async () => {
                     try {
                         const info = await api.getJSON(api.getUrl('System/Info/Public'));
-                        if (!/^12\.(?:1|3)\.\d+(?:\.\d+)?$/.test(info?.Version || '')) return;
+                        if (!/^12\.3\.\d+(?:\.\d+)?$/.test(info?.Version || '')) return;
                         const mode = await api.getJSON(api.getUrl('Rowan/Home/Mode'));
                         if (currentTicket !== ticket || stopped || current !== identity ||
                             api !== global.ApiClient || api.getCurrentUserId?.() !== user) return;
@@ -122,7 +122,7 @@
         const targets = [];
         if (toolbar.length === 1) targets.push({ anchor: toolbar[0].querySelector(':scope > a[href="#/home?tab=1"]'), drawer: false });
         if (drawer) targets.push({ anchor: drawer, drawer: true, favorite: favorites[0] });
-        // TV is a legacy shell in 12.1/12.3, not a hidden MUI desktop toolbar.
+        // TV uses a legacy shell in 12.3, not a hidden MUI desktop toolbar.
         // Never insert a third managed tab: its controller owns the two indexes.
         const suppress = new Set(targets.map(target => target.favorite || target.anchor));
         const pages = [...document.querySelectorAll('#indexPage')].filter(page =>

@@ -156,7 +156,7 @@ def main():
             target = plugins.parent / label; target.mkdir()
             for name in archive.namelist():
                 if '/' not in name and name.endswith(('.dll', '.deps.json')): (target / name).write_bytes(archive.read(name))
-        cid = home.docker('run', '-d', '--user', f'{os.getuid()}:{os.getgid()}', '-p', '127.0.0.1::8096', '-v', f'{tmp}/config:/config', '-v', f'{tmp}/cache:/cache', '-v', f'{tmp}/libraries:/libraries', 'jellyfin/jellyfin:12.1')
+        cid = home.docker('run', '-d', '--user', f'{os.getuid()}:{os.getgid()}', '-p', '127.0.0.1::8096', '-v', f'{tmp}/config:/config', '-v', f'{tmp}/cache:/cache', '-v', f'{tmp}/libraries:/libraries', 'jellyfin/jellyfin:12.3')
         sidecar = None
         try:
             sidecar = home.docker('run', '-d', '--network', f'container:{cid}', '--user', f'{os.getuid()}:{os.getgid()}', '-v', f'{ROOT}/tests/disposable-seerr-stub.py:/stub.py:ro', '-v', f'{tmp}:/shared', 'python:3.11-alpine', 'python', '/stub.py')

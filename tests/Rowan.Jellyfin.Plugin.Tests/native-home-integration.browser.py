@@ -48,7 +48,7 @@ with sync_playwright() as p:
                     { mount: () => { const cleanup = () => {}; cleanup.activate = () => {}; return cleanup; } } });
             window.mount = () => host.mount({ pane: document.querySelector('#homeTab'),
                 favorites: document.querySelector('#favoritesTab'), apiClient: api,
-                fingerprint: '12.1', userId: user, enabled: true });
+                fingerprint: '12.3', userId: user, enabled: true });
         }''', item_id)
         assert page.evaluate('mount()') is True
         assert page.locator('#homeTab > .sections > h2').inner_text() == 'Jellyfin core Home'

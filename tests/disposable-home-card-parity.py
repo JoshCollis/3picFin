@@ -50,7 +50,7 @@ def main():
         subprocess.run(['ffmpeg','-nostdin','-loglevel','error','-f','lavfi','-i','color=c=blue:s=160x90:r=1','-t','1','-c:v','mpeg4',str(source)], check=True)
         subprocess.run(['ffmpeg','-nostdin','-loglevel','error','-f','lavfi','-i','color=c=orange:s=200x300','-frames:v','1',str(film/'poster.jpg')], check=True)
         cid = docker('run','-d','--user',f'{os.getuid()}:{os.getgid()}','-p','127.0.0.1::8096',
-            '-v',f'{tmp}/config:/config','-v',f'{tmp}/cache:/cache','-v',f'{media}:/media:ro','jellyfin/jellyfin:12.1')
+            '-v',f'{tmp}/config:/config','-v',f'{tmp}/cache:/cache','-v',f'{media}:/media:ro','jellyfin/jellyfin:12.3')
         try:
             base = 'http://127.0.0.1:' + docker('port',cid,'8096/tcp').rsplit(':',1)[1]
             for _ in range(90):

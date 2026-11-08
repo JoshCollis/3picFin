@@ -20,7 +20,7 @@ with sync_playwright() as playwright:
     for width in (1280, 390):
         page = browser.new_page(viewport={'width': width, 'height': 800})
         page.set_content(html)
-        page.evaluate('''() => { location.hash='#/home'; window.ApiClient={getCurrentUserId:()=> 'alice',getUrl:p=>p,getJSON:async()=>({Version:'12.1.0',DiscoveryEnabled:true})}; }''')
+        page.evaluate('''() => { location.hash='#/home'; window.ApiClient={getCurrentUserId:()=> 'alice',getUrl:p=>p,getJSON:async()=>({Version:'12.3.0',DiscoveryEnabled:true})}; }''')
         page.add_style_tag(content=(web / 'global-fin-nav.css').read_text())
         page.add_script_tag(content=(web / 'global-fin-nav.js').read_text())
         page.wait_for_function("document.querySelectorAll('.threepic-fin-global-nav').length === 2")

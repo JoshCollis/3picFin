@@ -1,6 +1,6 @@
-# Portable Home adapter (Jellyfin 12.1 and 12.3)
+# Home adapter (Jellyfin 12.3 only)
 
-The 12.3 release pins, unchanged-DLL runtime checks and current acceptance limitations are in [Jellyfin 12.3 compatibility](jellyfin-12.3-compatibility.md). The older 12.1 distribution probes below remain historical evidence, not new 12.3 HSS/theme acceptance.
+The adapter supports [Jellyfin 12.3 only](jellyfin-12.3-compatibility.md), using the `12.3` Home contract. The 12.1 distribution checks below are historical, not current support claims.
 
 The embedded discovery stylesheet URL is resolved through Jellyfin's base-path-aware API client:
 

@@ -34,7 +34,7 @@ class PackageTests(unittest.TestCase):
         before = archive.read_bytes()
         manifest = json.loads((out / "manifest.json").read_text())
         self.assertEqual(manifest[0], json.loads(SOURCE.read_text())[0])
-        self.assertEqual(manifest[1]["versions"][0]["targetAbi"], "12.1.0.0")
+        self.assertEqual(manifest[1]["versions"][0]["targetAbi"], "12.3.0.0")
         self.assertEqual(len(manifest), 2)
         self.run_package("second")
         self.assertEqual(before, (self.dir / "second" / archive.name).read_bytes())
@@ -56,6 +56,19 @@ class PackageTests(unittest.TestCase):
             "--manifest", str(self.dir / "dist/manifest.json"), "--version", "1.2.3.4",
             "--source-url", URL], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
+
+    def test_new_stream_preserves_retired_release_rows(self):
+        self.run_package()
+        catalog = json.loads((self.dir / "dist/manifest.json").read_text())
+        legacy = dict(catalog[1]["versions"][0], version="1.2.3.3", targetAbi="12.1.0.0")
+        catalog[1]["versions"] = [legacy]
+        catalog[1]["description"] = "Retired Jellyfin 12.1 build"
+        self.manifest.write_text(json.dumps(catalog))
+        self.run_package("single-stream")
+        updated = json.loads((self.dir / "single-stream/manifest.json").read_text())[1]
+        self.assertEqual(updated["versions"][0]["targetAbi"], "12.3.0.0")
+        self.assertEqual(updated["versions"][1], legacy)
+        self.assertEqual(updated["description"], "Jellyfin 12.3 Home, discovery and media-request integration.")
 
     def test_preserves_multiple_versions_and_rejects_changed_retry(self):
         self.run_package()

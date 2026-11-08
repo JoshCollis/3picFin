@@ -18,7 +18,7 @@ with sync_playwright() as p:
     page.add_script_tag(content=(web / 'search-adapter.js').read_text())
     page.evaluate('''() => { window.ApiClient = {
         getCurrentUserId: () => 'alice', getUrl: p => '/' + p,
-        getJSON: async url => url.includes('System/Info/Public') ? {Version:'12.1.0'} :
+        getJSON: async url => url.includes('System/Info/Public') ? {Version:'12.3.0'} :
           {Items:[{TmdbId:9,MediaType:'movie',Title:'Seerr title',PosterPath:'/poster.jpg'},
                   {TmdbId:10,MediaType:'tv',Title:'No poster series'}],TotalPages:1}
     }; }''')

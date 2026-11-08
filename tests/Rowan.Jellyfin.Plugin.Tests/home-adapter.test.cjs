@@ -8,7 +8,7 @@ const { createAdapter, resolveHomeNodes } = require('../../src/Rowan.Jellyfin.Pl
 const body = Buffer.from('tested Home distribution');
 const digest = crypto.createHash('sha256').update(body).digest('hex');
 function runtime({ timing = ['https://example.test/jellyfin/web/hometab.abc.chunk.js'],
-    version = '12.1.0', route = '#/home', children, user = 'alice', duplicatePages = false,
+    version = '12.3.0', route = '#/home', children, user = 'alice', duplicatePages = false,
     inactiveCachedPage = false, pageVisible = true } = {}) {
     const source = fs.readFileSync(require.resolve('../../src/Rowan.Jellyfin.Plugin/Web/home-adapter.js'), 'utf8');
     let appended = 0, mounts = 0, disposals = 0, stableMounts = 0, stableDisposals = 0;
@@ -94,13 +94,15 @@ test('silent route exit tears Home down once and ignores subsequent native Searc
     await app.settle(); assert.equal(app.schedules,count);
     app.dispose();
 });
-for (const version of ['12.3.0', '12.3.1', '12.3.0.0', '12.1.1']) {
+for (const version of ['12.3.0', '12.3.1', '12.3.0.0']) {
     test(`supported Jellyfin ${version} mounts the structural Home contract`, async () => {
         const app = runtime({ version }); await app.waitForMounts(1);
         assert.equal(app.appended, 1); app.dispose();
     });
 }
 for (const [name, options] of [
+    ['retired 12.1 runtime', { version: '12.1.0' }],
+    ['retired 12.1 patch runtime', { version: '12.1.1' }],
     ['future minor', { version: '12.4.0' }],
     ['preview release', { version: '12.3.0-rc.1' }],
     ['version suffix', { version: '12.3.0junk' }],

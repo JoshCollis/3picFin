@@ -1,8 +1,8 @@
-/* Jellyfin 12.1/12.3 Search integration. */
+/* Jellyfin 12.3 Search integration. */
 (function (global) {
     'use strict';
     const NATIVE_SEARCH_LIMIT = 50;
-    const SUPPORTED_VERSION = /^12\.(?:1|3)\.\d+(?:\.\d+)?$/;
+    const SUPPORTED_VERSION = /^12\.3\.\d+(?:\.\d+)?$/;
     function cachedSearchCompatibility(api) {
         try {
             // The connection handshake sets this before native Search starts.

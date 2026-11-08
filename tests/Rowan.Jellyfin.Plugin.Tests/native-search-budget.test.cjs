@@ -14,10 +14,10 @@ function fixture(prefix = '/jellyfin') {
 }
 
 test('connection metadata verifies supported versions synchronously and distinguishes unknown from unsupported',()=>{
-    for (const version of ['12.1.0','12.3.0','12.3.1.0']) {
+    for (const version of ['12.3.0','12.3.1.0']) {
         assert.equal(cachedSearchCompatibility({serverVersion:()=>version}),true);
     }
-    for (const version of ['12.2.0','13.0.0','12.3-preview']) {
+    for (const version of ['12.1.0','12.1.1','12.2.0','13.0.0','12.3-preview']) {
         assert.equal(cachedSearchCompatibility({serverVersion:()=>version}),false);
     }
     for (const api of [undefined,{}, {serverVersion:()=>undefined},{serverVersion:()=>''},

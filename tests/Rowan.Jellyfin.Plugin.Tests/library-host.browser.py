@@ -30,7 +30,7 @@ with sync_playwright() as p:
               return Promise.resolve({Movies:{Items:[movie]},Tv:{Items:[tv]},Requests:{Items:[]}});
             }};
           window.host=ThreePicFinHomeHost.createHost({document,loadFragment:async()=>html,loadScript:async()=>ThreePicFinDiscovery});
-          if(!await host.mount({pane:document.querySelector('#home'),favorites:document.querySelector('#favorites'),apiClient:api,fingerprint:'12.1',userId:user,enabled:true}))throw Error('mount failed');
+          if(!await host.mount({pane:document.querySelector('#home'),favorites:document.querySelector('#favorites'),apiClient:api,fingerprint:'12.3',userId:user,enabled:true}))throw Error('mount failed');
           document.querySelector('.threepic-fin-host__nav').click();
         }''',(web/'discovery.html').read_text())
         modal=page.locator('#threepic-fin-details-dialog')

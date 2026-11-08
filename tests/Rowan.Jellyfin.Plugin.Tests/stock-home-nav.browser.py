@@ -26,7 +26,7 @@ with sync_playwright() as p:
             window.api = {getCurrentUserId: () => user, getUrl: path => '/jellyfin/' + path,
                 getJSON: async () => ({DiscoveryEnabled:true, HeroEnabled:false})};
             return host.mount({pane:document.querySelector('#homeTab'), favorites:document.querySelector('#favoritesTab'),
-                apiClient:api, fingerprint:'12.1', userId:user, enabled:true});
+                apiClient:api, fingerprint:'12.3', userId:user, enabled:true});
         }''') is True
         nav = page.locator('.headerTabs > .threepic-fin-host__nav')
         assert nav.count() == 1
@@ -52,7 +52,7 @@ with sync_playwright() as p:
         page.locator('.emby-tab-button').first.evaluate("element => element.classList.remove('emby-tab-button-active')")
         assert page.evaluate('''() => host.mount({pane:document.querySelector('#homeTab'),
             favorites:document.querySelector('#favoritesTab'), apiClient:api,
-            fingerprint:'12.1', userId:user, enabled:true})''') is False
+            fingerprint:'12.3', userId:user, enabled:true})''') is False
         assert page.locator('.threepic-fin-host__nav').count() == 0
         assert page.locator('#homeTab > .sections').is_visible()
         page.close()
