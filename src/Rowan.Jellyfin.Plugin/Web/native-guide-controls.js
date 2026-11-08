@@ -178,6 +178,7 @@ function finCreateGuideController(options) {
             else find('.guide-date-tab-button[data-index="0"]')?.click();
         });
         const field = find('.finGuideSearchInput'), searchForm = find('.finGuideSearch');
+        field.placeholder = 'Search channels';
         find('.finGuideCategory').addEventListener('change', event => setCategory(event.target.value));
         field.addEventListener('input', () => setSearch(field.value));
         searchForm.addEventListener('submit', event => { event.preventDefault(); setSearch(field.value, true); });
@@ -270,6 +271,7 @@ function finCreateGuideController(options) {
         const pct = (Date.now() - gridDate) / 86400000 * 100;
         root.classList.toggle('finGuideHasNow', pct >= 0 && pct < 100);
         root.style.setProperty('--fin-guide-now', pct + '%');
+        find('.finGuideNowMarker')?.setAttribute('aria-label', 'Current time ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     }
     function showNow() {
         const grid = find('.programGrid');
@@ -279,6 +281,16 @@ function finCreateGuideController(options) {
     function rendered(ticket, channels, programs, date) {
         if (!valid(ticket)) return;
         gridDate = date.getTime();
+        const ruler = find('.timeslotHeadersInner');
+        if (ruler && !ruler.querySelector('.finGuideNowMarker')) {
+            const marker = document.createElement('span'); marker.className = 'finGuideNowMarker'; marker.textContent = 'Now'; ruler.appendChild(marker);
+        }
+        for (const header of root.querySelectorAll('.guide-channelHeaderCell')) {
+            if (!header.querySelector('.guideChannelImage,.finGuideChannelFallback')) {
+                const fallback = document.createElement('span'); fallback.className = 'finGuideChannelFallback';
+                fallback.textContent = 'TV'; fallback.setAttribute('aria-hidden', 'true'); header.prepend(fallback);
+            }
+        }
         const rows = [...root.querySelectorAll('.channelPrograms')];
         if (rows[0]) rowHeight = rows[0].getBoundingClientRect().height;
         const before = start * rowHeight, after = Math.max(0, total - start - channels.length) * rowHeight;

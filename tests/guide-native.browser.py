@@ -151,7 +151,7 @@ def intercept(route):
         content_type = 'text/javascript' if path.endswith('.js') else 'text/css' if path.endswith('.css') else 'text/html' if path.endswith('.html') or path == '/web/' else 'application/octet-stream'
         return route.fulfill(status=200, content_type=content_type, body=body)
     if '/Images/' in path:
-        return route.fulfill(content_type='image/svg+xml', body='<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60"><rect width="100" height="60" fill="#327b9d"/></svg>')
+        return route.fulfill(content_type='image/svg+xml', body=(Path(__file__).parent/'Fixtures/guide-channel-logo.svg').read_bytes())
     if path == '/LiveTv/Programs':
         if request.method == 'POST':
             query = {k.lower(): [str(v)] for k, v in request.post_data_json.items()}

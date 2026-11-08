@@ -32,6 +32,14 @@ also have a text/time indicator and an edge marker, rather than a colour-only
 state. Focus uses a high-contrast outline. The header and timeline retain the same
 proportional native day grid.
 
+The labelled Now marker has its own header lane above the time labels, and
+programme text has an opaque surface above the indicator line. Channels without
+logos retain the same logo slot with a neutral TV fallback, so names do not shift.
+The visible search placeholder is concise; its accessible name still describes
+name/number search. Browser geometry checks decode a local SVG logo fixture,
+verify logo/name boxes and the missing-logo variant, and reject Now/time-label
+intersection. These fixture images are not live channel-logo acceptance.
+
 ## Bounded scrolling and lifecycle
 
 The controller moves an overscanned native row window (normally 28 channels,

@@ -76,6 +76,51 @@ def check(page, args, channels, requests, errors, second_user):
         return {rowDrift:Math.abs(r.top-h.top),height:Math.abs(r.height-h.height),cell:Math.abs(r.height-c.height),
           clippedTop:Math.max(0,c.top-text.top),clippedBottom:Math.max(0,text.bottom-c.bottom)};});}''')
     assert all(max(row.values()) < 3 for row in vertical), vertical
+    def visual_geometry():
+        page.wait_for_function('''()=>{const images=Array.from(document.querySelectorAll('.guideChannelImage')).filter(el=>{
+          const r=el.getBoundingClientRect();return r.bottom>0&&r.top<innerHeight;});
+          return images.length&&images.every(el=>getComputedStyle(el).backgroundImage!=='none');}''')
+        result=root.evaluate('''async el=>{
+          const visible=node=>{const r=node.getBoundingClientRect();return r.bottom>0&&r.top<innerHeight;};
+          const headers=Array.from(el.querySelectorAll('.guide-channelHeaderCell')).filter(header=>visible(header.querySelector('.guideChannelImage,.finGuideChannelFallback')));
+          const channels=await Promise.all(headers.map(async header=>{
+            const logo=header.querySelector('.guideChannelImage,.finGuideChannelFallback'),name=header.querySelector('.guideChannelName'),
+              h=header.getBoundingClientRect(),l=logo.getBoundingClientRect(),n=name.getBoundingClientRect();
+            let decoded=null;
+            if(logo.matches('.guideChannelImage')){
+              const image=new Image();image.src=getComputedStyle(logo).backgroundImage.slice(4,-1).replace(/^['"]|['"]$/g,'');
+              await image.decode();decoded=[image.naturalWidth,image.naturalHeight];
+            }
+            return {fallback:logo.matches('.finGuideChannelFallback'),decoded,logo:[l.x,l.y,l.width,l.height],
+              name:[n.x,n.y,n.width,n.height],nameInset:n.x-h.x,separation:n.x-l.right};
+          }));
+          const marker=el.querySelector('.finGuideNowMarker'),m=marker.getBoundingClientRect(),
+            slots=Array.from(el.querySelectorAll('.timeslotHeader')).map(slot=>slot.getBoundingClientRect());
+          const intersections=slots.filter(r=>m.left<r.right&&m.right>r.left&&m.top<r.bottom&&m.bottom>r.top).length;
+          const row=el.querySelector('.channelPrograms'),label=el.querySelector('.guideProgramName'),
+            line=getComputedStyle(row,'::after'),text=getComputedStyle(label),field=el.querySelector('.finGuideSearchInput'),
+            input=getComputedStyle(field),canvas=document.createElement('canvas'),context=canvas.getContext('2d');
+          context.font=input.font;
+          return {channels,nowLabel:marker.getAttribute('aria-label'),marker:[m.x,m.y,m.width,m.height],
+            timeLabelIntersections:intersections,headerClearance:Math.min(...slots.map(r=>r.top))-m.bottom,
+            lineLayer:Number(line.zIndex),textLayer:Number(text.zIndex),textMask:text.backgroundColor,
+            placeholder:field.placeholder,accessibleSearchName:field.getAttribute('aria-label'),
+            placeholderWidth:context.measureText(field.placeholder).width,
+            inputTextWidth:field.clientWidth-parseFloat(input.paddingLeft)-parseFloat(input.paddingRight)};
+        }''')
+        assert result['timeLabelIntersections']==0 and result['headerClearance']>=3, result
+        assert result['nowLabel'].startswith('Current time ')
+        assert result['lineLayer']<result['textLayer'] and result['textMask'] not in ('transparent','rgba(0, 0, 0, 0)'),result
+        assert result['placeholder']=='Search channels' and result['placeholderWidth']<=result['inputTextWidth']
+        assert 'name or number' in result['accessibleSearchName']
+        assert any(c['decoded'] and min(c['decoded'])>0 for c in result['channels']),result
+        assert any(c['fallback'] for c in result['channels']),result
+        assert max(c['nameInset'] for c in result['channels'])-min(c['nameInset'] for c in result['channels'])<1,result
+        assert all(c['logo'][2]>=43.5 and c['logo'][3]>=43.5 and c['name'][2]>=60 and c['separation']>=4 for c in result['channels']),result
+        return result
+
+    visual=visual_geometry()
+    (args.output/'visual-geometry.json').write_text(json.dumps(visual,indent=2))
     root.locator('.finGuideLater').click(); page.wait_for_timeout(150)
     after_alignment = alignment()
     root.locator('.finGuideNow').click(); page.wait_for_timeout(150)
@@ -165,6 +210,8 @@ def check(page, args, channels, requests, errors, second_user):
         page.locator(f'.chkCategory[data-type={kind}]').locator('xpath=..').click()
     page.locator('.formDialog .btnCancel').click(); idle()
     page.wait_for_function('Number(document.querySelector(".tvguide")?.dataset.finGuideTotal)===1879')
+    visual=visual_geometry()
+    (args.output/'visual-geometry.json').write_text(json.dumps(visual,indent=2))
     page.screenshot(path=str(args.output / 'continuous-controls.png'))
     assert all(r['channels'] <= 50 and r.get('restriction') != 'unrestricted' for r in requests if r['kind'] == 'programmes')
     assert all(r['limit'] <= 500 for r in requests if r['kind'] == 'channels')
@@ -186,6 +233,7 @@ def check(page, args, channels, requests, errors, second_user):
               'reverseReadCount':reverse_reads,'traversalSeconds':time.monotonic()-started,
               'alignmentBefore':before_alignment,'alignmentAfterPan':after_alignment,
               'verticalGeometry':{key:max(row[key] for row in vertical) for key in vertical[0]},
+              'visualGeometry':visual,
               'viewport':[args.width,850],'layout':args.layout,'theme':bool(args.theme),'errors':errors,
               'pagerAbsent':True,'nativeSettingsAndDate':True,'routeReturn':True}
     (args.output / 'continuous-result.json').write_text(json.dumps(result,indent=2))
