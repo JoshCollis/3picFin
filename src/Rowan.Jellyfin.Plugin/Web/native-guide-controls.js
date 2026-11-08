@@ -6,7 +6,7 @@ function finCreateGuideController(options) {
     let total = 0, start = 0, returned = 0, heldFocus = null;
     let search = '', searchTimer = null, busy = false, catalogue = null, catalogueApi = null, catalogueUser = null;
     let category = '', categories = null, categoryApi = null, categoryUser = null, categoryExpires = 0;
-    let rowHeight = 112, windowMove = false, movingLeft = 0, movingFocus = null, gridDate = null, nowIntent = false;
+    let rowHeight = 112, windowMove = false, movingLeft = 0, movingFocus = null, gridDate = null;
     let frame = null, clock = null, resize = null, mounted = false;
     const responses = new Map();
     const find = selector => root.querySelector(selector);
@@ -170,13 +170,7 @@ function finCreateGuideController(options) {
         root.addEventListener('keydown', event => boundary(event, ({ ArrowDown: 'down', ArrowUp: 'up', Home: 'home', End: 'end', PageDown: 'pagedown', PageUp: 'pageup' })[event.key]), true);
         if (typeof ResizeObserver !== 'undefined') resize = new ResizeObserver(schedule);
         find('.finGuideRetry').addEventListener('click', () => options.jump(start));
-        find('.finGuideEarlier').addEventListener('click', () => panTime(-1));
-        find('.finGuideLater').addEventListener('click', () => panTime(1));
-        find('.finGuideNow').addEventListener('click', () => {
-            nowIntent = true;
-            if (gridDate && Date.now() >= gridDate && Date.now() < gridDate + 86400000) showNow();
-            else find('.guide-date-tab-button[data-index="0"]')?.click();
-        });
+        syncGutter();
         const field = find('.finGuideSearchInput'), searchForm = find('.finGuideSearch');
         field.placeholder = 'Search channels';
         find('.finGuideCategory').addEventListener('change', event => setCategory(event.target.value));
@@ -230,6 +224,7 @@ function finCreateGuideController(options) {
         if (paused || frame !== null || typeof requestAnimationFrame === 'undefined') return;
         frame = requestAnimationFrame(() => {
             frame = null;
+            syncGutter();
             if (paused || busy || !returned) return;
             const first = Math.floor(position() / rowHeight), visible = Math.ceil((find('.guideVerticalScroller')?.clientHeight || rowHeight) / rowHeight);
             if (first < start + 3 && start > 0 || first + visible > start + returned - 3 && start + returned < total) ensureIndex(first);
@@ -262,9 +257,27 @@ function finCreateGuideController(options) {
         movingFocus = null;
         if (target) { target.focus({ preventScroll: true }); find('.guideVerticalScroller')?.toCenter?.(target, true); }
     }
-    function panTime(direction) {
-        const grid = find('.programGrid'); grid.scrollLeft += direction * grid.clientWidth * .75;
-        find('.timeslotHeaders').scrollLeft = grid.scrollLeft;
+    function syncGutter() {
+        // Measure the native header, not theme-specific generated class names.
+        // Only controls/metadata consume these values; the Guide grid is unchanged.
+        if (typeof document === 'undefined' || !root.getBoundingClientRect) return;
+        const bounds = find('.finGuideToolbar').getBoundingClientRect();
+        const anchors = [...document.querySelectorAll('header [aria-controls="library-view-menu"]'), ...document.querySelectorAll('header a[href="#/"] img'), ...document.querySelectorAll('.skinHeader .headerTop .pageTitle')];
+        for (const anchor of anchors) {
+            const rect = anchor.getBoundingClientRect(), start = rect.left - bounds.left;
+            if (!rect.width || start < 0 || start > bounds.width / 4) continue;
+            const bar = anchor.closest('.padded-right, .MuiToolbar-root');
+            const end = bar ? parseFloat(getComputedStyle(bar).paddingRight) + Math.max(0, bounds.right - bar.getBoundingClientRect().right) : start;
+            root.style.setProperty('--fin-guide-gutter-start', start + 'px');
+            root.style.setProperty('--fin-guide-gutter-end', Math.max(0, Math.min(bounds.width / 4, end)) + 'px');
+            return;
+        }
+        const bar = [...document.querySelectorAll('header .MuiToolbar-root')].find(node => node.getBoundingClientRect().width);
+        if (bar) {
+            const rect = bar.getBoundingClientRect(), style = getComputedStyle(bar);
+            root.style.setProperty('--fin-guide-gutter-start', Math.max(0, rect.left + parseFloat(style.paddingLeft) - bounds.left) + 'px');
+            root.style.setProperty('--fin-guide-gutter-end', Math.max(0, bounds.right - rect.right + parseFloat(style.paddingRight)) + 'px');
+        }
     }
     function updateNow() {
         if (!gridDate || paused) return;
@@ -272,11 +285,6 @@ function finCreateGuideController(options) {
         root.classList.toggle('finGuideHasNow', pct >= 0 && pct < 100);
         root.style.setProperty('--fin-guide-now', pct + '%');
         find('.finGuideNowMarker')?.setAttribute('aria-label', 'Current time ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    }
-    function showNow() {
-        const grid = find('.programGrid');
-        grid.scrollLeft = Math.max(0, (Date.now() - gridDate) / 86400000 * grid.scrollWidth - grid.clientWidth * .15);
-        find('.timeslotHeaders').scrollLeft = grid.scrollLeft; nowIntent = false;
     }
     function rendered(ticket, channels, programs, date) {
         if (!valid(ticket)) return;
@@ -290,7 +298,15 @@ function finCreateGuideController(options) {
                 const fallback = document.createElement('span'); fallback.className = 'finGuideChannelFallback';
                 fallback.textContent = 'TV'; fallback.setAttribute('aria-hidden', 'true'); header.prepend(fallback);
             }
+            const identity = document.createElement('span'); identity.className = 'finGuideChannelIdentity';
+            const name = header.querySelector('.guideChannelName'), number = header.querySelector('.guideChannelNumber');
+            if (name) identity.appendChild(name);
+            if (number) identity.appendChild(number);
+            header.appendChild(identity);
         }
+        for (const date of root.querySelectorAll('.guide-date-tab-button'))
+            date.setAttribute('aria-pressed', String(date.classList.contains('emby-tab-button-active')));
+        syncGutter();
         const rows = [...root.querySelectorAll('.channelPrograms')];
         if (rows[0]) rowHeight = rows[0].getBoundingClientRect().height;
         const before = start * rowHeight, after = Math.max(0, total - start - channels.length) * rowHeight;
@@ -332,7 +348,7 @@ function finCreateGuideController(options) {
                 find('.programGrid').scrollLeft = movingLeft; find('.timeslotHeaders').scrollLeft = movingLeft;
             }
         }
-        windowMove = false; updateNow(); if (nowIntent) showNow();
+        windowMove = false; updateNow();
         const retry = find('.finGuideRetry'); if (retry) retry.hidden = true;
         focusLogical(); schedule();
     }

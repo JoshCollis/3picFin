@@ -2,8 +2,11 @@
 
 The independent, default-off Guide option adds full-catalogue channel name/number
 search, assigned categories, and continuous vertical channel scrolling. There are
-no result-page, page-size, First/Last or Load more controls. Earlier/Now/Later and
-the native date tabs navigate **time**, not channel-result pages.
+no result-page, page-size, First/Last or Load more controls. The compact toolbar
+contains only icon-based channel search/clear and an assigned-category selector.
+The count and live loading status sit in the date-header metadata, outside those
+two controls. Native date tabs and horizontal panning navigate time; no duplicate
+Earlier/Now/Later buttons are added.
 
 The existing configuration key `NativeGuidePagingEnabled` is retained so saved
 settings remain compatible. Its administrator-facing label now describes a
@@ -32,13 +35,24 @@ also have a text/time indicator and an edge marker, rather than a colour-only
 state. Focus uses a high-contrast outline. The header and timeline retain the same
 proportional native day grid.
 
-The labelled Now marker has its own header lane above the time labels, and
-programme text has an opaque surface above the indicator line. Channels without
+The labelled Now marker has its own header lane above the time labels. Programme
+bodies own a consistent inset fill and current-state edge, separate from native
+translated text wrappers; the duration positions and sticky text offsets remain
+native. Thin neutral separators avoid doubled borders while keyboard focus stays
+strong. Channel names and secondary numbers are centered together beside logos.
+Only the controls/metadata gutter is aligned to the measured native header;
+the Guide grid is not inset. The selected date uses one container-level indicator
+and an accessible pressed state instead of separate weekday/day underlines. Channels without
 logos retain the same logo slot with a neutral TV fallback, so names do not shift.
 The visible search placeholder is concise; its accessible name still describes
 name/number search. Browser geometry checks decode a local SVG logo fixture,
 verify logo/name boxes and the missing-logo variant, and reject Now/time-label
 intersection. These fixture images are not live channel-logo acceptance.
+`--refinement` adds irregular/overlapping programme durations, missing EPG and
+native category/current/indicator classes, plus geometry gates for the two-group
+toolbar, native header alignment, centered identities, inset bodies, chevron and
+selected date. Combine it with `--continuous --toolbar-only` for focused visual,
+tail, filtering and lifecycle checks without repeating full-catalogue traversal.
 
 ## Bounded scrolling and lifecycle
 

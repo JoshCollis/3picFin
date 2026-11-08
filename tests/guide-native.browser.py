@@ -32,6 +32,7 @@ parser.add_argument('--search', action='store_true')
 parser.add_argument('--categories', action='store_true', help='Focused assigned-group intersection and toolbar regression')
 parser.add_argument('--toolbar-only', action='store_true', help='Capture toolbar geometry without the scaling benchmark')
 parser.add_argument('--continuous', action='store_true', help='Verify bounded native row windowing, not legacy result pages')
+parser.add_argument('--refinement', action='store_true', help='Mixed programme states and scoped live-screenshot geometry gates')
 parser.add_argument('--theme', type=Path, help='Captured public/custom CSS; not a claim about every deployed plugin')
 parser.add_argument('--route', default='/web/index.html#/livetv?tab=1')
 parser.add_argument('--user-agent')
@@ -114,6 +115,23 @@ def fixture_programs(query):
     result = []
     for channel in ids:
         if not channel:
+            continue
+        if args.refinement:
+            # Deliberately irregular native EPG shapes: clipped ongoing entries,
+            # missing EPG, different text heights, category classes and overlaps.
+            if int(channel,16)==34: continue
+            segments=[(-35,15), (15,120), (120,170), (170,240)]
+            if int(channel,16)%4==0: segments=[(-90,60),(60,120),(120,240)]
+            if int(channel,16)%5==0: segments=[(-15,45),(30,95),(95,240)]
+            for index,(begin,end) in enumerate(segments):
+                a=start+datetime.timedelta(minutes=begin);b=start+datetime.timedelta(minutes=end)
+                result.append({'Id':f'p-{channel}-mixed-{index}','ChannelId':channel,'Name':f'Fixture programme {index+1}',
+                    'Type':'Program','ServerId':SERVER,'StartDate':a.isoformat(),'EndDate':b.isoformat(),
+                    'IsSports':int(channel,16)%3==0,'IsMovie':index==1,'IsKids':index==2,'IsNews':index==3,
+                    'IsSeries':index==0,'IsLive':index==1,'IsPremiere':index==2,'IsHD':index==0,
+                    'EpisodeTitle':'A synthetic episode' if int(channel,16)%4==0 else None,
+                    'Overview':'A representative synopsis with enough text to exercise native sticky content.' if index%2 else None,
+                    'TimerId':'fixture-timer' if index==2 else None})
             continue
         for hour in range(24):
             a = start + datetime.timedelta(hours=hour)

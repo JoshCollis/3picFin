@@ -45,8 +45,11 @@ def check(page, args, channels, requests, errors, second_user):
         return measure()
 
     first = measure()
+    if args.refinement:
+        from guide_refinement_checks import check_refinement
+        check_refinement(page, root, args)
     (args.output/'initial-layout.json').write_text(json.dumps(root.evaluate('''el=>Array.from(el.querySelectorAll('.guideVerticalScroller,.scrollSlider,.channelsContainer,.programGrid')).map(node=>({class:node.className,height:node.getBoundingClientRect().height,scrollHeight:node.scrollHeight,cssHeight:getComputedStyle(node).height,padding:node.style.paddingBottom,contain:getComputedStyle(node).contain,overflow:getComputedStyle(node).overflow}))'''),indent=2))
-    assert root.locator('.guideChannelImage + .guideChannelNumber').count() > 0
+    assert root.locator('.guideChannelImage').count() > 0
     for header in root.locator('.guide-channelHeaderCell').all():
         assert header.locator('.guideChannelName').inner_text().strip()
     assert root.locator('.finGuideSynopsis').count() > 0
@@ -71,7 +74,7 @@ def check(page, args, channels, requests, errors, second_user):
     vertical = root.evaluate('''el=>{
       const rows=Array.from(el.querySelectorAll('.channelPrograms')),headers=Array.from(el.querySelectorAll('.guide-channelHeaderCell'));
       return rows.map((row,i)=>{const r=row.getBoundingClientRect(),h=headers[i].getBoundingClientRect(),
-        cell=row.querySelector('.programCell'),c=cell.getBoundingClientRect(),
+        cell=row.querySelector('.programCell');if(!cell)return {rowDrift:Math.abs(r.top-h.top),height:Math.abs(r.height-h.height),cell:0,clippedTop:0,clippedBottom:0};const c=cell.getBoundingClientRect(),
         text=cell.querySelector('.guideProgramNameText').getBoundingClientRect();
         return {rowDrift:Math.abs(r.top-h.top),height:Math.abs(r.height-h.height),cell:Math.abs(r.height-c.height),
           clippedTop:Math.max(0,c.top-text.top),clippedBottom:Math.max(0,text.bottom-c.bottom)};});}''')
@@ -97,13 +100,13 @@ def check(page, args, channels, requests, errors, second_user):
           const marker=el.querySelector('.finGuideNowMarker'),m=marker.getBoundingClientRect(),
             slots=Array.from(el.querySelectorAll('.timeslotHeader')).map(slot=>slot.getBoundingClientRect());
           const intersections=slots.filter(r=>m.left<r.right&&m.right>r.left&&m.top<r.bottom&&m.bottom>r.top).length;
-          const row=el.querySelector('.channelPrograms'),label=el.querySelector('.guideProgramName'),
-            line=getComputedStyle(row,'::after'),text=getComputedStyle(label),field=el.querySelector('.finGuideSearchInput'),
+          const row=el.querySelector('.channelPrograms'),cell=el.querySelector('.programCell'),
+            line=getComputedStyle(row,'::after'),text=getComputedStyle(cell),body=getComputedStyle(cell,'::before'),field=el.querySelector('.finGuideSearchInput'),
             input=getComputedStyle(field),canvas=document.createElement('canvas'),context=canvas.getContext('2d');
           context.font=input.font;
           return {channels,nowLabel:marker.getAttribute('aria-label'),marker:[m.x,m.y,m.width,m.height],
             timeLabelIntersections:intersections,headerClearance:Math.min(...slots.map(r=>r.top))-m.bottom,
-            lineLayer:Number(line.zIndex),textLayer:Number(text.zIndex),textMask:text.backgroundColor,
+            lineLayer:Number(line.zIndex),textLayer:Number(text.zIndex),textMask:body.backgroundColor,
             placeholder:field.placeholder,accessibleSearchName:field.getAttribute('aria-label'),
             placeholderWidth:context.measureText(field.placeholder).width,
             inputTextWidth:field.clientWidth-parseFloat(input.paddingLeft)-parseFloat(input.paddingRight)};
@@ -121,9 +124,11 @@ def check(page, args, channels, requests, errors, second_user):
 
     visual=visual_geometry()
     (args.output/'visual-geometry.json').write_text(json.dumps(visual,indent=2))
-    root.locator('.finGuideLater').click(); page.wait_for_timeout(150)
+    root.locator('.programGrid').evaluate('el=>{el.scrollLeft+=el.clientWidth*.75;el.dispatchEvent(new Event("scroll"));}')
+    page.wait_for_timeout(150)
     after_alignment = alignment()
-    root.locator('.finGuideNow').click(); page.wait_for_timeout(150)
+    root.locator('.programGrid').evaluate('el=>{el.scrollLeft=0;el.dispatchEvent(new Event("scroll"));}')
+    page.wait_for_timeout(150)
     page.screenshot(path=str(args.output / 'continuous-before-traversal.png'))
     started = time.monotonic()
     indices = [0, len(expected)-1] if args.toolbar_only else range(0, len(expected), first['rows'])
@@ -187,7 +192,7 @@ def check(page, args, channels, requests, errors, second_user):
     old_date = root.locator('.programCell').first.get_attribute('data-startdate')
     root.locator('.guide-date-tab-button').nth(1).click()
     page.wait_for_function('old=>document.querySelector(".programCell")?.dataset.startdate!==old', arg=old_date)
-    root.locator('.finGuideNow').click(); idle()
+    root.locator('.guide-date-tab-button').first.click(); idle()
     page.wait_for_function('old=>document.querySelector(".programCell")?.dataset.startdate===old', arg=old_date)
 
     # Native programme/favourite settings still reset a tail window to the start.

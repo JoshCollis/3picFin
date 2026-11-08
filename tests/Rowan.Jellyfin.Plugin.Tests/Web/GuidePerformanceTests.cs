@@ -115,6 +115,15 @@ public sealed class GuidePerformanceTests
         Assert.DoesNotContain("finGuidePage", result);
         Assert.DoesNotContain("btnPreviousPage", result);
         Assert.DoesNotContain("btnNextPage", result);
+        Assert.DoesNotContain("finGuideEarlier", result);
+        Assert.DoesNotContain("finGuideLater", result);
+        Assert.DoesNotContain("finGuideTime", result);
+        Assert.DoesNotContain("function panTime", result);
+        Assert.DoesNotContain("function showNow", result);
+        Assert.Contains("aria-label=\"Search channels\"", result);
+        Assert.Contains("aria-label=\"Clear channel search\"", result);
+        Assert.Contains("finGuideMeta", result);
+        Assert.Contains("finGuideChannelIdentity", result);
         Assert.Contains("finGuide.rendered(finTicket,e.Items,t.Items,M)", result);
         Assert.Contains("data-scrollevent=\"true\"", result);
         Assert.Contains("finGuideSearchInput", result);
