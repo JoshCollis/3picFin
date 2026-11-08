@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.0.2.5",
+        "changelog": ":sparkles: Add Responses API support for the AI assistant",
+        "targetAbi": "12.3.0.0",
+        "sourceUrl": "https://github.com/JoshCollis/3picFin/releases/download/v1.0.2.5/3pic-fin_1.0.2.5.zip",
+        "checksum": "0efd5f799c5b5bca682ca0f364468f99",
+        "timestamp": "2026-11-08T15:53:53Z"
+      },
+      {
         "version": "1.0.2.4",
         "changelog": ":sparkles: Add AI film and TV assistant, retire Jellyfin 12.1 support",
         "targetAbi": "12.3.0.0",
