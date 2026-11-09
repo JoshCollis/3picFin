@@ -43,7 +43,8 @@ function setup(config, folders, options = {}) {
         'Enable4kRequests', 'SeerrEnabled', 'SeerrBaseUrl', 'SeerrApiKey', 'ClearSeerrApiKey', 'GlobalSearchEnabled', 'ClearRadarrApiKey', 'ClearSonarrApiKey', 'NativeGuidePagingEnabled',
         'NativeHomeRowsEnabled', 'NativeRowContinueWatching', 'NativeRowNextUp', 'NativeRowLatestMovies', 'NativeRowLatestShows', 'NativeRowMyMedia', 'NativeRowContinueWatchingNextUp', 'NativeRowCollections', 'NativeRowBecauseYouWatched', 'NativeRowMyRequests',
         'UpcomingMoviesRowEnabled', 'UpcomingShowsRowEnabled', 'RadarrBaseUrl', 'RadarrApiKey', 'SonarrBaseUrl', 'SonarrApiKey', 'RecentlyAddedAll',
-        'RecentlyAddedSelected', 'RecentlyAddedNone', 'AiEnabled', 'AiLegacyTokenLimit', 'AiBaseUrl', 'AiModel', 'AiApiMode', 'AiReasoningEffort', 'AiApiKey', 'ClearAiApiKey', 'AiDailyTurnLimit', 'AiTestButton', 'AiTestStatus'];
+        'RecentlyAddedSelected', 'RecentlyAddedNone', 'AiEnabled', 'AiLegacyTokenLimit', 'AiBaseUrl', 'AiModel', 'AiApiMode', 'AiReasoningEffort', 'AiApiKey', 'ClearAiApiKey', 'AiDailyTurnLimit', 'AiTestButton', 'AiTestStatus',
+        'DispatcharrEnabled', 'DispatcharrBaseUrl', 'DispatcharrApiKey', 'ClearDispatcharrApiKey', 'DispatcharrSave', 'DispatcharrTest', 'DispatcharrStatus'];
     const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
     const page = elements.RowanConfigPage;
     const list = elements.RecentlyAddedLibraries;
@@ -60,7 +61,11 @@ function setup(config, folders, options = {}) {
     const calls = [];
     const api = {
         getUrl: endpoint => { calls.push(endpoint); return endpoint; },
-        getJSON: async () => { if (options.loadFails) throw Error('library load failed'); return options.getFolders ? options.getFolders() : folders; },
+        getJSON: async endpoint => {
+            if (endpoint === '3picFin/Guide/Dispatcharr') return options.getSource ? options.getSource() : { Enabled:false, BaseUrl:'', HasApiKey:false, Revision:'a'.repeat(32) };
+            if (options.loadFails) throw Error('library load failed'); return options.getFolders ? options.getFolders() : folders;
+        },
+        ajax: async request => options.sourceSave ? options.sourceSave(request) : {},
         getPluginConfiguration: async () => options.getConfig ? options.getConfig() : structuredClone(persisted),
         updatePluginConfiguration: async (_id, updated) => {
             if (options.saveFails) throw Error('save failed');
@@ -74,7 +79,7 @@ function setup(config, folders, options = {}) {
         document: { querySelector: () => page, createElement: tag => new Element(tag) },
         ApiClient: api,
         Dashboard: { showLoadingMsg() {}, hideLoadingMsg() {}, processPluginConfigurationUpdateResult() {} },
-        Promise, Set, Array
+        Promise, Set, Array, URL
     });
     const flush = async () => { for (let i = 0; i < 8; i++) await new Promise(resolve => setImmediate(resolve)); };
     return { elements, list, page, form, writes, calls, flush,
@@ -564,12 +569,50 @@ test('null selects all, names stay text, and all saves null while preserving oth
     assert.equal(app.list.querySelectorAll('input[type="checkbox"]').length, 2);
     assert.equal(app.list.children[0].children[1].textContent, folders[0].Name);
     assert.equal(app.list.children[0].children[0].disabled, true);
-    assert.deepEqual(app.calls, ['Library/VirtualFolders']);
+    assert.deepEqual(app.calls, ['Library/VirtualFolders', '3picFin/Guide/Dispatcharr']);
     app.elements.HomeEnabled.checked = true;
     await app.save();
     assert.equal(app.writes[0].RecentlyAddedLibraryIds, null);
     assert.equal(app.writes[0].Other, 'retained');
     assert.equal(app.writes[0].HomeEnabled, true);
+});
+
+test('Dispatcharr settings never render a secret, lock during save and verify sanitized readback', async () => {
+    let view={Enabled:false,BaseUrl:'http://metadata.invalid/',HasApiKey:true,Revision:'a'.repeat(32)};
+    let finish; const pending=new Promise(resolve=>finish=resolve); let submitted;
+    const app=setup({RecentlyAddedLibraryIds:null},folders,{getSource:async()=>structuredClone(view),sourceSave:async request=>{
+        submitted=JSON.parse(request.data);await pending;
+        view={Enabled:submitted.Enabled,BaseUrl:submitted.BaseUrl,HasApiKey:!submitted.ClearApiKey,Revision:'b'.repeat(32)};return structuredClone(view);
+    }});
+    await app.load();
+    assert.equal(app.elements.DispatcharrApiKey.value,'');
+    assert.match(app.elements.DispatcharrApiKey.placeholder,/Saved key/);
+    app.elements.DispatcharrEnabled.checked=true;
+    app.elements.DispatcharrSave.dispatch('click');await app.flush();
+    assert.equal(submitted.ApiKey,'');assert.equal(submitted.ClearApiKey,false);
+    for(const id of ['DispatcharrEnabled','DispatcharrBaseUrl','DispatcharrApiKey','DispatcharrSave','RowanSaveButton']) assert.equal(app.elements[id].disabled,true,id);
+    finish();await app.flush();
+    assert.equal(app.elements.DispatcharrEnabled.disabled,false);
+    assert.match(app.elements.DispatcharrStatus.textContent,/source saved/);
+    assert.equal(app.elements.DispatcharrApiKey.value,'');
+    app.elements.DispatcharrEnabled.checked=false;app.elements.ClearDispatcharrApiKey.checked=true;
+    app.elements.DispatcharrSave.dispatch('click');await app.flush();
+    assert.equal(submitted.ClearApiKey,true);assert.match(app.elements.DispatcharrApiKey.placeholder,/No key/);
+});
+
+test('Dispatcharr failed readback locks source saving until reload without disabling other settings',async()=>{
+    const view={Enabled:false,BaseUrl:'',HasApiKey:false,Revision:'a'.repeat(32)};
+    const app=setup({RecentlyAddedLibraryIds:null},folders,{getSource:async()=>view,sourceSave:async()=>({...view,Revision:'b'.repeat(32)})});
+    await app.load();app.elements.DispatcharrSave.dispatch('click');await app.flush();
+    assert.equal(app.elements.DispatcharrSave.disabled,true);
+    assert.equal(app.elements.RowanSaveButton.disabled,false);
+    assert.match(app.elements.DispatcharrStatus.textContent,/failed.*Reload/);
+});
+
+test('unavailable optional Dispatcharr settings do not block existing plugin settings',async()=>{
+    const app=setup({RecentlyAddedLibraryIds:null},folders,{getSource:async()=>{throw Error('source unavailable');}});
+    await app.load();assert.equal(app.elements.DispatcharrSave.disabled,true);assert.equal(app.elements.RowanSaveButton.disabled,false);
+    await app.save();assert.equal(app.writes.length,1);
 });
 
 test('selected loads checked IDs and saves only valid available selections', async () => {

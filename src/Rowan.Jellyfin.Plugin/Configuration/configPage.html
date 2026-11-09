@@ -74,6 +74,17 @@
 <div class="fin-section-body">
 <label class="fin-choice"><input id="NativeGuidePagingEnabled" type="checkbox" /><span>Continuous native guide with channel search and categories</span></label>
 <p class="fin-help">Default off. On a compatible native web guide, scroll continuously through channels or search the full catalogue by name/number and assigned category. A bounded row window loads programmes automatically without result-page controls. Channel names stay beside their logos. Native dates, settings, details and playback actions remain available. Unsupported guide shapes and native Android TV are unchanged. Requires File Transformation and a fresh client document after saving.</p>
+<fieldset>
+<legend>Optional Dispatcharr assigned categories</legend>
+<label class="fin-choice"><input id="DispatcharrEnabled" type="checkbox" /><span>Read category metadata from Dispatcharr (default off)</span></label>
+<label class="fin-field" for="DispatcharrBaseUrl">Trusted management base URL<input id="DispatcharrBaseUrl" type="url" autocomplete="off" maxlength="2048" /></label>
+<label class="fin-field" for="DispatcharrApiKey">Server-only API key<input id="DispatcharrApiKey" type="password" autocomplete="new-password" maxlength="512" /></label>
+<label class="fin-choice"><input id="ClearDispatcharrApiKey" type="checkbox" /><span>Clear saved key (disable source first)</span></label>
+<p class="fin-help">Independent of Home and M3U categories. Save these source settings separately, then test. Blank key keeps the saved secret; it is never read back to the browser. Use the trusted management URL, never a channel playback URL. Reads only native channel/group metadata; joins verified UUIDs to existing authorized HDHomeRun channel IDs. Does not create, import, refresh or alter any tuner/channel, or fetch streams. Configure HTTPS or a trusted internal network.</p>
+<button id="DispatcharrSave" type="button" disabled>Save category source</button>
+<button id="DispatcharrTest" type="button" disabled>Test saved metadata source</button>
+<p id="DispatcharrStatus" class="fin-help" role="status">Loading category source settings…</p>
+</fieldset>
 </div>
 </details>
 <details class="fin-section" open>
@@ -306,6 +317,8 @@
                     'ContinueWatchingNextUp', 'Collections', 'BecauseYouWatched', 'MyRequests'];
                 const aiFields = ['AiEnabled', 'AiBaseUrl', 'AiModel', 'AiApiMode', 'AiReasoningEffort', 'AiApiKey', 'AiLegacyTokenLimit', 'AiDailyTurnLimit'];
                 const keyFields = ['AiApiKey', 'SeerrApiKey', 'RadarrApiKey', 'SonarrApiKey'];
+                const dispatcharrFields = ['DispatcharrEnabled', 'DispatcharrBaseUrl', 'DispatcharrApiKey', 'ClearDispatcharrApiKey', 'DispatcharrSave', 'DispatcharrTest'];
+                let dispatcharrView = null, sourceBusy = false;
                 let ready = false;
                 let saving = false;
                 let libraries = [];
@@ -330,7 +343,8 @@
                 }
 
                 function updateControls() {
-                    const locked = !ready || saving;
+                    const locked = !ready || saving || sourceBusy;
+                    dispatcharrFields.forEach(id => { page.querySelector('#' + id).disabled = locked || !dispatcharrView; });
                     [...aiFields, 'ClearAiApiKey', 'AiTestButton'].forEach(id => { page.querySelector('#' + id).disabled = locked; });
                     page.querySelector('#HomeEnabled').disabled = locked;
                     page.querySelector('#NativeHomeRowsEnabled').disabled = locked;
@@ -437,16 +451,20 @@
                 page.addEventListener('pageshow', function () {
                     const sequence = ++loadSequence;
                     ready = false;
+                    dispatcharrView = null;
                     updateControls();
                     showMessage(error, '');
                     showMessage(status, '');
                     Dashboard.showLoadingMsg();
                     Promise.all([
                         ApiClient.getPluginConfiguration(pluginId),
-                        ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders'))
+                        ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders')),
+                        ApiClient.getJSON(ApiClient.getUrl('3picFin/Guide/Dispatcharr')).catch(() => null)
                     ]).then(function (results) {
                         if (sequence !== loadSequence) { return; }
                         const config = results[0];
+                        try { renderDispatcharr(results[2]); }
+                        catch (_) { dispatcharrView = null; page.querySelector('#DispatcharrStatus').textContent = 'Category source settings unavailable. Reload to retry; other plugin settings are unchanged.'; }
                         ['AiEnabled', 'AiLegacyTokenLimit'].forEach(id => { page.querySelector('#' + id).checked = config[id] === true; });
                         ['AiBaseUrl', 'AiModel'].forEach(id => { page.querySelector('#' + id).value = config[id] || ''; });
                         page.querySelector('#AiApiMode').value = config.AiApiMode ?? 'auto';
@@ -519,6 +537,48 @@
                 });
 
                 form.addEventListener('change', updateLibraryAvailability);
+                function renderDispatcharr(view) {
+                    if (!view || typeof view.Enabled !== 'boolean' || typeof view.HasApiKey !== 'boolean' || typeof view.BaseUrl !== 'string' || !/^[a-f0-9]{32}$/.test(view.Revision)) throw Error('Invalid source settings');
+                    dispatcharrView = view;
+                    page.querySelector('#DispatcharrEnabled').checked = view.Enabled;
+                    page.querySelector('#DispatcharrBaseUrl').value = view.BaseUrl;
+                    page.querySelector('#DispatcharrApiKey').value = '';
+                    page.querySelector('#DispatcharrApiKey').placeholder = view.HasApiKey ? 'Saved key — leave blank to keep' : 'No key saved';
+                    page.querySelector('#ClearDispatcharrApiKey').checked = false;
+                    page.querySelector('#DispatcharrStatus').textContent = view.Enabled ? 'Source enabled. Test saved metadata capability.' : 'Source disabled. Existing M3U categories are unchanged.';
+                }
+                page.addEventListener('pagehide', function () { ++loadSequence; ready = false; updateControls(); });
+                page.querySelector('#DispatcharrSave').addEventListener('click', async function () {
+                    if (!ready || saving || sourceBusy || !dispatcharrView) return;
+                    const sequence = loadSequence, label = page.querySelector('#DispatcharrStatus');
+                    const body = { Enabled: page.querySelector('#DispatcharrEnabled').checked,
+                        BaseUrl: page.querySelector('#DispatcharrBaseUrl').value.trim(), ApiKey: page.querySelector('#DispatcharrApiKey').value,
+                        ClearApiKey: page.querySelector('#ClearDispatcharrApiKey').checked, Revision: dispatcharrView.Revision };
+                    sourceBusy = true; updateControls(); label.textContent = 'Saving category source…';
+                    try {
+                        const saved = await ApiClient.ajax({type:'POST',url:ApiClient.getUrl('3picFin/Guide/Dispatcharr'),contentType:'application/json',data:JSON.stringify(body),dataType:'json'});
+                        const readback = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Guide/Dispatcharr'));
+                        if (sequence !== loadSequence) return;
+                        if (['Enabled','BaseUrl','HasApiKey','Revision'].some(id => readback[id] !== saved[id]) || readback.Enabled !== body.Enabled ||
+                            readback.BaseUrl !== (body.BaseUrl ? new URL(body.BaseUrl).href.replace(/\/+$/, '') + '/' : '') ||
+                            readback.HasApiKey !== (body.ClearApiKey ? false : !!body.ApiKey || dispatcharrView.HasApiKey) ||
+                            page.querySelector('#DispatcharrEnabled').checked !== body.Enabled || page.querySelector('#DispatcharrBaseUrl').value.trim() !== body.BaseUrl ||
+                            page.querySelector('#DispatcharrApiKey').value !== body.ApiKey || page.querySelector('#ClearDispatcharrApiKey').checked !== body.ClearApiKey)
+                            throw Error('Source readback mismatch');
+                        renderDispatcharr(readback); label.textContent = 'Category source saved. Test metadata, then retry categories in the guide.';
+                    } catch (_) { if (sequence === loadSequence) { dispatcharrView = null; label.textContent = 'Source save/readback failed or settings changed. Reload before saving again.'; } }
+                    finally { sourceBusy = false; updateControls(); }
+                });
+                page.querySelector('#DispatcharrTest').addEventListener('click', async function () {
+                    if (!ready || saving || sourceBusy) return;
+                    const sequence = loadSequence, label = page.querySelector('#DispatcharrStatus');
+                    sourceBusy = true; updateControls(); label.textContent = 'Reading saved channel/group metadata…';
+                    try {
+                        const result = await ApiClient.getJSON(ApiClient.getUrl('3picFin/Guide/Dispatcharr/Test'));
+                        if (sequence === loadSequence) label.textContent = result?.Ready === true ? 'Metadata connected. Existing channel UUIDs must also match before categories appear.' : 'Metadata capability was not confirmed.';
+                    } catch (_) { if (sequence === loadSequence) label.textContent = 'Metadata unavailable. Check saved URL/key and Dispatcharr support; retry in a few seconds.'; }
+                    finally { sourceBusy = false; updateControls(); }
+                });
                 page.querySelector('#AiTestButton').addEventListener('click', async function () {
                     if (!ready || saving) return;
                     const testButton = page.querySelector('#AiTestButton');
@@ -532,7 +592,7 @@
                 });
                 form.addEventListener('submit', function (event) {
                     event.preventDefault();
-                    if (saving) { return; }
+                    if (saving || sourceBusy) { return; }
                     if (!ready) {
                         showMessage(error, 'Wait for configuration and libraries to load before saving.');
                         return;

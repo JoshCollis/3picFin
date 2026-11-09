@@ -21,8 +21,9 @@
 .tvguide .finGuideMeta { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem 1rem; min-height:32px; padding:0 var(--fin-guide-gutter-end) 0 var(--fin-guide-gutter-start); box-sizing:border-box; font-size:.94rem; }
 .tvguide .finGuideRange { color:var(--fin-guide-secondary); white-space:nowrap; }
 .tvguide .finGuideState { flex:1; min-width:10rem; min-height:1.5rem; line-height:1.5; }
-.tvguide .finGuideRetry { min-height:44px; padding:.4rem .75rem; border:1px solid #626b77; border-radius:.35rem; background:transparent; color:inherit; font:inherit; }
-.tvguide .finGuideRetry[hidden] { display:none; }
+.tvguide :is(.finGuideRetry,.finGuideCategoryRetry) { min-height:44px; padding:.4rem .75rem; border:1px solid #626b77; border-radius:.35rem; background:transparent; color:inherit; font:inherit; }
+.tvguide :is(.finGuideRetry,.finGuideCategoryRetry)[hidden] { display:none; }
+.tvguide .finGuideCategoryState:not(:empty) { flex-basis:100%; color:var(--fin-guide-secondary); }
 .tvguide.finGuideContinuous .tvGuideHeader { margin:0; background:var(--fin-guide-surface); }
 .tvguide.finGuideContinuous .guideHeaderDateSelection { font-size:1rem; padding:.15rem 0 .35rem; }
 .tvguide.finGuideContinuous .guide-date-tab-button { position:relative; min-height:48px; font-size:1rem; border-radius:.35rem; text-decoration:none !important; }

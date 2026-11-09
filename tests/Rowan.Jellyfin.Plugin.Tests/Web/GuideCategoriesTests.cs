@@ -71,4 +71,33 @@ public sealed class GuideCategoriesTests
         }
         finally { File.Delete(file); Directory.Delete(directory); }
     }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(",\"ChannelGroup\":null")]
+    [InlineData(",\"ChannelGroup\":\"\"")]
+    public async Task HdhrOnlyWithoutAssignedGroupsCannotBeFixedByAllowingAnotherTunerType(string groupField)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "fin-category-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var host = new TunerHostInfo { Id = Guid.NewGuid().ToString("N"), Type = "hdhomerun" };
+        var file = Path.Combine(directory, host.Id + "_channels");
+        try
+        {
+            // Synthetic reproduction of a 594-channel HDHR inventory, not household mappings.
+            var inventory = Enumerable.Range(1, 594).Select(i => "{\"Id\":\"hdhr_" + i +
+                "\",\"TunerHostId\":\"" + host.Id + "\",\"Tags\":[\"Not an assigned group\"]" + groupField + "}");
+            await File.WriteAllTextAsync(file, "[" + string.Join(",", inventory) + "]");
+            await Assert.ThrowsAsync<InvalidDataException>(() => GuideCategoryPolicy.ReadCache(directory, [host], CancellationToken.None));
+
+            // Merely widening the tuner allowlist still cannot manufacture group metadata.
+            host.Type = "m3u";
+            var assignments = await GuideCategoryPolicy.ReadCache(directory, [host], CancellationToken.None);
+            Assert.Equal(594, assignments.Length);
+            Assert.All(assignments, row => Assert.Equal("", row.Name));
+            var visible = assignments.Select(row => new GuideCategoryChannel(Guid.NewGuid(), row.ExternalId));
+            Assert.Empty(GuideCategoryPolicy.Select(visible, assignments).Items);
+        }
+        finally { File.Delete(file); Directory.Delete(directory); }
+    }
 }

@@ -33,29 +33,45 @@ function finCreateGuideController(options) {
             ticket.api === options.getApi() && !!ticket.user && ticket.api.getCurrentUserId() === ticket.user;
     }
     function clearPending() { if (pending) { pending.resolve(null); pending = null; } }
+    function categoryFeedback(message, loading = false) {
+        const label = find('.finGuideCategoryState'); if (label) label.textContent = message;
+        const retry = find('.finGuideCategoryRetry');
+        if (retry) { retry.hidden = !message || loading; retry.disabled = loading; }
+        const select = find('.finGuideCategory');
+        if (select) { select.setAttribute('aria-busy', String(loading)); select.setAttribute('aria-description', message || 'Assigned channel groups'); if (loading) select.disabled = true; }
+    }
+    function clearCategoryOptions() {
+        const select = find('.finGuideCategory');
+        if (select) {
+            select.replaceChildren(); const all = document.createElement('option');
+            all.value = ''; all.textContent = 'All categories'; select.appendChild(all); select.disabled = true;
+        }
+    }
     async function channelPage(entry) {
         const { api, ticket } = entry;
         if (categoryApi !== api || categoryUser !== ticket.user) {
             categories = null; categoryExpires = 0; categoryApi = api; categoryUser = ticket.user;
         }
         if (!categories || Date.now() >= categoryExpires) {
+            categoryFeedback('Loading categories…', true);
             let data;
             try { data = await api.getJSON(api.getUrl('3picFin/Guide/Categories')); }
             catch (_) { data = null; }
             if (!valid(ticket)) return null;
             const groups = new Map();
-            let members = 0;
+            let members = 0; const seen = new Set();
             try {
-                if (data?.Available !== true || data.Source !== 'jellyfin-m3u-group-title-cache' || !Array.isArray(data.Items) || data.Items.length > 256) throw Error();
+                if (data?.Available !== true || !['jellyfin-m3u-group-title-cache', 'jellyfin-assigned-channel-groups'].includes(data.Source) || !Array.isArray(data.Items) || data.Items.length > 256) throw Error();
                 for (const group of data.Items) {
                     if (!/^group-[a-f0-9]{64}$/.test(group.Id) || groups.has(group.Id) || typeof group.Name !== 'string' ||
-                        !group.Name.trim() || group.Name.length > 200 || !Array.isArray(group.ChannelIds) || (members += group.ChannelIds.length) > 10000 ||
-                        group.ChannelIds.some(id => !/^[a-f0-9]{32}$/.test(id))) throw Error();
+                        !group.Name.trim() || group.Name.length > 200 || /[\x00-\x1f\x7f]/.test(group.Name) || group.Name.includes('://') ||
+                        !Array.isArray(group.ChannelIds) || (members += group.ChannelIds.length) > 10000 ||
+                        group.ChannelIds.some(id => { if (!/^[a-f0-9]{32}$/.test(id) || seen.has(id)) return true; seen.add(id); return false; })) throw Error();
                     groups.set(group.Id, { name: group.Name, ids: new Set(group.ChannelIds) });
                 }
                 categories = groups;
             } catch (_) { categories = new Map(); }
-            categoryExpires = Date.now() + 60000;
+            categoryExpires = Date.now() + (categories.size ? 30000 : 5000);
             const select = find('.finGuideCategory');
             if (select) {
                 select.replaceChildren();
@@ -69,6 +85,10 @@ function finCreateGuideController(options) {
                 select.value = ticket.category; select.disabled = !categories.size && !ticket.category;
                 select.title = categories.size ? 'Assigned channel groups' : 'Assigned categories unavailable; all visible channels remain searchable';
             }
+            categoryFeedback(ticket.category && !categories.has(ticket.category) ? 'Selected category unavailable. Choose All or retry categories.' :
+                categories.size ? '' : data?.Available === true && Array.isArray(data.Items) && !data.Items.length ?
+                    'No assigned categories for these channels. All channels remain searchable.' :
+                    'Categories unavailable. All channels remain searchable. Retry or ask an administrator to check the assigned-group source.');
         }
         if (!valid(ticket)) return null;
         // Missing/stale/ambiguous selected groups must never widen silently to All.
@@ -135,7 +155,9 @@ function finCreateGuideController(options) {
         if (mounted && clock === null) clock = setInterval(updateNow, 60000);
         resize?.observe(find('.guideVerticalScroller'));
         const api = options.getApi();
-        if (identity && (identity.api !== api || identity.user !== api.getCurrentUserId())) { category = ''; responses.clear(); }
+        if (identity && (identity.api !== api || identity.user !== api.getCurrentUserId())) {
+            category = ''; categories = null; responses.clear(); clearCategoryOptions(); categoryFeedback('Loading categories…', true);
+        }
         identity = { api, user: api.getCurrentUserId(), revision, search, category };
         lock(true);
         return identity;
@@ -144,6 +166,7 @@ function finCreateGuideController(options) {
         ++revision; paused = true; heldFocus = null; clearPending();
         if (searchTimer !== null) clearTimeout(searchTimer);
         searchTimer = null; catalogue?.dispose(); catalogue = null; categories = null; lock(true);
+        clearCategoryOptions(); categoryFeedback('', true);
         responses.clear(); resize?.disconnect();
         if (clock !== null) clearInterval(clock); clock = null;
         if (frame !== null) cancelAnimationFrame(frame); frame = null;
@@ -170,6 +193,9 @@ function finCreateGuideController(options) {
         root.addEventListener('keydown', event => boundary(event, ({ ArrowDown: 'down', ArrowUp: 'up', Home: 'home', End: 'end', PageDown: 'pagedown', PageUp: 'pageup' })[event.key]), true);
         if (typeof ResizeObserver !== 'undefined') resize = new ResizeObserver(schedule);
         find('.finGuideRetry').addEventListener('click', () => options.jump(start));
+        find('.finGuideCategoryRetry')?.addEventListener('click', () => {
+            categories = null; categoryExpires = 0; windowMove = false; responses.clear(); categoryFeedback('Loading categories…', true); begin(); options.jump(0);
+        });
         syncGutter();
         const field = find('.finGuideSearchInput'), searchForm = find('.finGuideSearch');
         field.placeholder = 'Search channels';
@@ -362,7 +388,7 @@ function finCreateGuideController(options) {
     return { begin, read, valid, update, windowSize, ensureIndex, rendered, mount, pause, setSearch, setCategory,
         loading(show) { if (!windowMove) show(); },
         reset() { windowMove = false; movingFocus = null; resetPosition(); },
-        focusProgramOnRender(nativeFocus) { return nativeFocus && !windowMove && (typeof document === 'undefined' || !document.activeElement?.closest('.finGuideSearch, .finGuideCategoryLabel')); },
+        focusProgramOnRender(nativeFocus) { return nativeFocus && !windowMove && (typeof document === 'undefined' || !document.activeElement?.closest('.finGuideSearch, .finGuideCategoryLabel, .finGuideCategoryRetry')); },
         finish,
         needsRefresh() { return paused || !identity || identity.api !== options.getApi() || identity.user !== identity.api.getCurrentUserId(); }
     };

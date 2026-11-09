@@ -90,8 +90,9 @@ search and native guide settings before counting/windowing. Clear removes search
 not the selected category. Filter changes reset to the first logical channel.
 Missing selected categories fail closed instead of silently widening to All.
 
-Categories come from imported M3U `group-title` cache data, not programme genres
-or guessed country/name rules. The authenticated categories endpoint retains its
+Categories come from imported M3U `group-title` cache data, or the independent,
+default-off Dispatcharr metadata adapter below, not programme genres or guessed
+country/name rules. The authenticated categories endpoint retains its
 current-user, Live TV permission and standalone channel-visibility checks and
 `private, no-store` response. Provider URLs, credentials, cache paths and stream
 addresses are never returned. Existing limits remain: eight M3U tuners, 16 MiB
@@ -100,6 +101,64 @@ Duplicate/conflicting/incomplete joins fail closed; bounded trailing bytes from
 native non-truncating cache writes are ignored. See [channel search](channel-search.md)
 for the separate sequential 500-record metadata snapshot, 60-second scope/TTL and
 10,000-channel ceiling. Metadata search does not preload programme grids.
+
+### Opt-in Dispatcharr categories without changing HDHomeRun
+
+In the existing admin page's **Native Live TV guide** section, configure the
+independent **Dispatcharr assigned categories** settings. Supply an explicit trusted
+management base URL and a native operator API key; **Save category source** is
+separate from Save settings. Blank key preserves the stored secret; explicit clear
+requires disabling the source. Save/readback and revision checks prevent stale
+form overwrites. The key is never returned to the browser, even in admin settings
+or ordinary plugin configuration. It is stored server-side in
+`DataPath/3picFin/dispatcharr.json` (new/replaced files are owner-read/write only).
+Back up this file securely; main plugin configuration saves do not change it.
+
+Use **Test saved metadata source**, then Retry categories in the guide. The
+management URL is never discovered from playback addresses. Configure HTTPS or a
+trusted internal network; the opt-in trusts that operator-selected server.
+
+The adapter uses only two native read-only JSON GET routes, with `X-API-Key`:
+
+- `api/channels/channels/summary/`: channel `uuid` and effective
+  `channel_group_id` (includes Dispatcharr's group overrides).
+- `api/channels/groups/`: group `id` and `name`.
+
+These installed-source-verified endpoints return arrays. A changed/paginated
+schema is unavailable, not followed; no arbitrary `next` URL, provider, stream,
+output or channel mutation API is used. Unknown fields are discarded server-side.
+The named HTTP transport disables redirects, proxies, cookies and default HTTP
+request logging before adding credentials. Budgets: one active read, two fixed
+GETs, eight seconds overall, 4 MiB aggregate JSON, depth 16, 10,000 channel rows and
+10,000 source group rows. Only 256 user-visible categories/10,000 joined channels
+may reach the client. One metadata-only snapshot is cached for 30 seconds,
+failures for five seconds, keyed by settings revision; no user's response is
+cached. Configuration changes immediately invalidate that source snapshot.
+
+Only configured HDHomeRun hosts' existing bounded native cache inventories are
+read (eight hosts, 16 MiB per source type; M3U keeps its existing independent
+budget). Each `Path` must be an absolute HTTP(S) address with exactly
+`/proxy/ts/stream/{canonical-UUID}`, without userinfo, query, fragment, escaping,
+extra segments or zero UUID. It is identifier data only: it is **never fetched**.
+The join is Dispatcharr UUID → cache external ID → freshly user-authorized native
+internal channel ID. Duplicate UUIDs, IDs, properties, group identities, missing
+source records and inconsistent joins fail closed. Same-name groups keep distinct
+source identities; names, numbers, Tags and programme genres never determine
+membership. Group names and opaque IDs are returned only for visible channels.
+
+The integration never creates/imports/recreates channels, writes native caches,
+Tags or the DB, refreshes the guide, or changes a tuner/lineup. All remains the
+unchanged native catalogue, including ungrouped channels. Metadata duplicates
+cannot manufacture duplicate native items or UI rows. Permission, source revision,
+topology and visibility are rechecked after upstream I/O.
+
+With no usable categories the native select stays disabled under All, with
+visible loading/unavailable/empty feedback and **Retry categories**. A selected
+missing category stays selected and fails closed; choose All or retry, never
+silently widen. The client caches groups for 30 seconds, unavailable data for five
+seconds; Retry invalidates its cache and route/account teardown discards stale
+callbacks. A source failure does not disable All/name-number search. HDHomeRun
+without this configured source still cannot invent absent group metadata.
 
 ## Reproduce without production access
 
@@ -118,7 +177,21 @@ python3 tests/guide-native.browser.py --asset "$FIN_GUIDE_PATCHED_ASSET" \
 python3 tests/guide-native.browser.py --asset "$FIN_GUIDE_PATCHED_ASSET" \
   --continuous --layout tv --output "$TMPDIR/guide-web-tv"
 python3 tests/disposable-guide-categories.py --output "$TMPDIR/guide-runtime"
+python3 tests/guide-category-capability.browser.py --asset "$FIN_GUIDE_PATCHED_ASSET" \
+  --output "$TMPDIR/category-controls"
+python3 tests/disposable-dispatcharr-categories.py --expected-version 1.0.2.7 \
+  --output "$TMPDIR/dispatcharr-runtime"
 ```
+
+The control-only capability probe extracts the actual generated toolbar and JS
+from the transformed asset, with a synthetic surrounding host and API. Add
+`--touch` for a narrow touch-enabled viewport or `--browser webkit` when runnable.
+`--dispatcharr` exercises the new source response contract. `--require-usable`
+intentionally stays RED when a source is unavailable. The disposable runtime
+probe seeds one synthetic HDHR tuner/EPG on a throwaway server, freezes its 594
+native items, and tests real auth, admin, controller, native renderer and retry
+against an authenticated metadata stub. No production tuner or inventory is
+changed. Neither probe replaces real-device acceptance.
 
 `FIN_GUIDE_CHROME` can select an existing browser. `--theme` accepts local captured
 CSS. `--toolbar-only --continuous` is a short tail/functional smoke, **not** full

@@ -131,3 +131,26 @@ test('category source responses cannot commit after account switch; new identity
     response.resolve({Available:true,Source:'jellyfin-m3u-group-title-cache',Items:[]});await flush();
     assert.equal(reads,0);assert.equal(rendered,0);
 });
+
+test('duplicate source membership fails closed before any native channel result can be manufactured',async()=>{
+    let reads=0,errors=0;const id='1'.repeat(32),group='group-'+'a'.repeat(64);
+    const api={getCurrentUserId:()=> 'alice',getUrl:path=>path,
+        getJSON:async()=>({Available:true,Source:'jellyfin-assigned-channel-groups',Items:[{Id:group,Name:'Assigned',ChannelIds:[id,id]}]}),
+        getLiveTvChannels:async()=>{reads++;return {Items:[],TotalRecordCount:0};}};
+    const root={isConnected:true,querySelector:()=>null,setAttribute(){}};
+    const scope=create({element:root,getApi:()=>api,jump(){},limit:50,onError(){errors++;}});
+    scope.setCategory(group);scope.read(api,'getLiveTvChannels',{StartIndex:0,Limit:50},scope.begin()).then(()=>assert.fail('duplicate result rendered'));
+    await flush();assert.equal(errors,1);assert.equal(reads,0);
+});
+
+test('route teardown during a category request cannot commit options or start native channel reads',async()=>{
+    const response=deferred();let reads=0,rendered=0;
+    const api={getCurrentUserId:()=> 'alice',getUrl:path=>path,getJSON:()=>response.promise,
+        getLiveTvChannels:async()=>{reads++;return {Items:[],TotalRecordCount:0};}};
+    const root={isConnected:true,querySelector:()=>null,setAttribute(){}};
+    const scope=create({element:root,getApi:()=>api,jump(){},limit:50,onError(){assert.fail('stale error');}});
+    scope.read(api,'getLiveTvChannels',{StartIndex:0,Limit:50},scope.begin()).then(()=>rendered++);
+    scope.pause();root.isConnected=false;
+    response.resolve({Available:true,Source:'jellyfin-assigned-channel-groups',Items:[]});await flush();
+    assert.equal(reads,0);assert.equal(rendered,0);
+});
