@@ -39,6 +39,9 @@
 .fin-ai-prompts { display:flex; flex-direction:column; gap:8px; text-align:left; }
 .fin-ai .fin-ai-prompt { justify-content:flex-start; padding:12px 16px; min-height:48px; border:1px solid var(--ai-line); border-radius:12px; font-size:14px; text-align:left; }
 .fin-ai-prompt svg { width:18px; height:18px; margin-right:4px; color:var(--ai-muted); }
+.fin-ai-prompt span { min-width:0; overflow-wrap:anywhere; }
+.fin-ai .fin-ai-more-ideas { min-height:44px; margin:12px auto 0; padding:8px 12px; font-size:13px; color:var(--ai-accent); }
+.fin-ai-more-ideas svg { width:16px; height:16px; }
 .fin-ai-message { flex-shrink:0; min-width:0; width:100%; }
 .fin-ai-message:first-child { margin-top:auto; }
 .fin-ai-message--user { align-self:flex-end; width:fit-content; max-width:88%; }

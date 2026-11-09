@@ -470,6 +470,38 @@ public sealed class AssistantTests : IDisposable
     }
 
     private static JsonElement Args(string json) => JsonSerializer.Deserialize<JsonElement>(json);
+
+    [Fact]
+    public async Task StarterContextRespectsPersonalizationAndDoesNotSpendAnAiTurn()
+    {
+        var store = Store;
+        await store.Use(Alice, data => { data.Personalization = false; return Task.FromResult(0); }, default);
+        var result = Assert.IsType<OkObjectResult>(await Controller(store, Alice).Starters(default));
+        var body = JsonSerializer.SerializeToElement(result.Value, AiJson.Options);
+        Assert.Empty(body.GetProperty("seeds").EnumerateArray());
+        await store.Use(Alice, data => { Assert.Equal(0, data.Turns); Assert.Empty(data.Threads); return Task.FromResult(0); }, default);
+        Assert.Equal(403, Assert.IsType<ObjectResult>(await Controller(store, Alice, restricted: true).Starters(default)).StatusCode);
+    }
+
+    [Fact]
+    public async Task ToolBudgetEndsWithAnAnswerInsteadOfDiscardingSuccessfulWork()
+    {
+        var step = 0;
+        using var http = Http(async request =>
+        {
+            var body = JsonSerializer.Deserialize<JsonElement>(await request.Content!.ReadAsStringAsync());
+            if (++step == 10)
+            {
+                Assert.Empty(body.GetProperty("tools").EnumerateArray());
+                return Json("""{"choices":[{"finish_reason":"stop","message":{"content":"Here are the verified results."}}]}""");
+            }
+            return Json("""{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call_STEP","type":"function","function":{"name":"remember_taste","arguments":"{\"preference\":\"Likes comedy\"}"}}]}}]}""".Replace("STEP", step.ToString()));
+        });
+        var engine = new AiConversation(new(http), new(null!, null!, null!, null!), null!, Store);
+        var data = new AiUserData { Personalization = false }; var thread = new AiThread(); data.Threads.Add(thread);
+        await engine.Reply(Alice, data, thread, "Something funny", Options, () => true, default);
+        Assert.Equal(10, step); Assert.Equal("Here are the verified results.", thread.Messages.Last().Text);
+    }
     private static HttpResponseMessage Json(string json, HttpStatusCode code = HttpStatusCode.OK) => new(code) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
     private static HttpClient Http(Func<HttpRequestMessage, Task<HttpResponseMessage>> response) => new(new Handler(response));
     private sealed class Handler(Func<HttpRequestMessage, Task<HttpResponseMessage>> response) : HttpMessageHandler

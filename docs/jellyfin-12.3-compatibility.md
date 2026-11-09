@@ -2,7 +2,7 @@
 
 ## Supported releases and upstream pins
 
-The sole supported stream is stable **Jellyfin 12.3.x**. Home, global navigation, Search and AI chat reject 12.1, other minors, future majors, previews and malformed versions. Existing structural, route, identity and authorization checks remain in place.
+The sole supported stream is stable **Jellyfin 12.3.x**. Home, global navigation and Search reject 12.1, other minors, future majors, previews and malformed versions. Existing structural, route, identity and authorization checks remain in place.
 
 The compatibility review used:
 

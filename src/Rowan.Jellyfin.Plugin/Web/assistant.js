@@ -7,6 +7,51 @@
     const normalize = value => Array.isArray(value) ? value.map(normalize) : value && typeof value === 'object'
         ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k[0].toLowerCase() + k.slice(1), normalize(v)])) : value;
     const hiddenRoute = hash => /(?:^|\/)(?:video(?:player)?|audio(?:player)?|playback|login|selectserver|dashboard[^/?]*|(?:web)?configuration(?:page)?|plugins)(?:[/?&]|$)/i.test(hash || '') || /[?&]context=dashboard/i.test(hash || '');
+    function pageItem(hash) {
+        if (!/^#\/?details\?/i.test(hash || '')) return null;
+        const id = new URLSearchParams(hash.split('?')[1]).get('id');
+        return guid(id) ? id : null;
+    }
+
+    // Local composition: fresh ideas without provider calls, quotas, storage or invented availability.
+    function chooseStarters(context = {}, previous = [], random = Math.random, now = new Date()) {
+        const make = (id, text, icon = 'film') => ({ id, text, icon });
+        const library = [
+            make('short', 'Find an unwatched movie under 90 minutes'), make('comfort', 'Pick a comforting film from my library'),
+            make('twist', 'A clever thriller, without spoilers'), make('laugh', 'Find a comedy that will actually make me laugh'),
+            make('hidden', 'Find a highly rated film I might have overlooked'), make('added', 'What has been added to my library recently?'),
+            make('weekend', now.getDay() % 6 === 0 ? 'Help me plan a weekend double feature' : 'A good film for a weeknight'),
+            make('mood', now.getHours() >= 21 ? 'Something short and relaxing before bed' : 'Something upbeat to watch today'),
+            make('mystery', 'Find a mystery that rewards paying attention'), make('different', 'Surprise me with a genre I rarely choose')
+        ];
+        const discover = [
+            make('trending', 'What movies are trending right now?'), make('new-tv', 'Discover a recent series I could get into', 'tv'),
+            make('upcoming', 'What upcoming movies should I keep an eye on?'), make('new-sf', 'Find recent science-fiction films beyond my library'),
+            make('new-comedy', 'Discover a new comedy series', 'tv'), make('new-doc', 'Find a recent documentary worth watching'),
+            make('new-crime', 'What recent crime dramas are worth discovering?', 'tv')
+        ];
+        const live = [
+            make('on-now', 'What is on live TV right now?', 'tv'), make('tonight', 'Find a film on live TV tonight', 'tv'),
+            make('sports', 'What live sports are coming up?', 'tv'), make('channels', 'Help me explore my live TV channels', 'tv'),
+            make('next-tv', 'Find something interesting on TV this evening', 'tv')
+        ];
+        const personal = [];
+        if (context.personalization === true) for (const seed of (Array.isArray(context.seeds) ? context.seeds : []).slice(0, 12)) {
+            if (typeof seed?.title !== 'string' || !seed.title.trim() || seed.title.length > 120 || /[\u0000-\u001f\u007f]/.test(seed.title)) continue;
+            const quoted = JSON.stringify(seed.title.trim());
+            personal.push(make('like:' + quoted, 'Find something with the same feel as ' + quoted, 'heart'));
+            if (context.sources?.catalogConfigured) personal.push(make('beyond:' + quoted, 'Discover something beyond my library like ' + quoted, 'heart'));
+        }
+        const pick = pool => {
+            const fresh = pool.filter(item => !previous.includes(item.id));
+            const choices = fresh.length ? fresh : pool;
+            return choices[Math.min(choices.length - 1, Math.max(0, Math.floor(random() * choices.length)))];
+        };
+        const first = pick(personal.length ? personal : library);
+        const second = pick(context.sources?.catalogConfigured ? discover : library.filter(p => p.id !== first.id));
+        const third = pick(context.sources?.liveTvAvailable ? live : library.filter(p => ![first.id, second.id].includes(p.id)));
+        return [first, second, third];
+    }
 
     function createAssistant(world) {
         const document = world.document;
@@ -17,6 +62,7 @@
         let nextCheck = 0, checking = false, loggingOut = false, interval;
         let settingsEpoch = 0;
         let markdownReady = null, markdownParser = null;
+        let starterContext = null, ideas = [], ideaEpoch = 0;
         const styles = [];
         function current(s = session) {
             return !stopped && !!s && session === s && world.ApiClient === s.api &&
@@ -45,6 +91,7 @@
                 back: 'M19 12H5 m6-6-6 6 6 6',
                 trash: 'M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13 M10 11v5 M14 11v5',
                 check: 'm5 12 4 4L19 6',
+                refresh: 'M20 7v5h-5 M4 17v-5h5 M6 7a7 7 0 0 1 12-1l2 6 M4 12l2 6a7 7 0 0 0 12-1',
                 film: 'M4 3h16v18H4Z M4 8h16 M4 16h16 M8 3v18 M16 3v18',
                 heart: 'M12 20 4 12a5 5 0 0 1 8-6 5 5 0 0 1 8 6Z',
                 tv: 'M4 7h16v13H4Z m4-4 4 4 4-4'
@@ -128,6 +175,7 @@
             flow?.cleanup?.(); flow?.root.remove(); flow = flowPromise = null;
             root?.remove(); root = null; styles.splice(0).forEach(s => s.remove());
             state = thread = pendingMessage = null; busy = false; opened = false; tab = 'chat';
+            starterContext = null; ideas = []; ++ideaEpoch;
         }
         function endSession() {
             const old = session;
@@ -169,6 +217,22 @@
                 }), 'fin-ai-action');
             }
             renderMemory();
+            if (state.personalization === false && starterContext?.seeds?.length) {
+                starterContext = { ...starterContext, personalization: false, seeds: [] };
+                rotateIdeas(); if (!thread?.messages?.length && !pendingMessage) renderThread();
+            }
+        }
+        function rotateIdeas() {
+            ideas = chooseStarters({ ...starterContext, personalization: state?.personalization === true && starterContext?.personalization === true }, ideas.map(p => p.id));
+        }
+        async function loadIdeas(s = session) {
+            const epoch = ++ideaEpoch, privacy = settingsEpoch, view = viewEpoch;
+            try {
+                const data = await request('Ai/Starters', 'GET', undefined, s);
+                if (!current(s) || !root || epoch !== ideaEpoch || privacy !== settingsEpoch || view !== viewEpoch || thread?.messages?.length || pendingMessage) return;
+                starterContext = data || {};
+                if (!input.value.trim()) { rotateIdeas(); renderThread(); }
+            } catch (_) { /* Local, non-personal prompts remain usable without another service. */ }
         }
         async function refreshState(s = session) {
             const epoch = settingsEpoch;
@@ -182,7 +246,7 @@
             if (typeof server !== 'string' || !server) return false;
             close();
             if (typeof world.Emby?.Page?.showItem === 'function') world.Emby.Page.showItem({
-                Id: card.libraryItemId, Type: card.mediaType === 'tv' ? 'Series' : 'Movie', ServerId: server
+                Id: card.libraryItemId, Type: card.mediaType === 'channel' ? 'LiveTvChannel' : card.mediaType === 'tv' ? 'Series' : 'Movie', ServerId: server
             });
             else world.location.hash = '#/details?id=' + encodeURIComponent(card.libraryItemId) + '&serverId=' + encodeURIComponent(server);
             return true;
@@ -217,7 +281,7 @@
         async function openCard(card, trigger) {
             await perform(async s => {
                 if (guid(card.libraryItemId)) {
-                    const fresh = await request('Ai/Library/' + card.libraryItemId, 'GET', undefined, s);
+                    const fresh = await request((card.mediaType === 'channel' ? 'Ai/Channels/' : 'Ai/Library/') + card.libraryItemId, 'GET', undefined, s);
                     if (!sameGuid(fresh.libraryItemId, card.libraryItemId) || !navigate(fresh)) throw Error('This library item is no longer available.');
                 } else if (['movie', 'tv'].includes(card.mediaType) && Number.isInteger(card.tmdbId) && card.tmdbId > 0) {
                     const fresh = await request('TitleDetails?mediaType=' + card.mediaType + '&mediaId=' + card.tmdbId, 'GET', undefined, s);
@@ -233,7 +297,7 @@
         function renderCard(card, parent, proposal) {
             const article = node('article', undefined, 'fin-ai-card' + (proposal ? ' fin-ai-card--request' : ''), parent);
             const artwork = node('div', undefined, 'fin-ai-poster', article);
-            icon(card.mediaType === 'tv' ? 'tv' : 'film', artwork);
+            icon(['tv', 'channel'].includes(card.mediaType) ? 'tv' : 'film', artwork);
             const art = poster(card.posterPath) ? 'https://image.tmdb.org/t/p/w185' + card.posterPath
                 : guid(card.libraryItemId) ? session.api.getUrl('Items/' + card.libraryItemId + '/Images/Primary', { maxWidth: 160 }) : null;
             if (art) {
@@ -243,9 +307,9 @@
             const info = node('div', undefined, 'fin-ai-card-info', article);
             button(card.title, info, (_, b) => openCard(card, b), 'fin-ai-title fin-ai-action');
             const meta = node('div', undefined, 'fin-ai-meta', info);
-            node('span', card.mediaType === 'tv' ? 'TV series' : 'Movie', '', meta);
+            node('span', card.mediaType === 'channel' ? 'Live TV channel' : card.mediaType === 'tv' ? 'TV series' : 'Movie', '', meta);
             if (card.date) node('span', card.date.slice(0, 4), '', meta);
-            if (!proposal) node('span', guid(card.libraryItemId) ? 'In your library' : 'Discover', 'fin-ai-availability', meta);
+            if (!proposal) node('span', card.mediaType === 'channel' ? 'Live TV' : guid(card.libraryItemId) ? 'In your library' : 'Discover', 'fin-ai-availability', meta);
             if (card.overview) node('p', card.overview, 'fin-ai-overview', info);
             if (!proposal) actionButton(guid(card.libraryItemId) ? 'Open in Jellyfin' : 'Details & request', 'arrow', info, (_, b) => openCard(card, b), 'fin-ai-link fin-ai-action');
             else {
@@ -276,10 +340,14 @@
                 const welcome = node('div', undefined, 'fin-ai-welcome', transcript);
                 icon('chat', node('div', undefined, 'fin-ai-welcome-icon', welcome));
                 node('h3', 'What are we watching?', '', welcome);
-                node('p', 'A mood, a favourite, or something new.\nLet’s find your next watch.', 'fin-ai-muted', welcome);
+                node('p', 'Start with an idea, or tell me your mood.', 'fin-ai-muted', welcome);
                 const prompts = node('div', undefined, 'fin-ai-prompts', welcome);
-                for (const [text, name] of [['Something light under two hours', 'film'], ['A show like my favourites', 'heart'], ['A new series to get into', 'tv']])
+                if (!ideas.length) rotateIdeas();
+                for (const { text, icon: name } of ideas)
                     actionButton(text, name, prompts, () => { input.value = text; resizeInput(); input.focus(); }, 'fin-ai-prompt fin-ai-action');
+                actionButton('Try other ideas', 'refresh', welcome, () => {
+                    rotateIdeas(); renderThread(); root.querySelector('.fin-ai-more-ideas')?.focus();
+                }, 'fin-ai-more-ideas fin-ai-action');
             }
             for (const message of thread?.messages || []) {
                 const entry = renderMessage(message.role === 'user' ? 'user' : 'assistant', message.text);
@@ -371,7 +439,7 @@
             launcher = button('', root, () => {
                 opened = !opened; panel.hidden = !opened; launcher.setAttribute('aria-expanded', String(opened));
                 root.classList.toggle('fin-ai--open', opened);
-                if (opened) { switchTab(tab); refreshState().catch(() => {}); }
+                if (opened) { switchTab(tab); refreshState().then(() => { if (current() && !thread?.messages?.length) loadIdeas(); }).catch(() => {}); }
             }, 'fin-ai-launcher');
             icon('chat', launcher); launcher.title = 'Find something to watch';
             launcher.setAttribute('aria-label', 'Open 3pic Fin assistant'); launcher.setAttribute('aria-expanded', 'false'); launcher.setAttribute('aria-controls', 'fin-ai-panel');
@@ -383,7 +451,7 @@
             iconButton('Conversations', 'history', tools, () => switchTab(tab === 'history' ? 'chat' : 'history'), 'fin-ai-history-toggle');
             iconButton('New conversation', 'plus', tools, () => {
                 if (busy) return;
-                ++viewEpoch; thread = null; input.value = ''; resizeInput(); switchTab('chat'); renderThread(); renderState(); input.focus();
+                ++viewEpoch; thread = null; input.value = ''; resizeInput(); switchTab('chat'); rotateIdeas(); renderThread(); renderState(); input.focus(); loadIdeas();
             }, 'fin-ai-action');
             iconButton('Preferences', 'settings', tools, () => switchTab(tab === 'memory' ? 'chat' : 'memory'), 'fin-ai-memory-toggle');
             iconButton('Close', 'close', tools, () => { close(); launcher.focus(); });
@@ -400,7 +468,7 @@
                 const text = input.value.trim(); if (!text) return;
                 pendingMessage = text; input.value = ''; resizeInput(); renderThread();
                 try {
-                    const result = await request('Ai/Message', 'POST', { threadId: thread?.id || null, text }, s);
+                    const result = await request('Ai/Message', 'POST', { threadId: thread?.id || null, text, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', itemId: pageItem(world.location.hash) }, s);
                     if (!current(s)) return;
                     thread = result;
                 } catch (error) {
@@ -460,6 +528,6 @@
         interval = world.setInterval(sync, 500); sync();
         return { dispose() { stopped = true; endSession(); world.clearInterval(interval); world.removeEventListener('hashchange', sync); world.removeEventListener('popstate', sync); document.removeEventListener('fullscreenchange', sync); world.visualViewport?.removeEventListener('resize', resizeViewport); world.visualViewport?.removeEventListener('scroll', resizeViewport); } };
     }
-    if (typeof module !== 'undefined' && module.exports) module.exports = { createAssistant, guid, sameGuid, poster, normalize, hiddenRoute };
+    if (typeof module !== 'undefined' && module.exports) module.exports = { createAssistant, guid, sameGuid, poster, normalize, hiddenRoute, chooseStarters, pageItem };
     if (global.document) { global.__threePicFinAssistant?.dispose(); global.__threePicFinAssistant = createAssistant(global); }
 })(typeof window !== 'undefined' ? window : globalThis);

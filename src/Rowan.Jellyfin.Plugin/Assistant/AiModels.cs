@@ -39,7 +39,7 @@ public sealed record AiOptions(Uri EndpointUri, [property: System.Text.Json.Seri
 
 public sealed record AiCard(string Key, string Title, string MediaType, int? TmdbId = null,
     Guid? LibraryItemId = null, string? Date = null, string? PosterPath = null, string? Overview = null,
-    int? RuntimeMinutes = null, string[]? Genres = null, bool? Watched = null);
+    int? RuntimeMinutes = null, string[]? Genres = null, bool? Watched = null, double? CommunityRating = null);
 
 public sealed class AiProposal
 {

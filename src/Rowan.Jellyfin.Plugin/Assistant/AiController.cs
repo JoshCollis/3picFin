@@ -15,7 +15,7 @@ using Rowan.Jellyfin.Plugin.Home;
 namespace Rowan.Jellyfin.Plugin.Assistant;
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record AiSend(Guid? ThreadId, string? Text);
+public sealed record AiSend(Guid? ThreadId, string? Text, string? TimeZone = null, Guid? ItemId = null);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record AiConfirm(Guid ThreadId, Guid ProposalId, bool Confirm);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -28,7 +28,7 @@ public sealed record AiMemoryEdit(Guid? Id, string? Text);
 [Route("3picFin/Ai")]
 [RequestSizeLimit(16384)]
 public sealed class AiController(AiStore store, AiConversation conversation, AiRequestConfirmation confirmation, AiClient client, IUserManager users, AiLibrary library,
-    Func<PluginConfiguration?>? configuration = null) : ControllerBase
+    Func<PluginConfiguration?>? configuration = null, AiLiveTv? liveTv = null, AiTools? tools = null) : ControllerBase
 {
     private PluginConfiguration? Configuration => configuration?.Invoke() ?? Plugin.Current?.Configuration;
     private bool Allowed(Guid id) => AiOptions.From(Configuration) is not null && AiLibrary.Allowed(users.GetUserById(id));
@@ -64,6 +64,19 @@ public sealed class AiController(AiStore store, AiConversation conversation, AiR
         RetentionDays = 30
     }), token).ConfigureAwait(false));
 
+    [HttpGet("Starters")]
+    public Task<IActionResult> Starters(CancellationToken token) => Run(async user => await store.Use<object>(user, data =>
+    {
+        token.ThrowIfCancellationRequested();
+        var activity = data.Personalization ? library.Personalize(user) : new AiViewingContext([], [], []);
+        return Task.FromResult<object>(new
+        {
+            data.Personalization, sources = tools?.Context(user),
+            seeds = activity.Favorites.Take(4).Concat(activity.Recent.Take(4)).Concat(activity.InProgress.Take(4).Select(p => p.Title)).DistinctBy(c => c.Key)
+                .Select(c => new { title = AiJson.Clip(c.Title, 120), c.MediaType, c.Genres }).ToArray()
+        });
+    }, token).ConfigureAwait(false));
+
     [HttpGet("Threads/{id:guid}")]
     public Task<IActionResult> Thread(Guid id, CancellationToken token) => Run(async user => await store.Use<object>(user,
         data => Task.FromResult<object>(Find(data, id)), token).ConfigureAwait(false));
@@ -73,16 +86,24 @@ public sealed class AiController(AiStore store, AiConversation conversation, AiR
     {
         var text = body.Text?.Trim();
         if (string.IsNullOrWhiteSpace(text) || text.Length > 2000) throw new AiException("Enter a message of 1–2000 characters.", 400);
+        TimeZoneInfo zone;
+        try { zone = body.TimeZone is null ? TimeZoneInfo.Utc : body.TimeZone.Length <= 100 ? TimeZoneInfo.FindSystemTimeZoneById(body.TimeZone) : throw new TimeZoneNotFoundException(); }
+        catch (Exception e) when (e is TimeZoneNotFoundException or InvalidTimeZoneException) { throw new AiException("Provide a valid time zone.", 400); }
         return await store.Use<object>(user, async data =>
         {
+            var pageTitle = body.ItemId is { } itemId && itemId != Guid.Empty ? library.Get(user, itemId) ??
+                (liveTv?.IsAvailable(user) == true ? liveTv.GetChannel(user, itemId) : null) : null;
             var thread = body.ThreadId is { } id ? Find(data, id) : new AiThread();
             if (body.ThreadId is null) data.Threads.Add(thread);
-            return await conversation.Reply(user, data, thread, text, CurrentOptions(), () => Allowed(user), token).ConfigureAwait(false);
+            return await conversation.Reply(user, data, thread, text, CurrentOptions(), () => Allowed(user), token, zone, pageTitle).ConfigureAwait(false);
         }, token).ConfigureAwait(false);
     });
 
     [HttpGet("Library/{id:guid}")]
     public Task<IActionResult> Library(Guid id) => Run(user => Task.FromResult<object>(library.Get(user, id) ?? throw new AiException("Library item is no longer visible.", 404)));
+
+    [HttpGet("Channels/{id:guid}")]
+    public Task<IActionResult> Channel(Guid id) => Run(user => Task.FromResult<object>(liveTv?.GetChannel(user, id) ?? throw new AiException("Channel is no longer visible.", 404)));
 
     [HttpPost("Confirm")]
     public Task<IActionResult> Confirm([FromBody] AiConfirm body, CancellationToken token) => Run(async user => await store.Use<object>(user, async data =>

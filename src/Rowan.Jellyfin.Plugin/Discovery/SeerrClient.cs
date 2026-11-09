@@ -73,6 +73,37 @@ public sealed class SeerrClient
     private readonly Func<bool> _fourKEnabled;
     private static readonly SemaphoreSlim[] WriteSlots = System.Linq.Enumerable.Range(0, 64).Select(_ => new SemaphoreSlim(1, 1)).ToArray();
 
+    public bool IsConfigured => _options is not null;
+
+    /// <summary>Fixed recommendation routes, always rebound to the signed-in Jellyfin account.</summary>
+    public Task<SeerrResult> GetRelatedTitlesAsync(Guid userId, string type, int tmdbId, string mode, int page, CancellationToken token)
+    {
+        if (type is not ("movie" or "tv") || tmdbId is < 1 or > 100_000_000 || mode is not ("recommendations" or "similar") || page is < 1 or > 100)
+            throw new ArgumentException("Invalid related-title selection.");
+        return GetMappedReadAsync(userId, _ => $"api/v1/{type}/{tmdbId.ToString(CultureInfo.InvariantCulture)}/{mode}?page={page}", token);
+    }
+
+    /// <summary>Own request records only, even if upstream erroneously returns a broader list.</summary>
+    public async Task<SeerrResult> GetOwnRequestsAsync(Guid userId, int page, CancellationToken token)
+    {
+        if (page is < 1 or > 100) throw new ArgumentOutOfRangeException(nameof(page));
+        int mapped = 0;
+        var result = await GetMappedReadAsync(userId, id =>
+        {
+            mapped = id;
+            return $"api/v1/request?take=20&skip={(page - 1) * 20}&requestedBy={id.ToString(CultureInfo.InvariantCulture)}";
+        }, token).ConfigureAwait(false);
+        if (!result.IsSuccess) return result;
+        var root = result.Value!.Value;
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("results", out var rows) || rows.ValueKind != JsonValueKind.Array || rows.GetArrayLength() > 20)
+            return SeerrResult.Fail(SeerrFailure.UpstreamUnavailable);
+        foreach (var row in rows.EnumerateArray())
+            if (row.ValueKind != JsonValueKind.Object || !row.TryGetProperty("requestedBy", out var owner) || owner.ValueKind != JsonValueKind.Object ||
+                !owner.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.Number || !id.TryGetInt32(out var actual) || actual != mapped)
+                return SeerrResult.Fail(SeerrFailure.InvalidMapping);
+        return result;
+    }
+
     public SeerrClient(HttpClient http, SeerrOptions? options, TimeSpan? timeout = null, SeerrReadCache? readCache = null, Func<bool>? fourKEnabled = null)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
@@ -145,7 +176,20 @@ public sealed class SeerrClient
             var eligibility = RequestEligibility.Evaluate(root, type);
             var normal = eligibility.Normal && (permissions & (2 | 32 | (type == "movie" ? 262144 : 524288))) != 0;
             var fourK = _fourKEnabled() && eligibility.FourK && (permissions & (2 | 1024 | (type == "movie" ? 2048 : 4096))) != 0;
-            return new(new(title, Text(root, "overview", MaxResponseBytes), poster, type, mediaId, status, null, normal, fourK, seasons.ToArray(), date), hint, null);
+            int? runtime = root.TryGetProperty("runtime", out var minutes) && minutes.ValueKind == JsonValueKind.Number && minutes.TryGetInt32(out var length) && length is > 0 and <= 10000 ? length : null;
+            if (type == "tv" && root.TryGetProperty("episodeRunTime", out var runtimes) && runtimes.ValueKind == JsonValueKind.Array)
+                runtime = runtimes.EnumerateArray().Where(r => r.ValueKind == JsonValueKind.Number && r.TryGetInt32(out var n) && n is > 0 and <= 10000)
+                    .Select(r => (int?)r.GetInt32()).FirstOrDefault();
+            var genres = root.TryGetProperty("genres", out var genreRows) && genreRows.ValueKind == JsonValueKind.Array
+                ? genreRows.EnumerateArray().Where(g => g.ValueKind == JsonValueKind.Object).Take(8).Select(g => Text(g, "name", 80)).Where(g => !string.IsNullOrWhiteSpace(g)).Select(g => g!).ToArray() : [];
+            double? rating = root.TryGetProperty("voteAverage", out var score) && score.ValueKind == JsonValueKind.Number && score.TryGetDouble(out var scoreValue) && scoreValue is >= 0 and <= 10 ? scoreValue : null;
+            return new(new(title, Text(root, "overview", MaxResponseBytes), poster, type, mediaId, status, null, normal, fourK, seasons.ToArray(), date)
+                { RuntimeMinutes = runtime, Genres = genres, CommunityRating = rating }, hint, null)
+            {
+                RequestOptions = mapping.CsrfEnabled || detail.CsrfEnabled ? new(null, SeerrFailure.CsrfUnsupported) :
+                    new(new(normal, fourK, eligibility.Status, eligibility.Status4k, normal ? eligibility.Seasons : [])
+                        { Seasons4k = fourK ? eligibility.Seasons4k : [] }, null)
+            };
         }
         catch (OperationCanceledException) when (!callerToken.IsCancellationRequested) { return new(null, null, SeerrFailure.UpstreamUnavailable); }
         catch (HttpRequestException) { return new(null, null, SeerrFailure.UpstreamUnavailable); }

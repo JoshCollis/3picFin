@@ -66,9 +66,16 @@ try:
             screenshot(page, f'welcome-{width}.png')
             box = page.get_by_role('textbox', name='Message the assistant')
             assert page.locator('.fin-ai-tools button').evaluate_all('(buttons)=>buttons.every(b=>b.getAttribute("aria-label") && b.clientWidth>=40 && b.clientHeight>=40)')
-            page.get_by_role('button', name='A show like my favourites', exact=True).click()
-            expect(box).to_have_value('A show like my favourites')
+            page.wait_for_function('Array.from(document.querySelectorAll(".fin-ai-prompt")).some(p=>p.textContent.includes("Arrival"))')
+            ideas = page.locator('.fin-ai-prompt').all_text_contents()
+            page.get_by_role('button', name='Try other ideas', exact=True).click()
+            assert page.locator('.fin-ai-prompt').all_text_contents() != ideas
+            expect(page.get_by_role('button', name='Try other ideas', exact=True)).to_be_focused()
+            selected_idea = page.locator('.fin-ai-prompt').first.inner_text()
+            page.locator('.fin-ai-prompt').first.click()
+            expect(box).to_have_value(selected_idea)
             expect(box).to_be_focused()
+            assert page.evaluate('fixture.states.get(fixture.user).turnsToday') == 0
             box.fill('A line of text\n' * 12)
             assert box.evaluate('(e)=>e.clientHeight<=120 && e.scrollHeight>e.clientHeight')
             box.fill('   ')
@@ -263,6 +270,23 @@ Try **Arrival**, *a thoughtful film*, or ~~skip spoilers~~. Use `inline code`.
             expect(page.locator('.fin-ai-history')).to_contain_text('Your conversations will appear here')
             # Guard against poll-driven remounts and late responses across account switches.
             page.get_by_role('button', name='Back to chat').click()
+            # Channel cards use the native channel identity and revalidate access before navigation.
+            page.get_by_role('button', name='New conversation', exact=True).click()
+            page.wait_for_function('!Array.from(document.querySelectorAll(".fin-ai-prompt")).some(p=>p.textContent.includes("Arrival"))')
+            page.evaluate('fixture.channelReply=true;fixture.channelDenied=true')
+            box.fill('What is on BBC One?')
+            page.get_by_role('button', name='Send', exact=True).click()
+            expect(page.get_by_role('button', name='BBC One', exact=True)).to_be_visible()
+            page.get_by_role('button', name='Open in Jellyfin', exact=True).click()
+            expect(page.locator('.fin-ai-status')).to_contain_text('Channel is no longer visible')
+            expect(page.locator('.fin-ai-panel')).to_be_visible()
+            page.evaluate('fixture.channelDenied=false')
+            page.get_by_role('button', name='Open in Jellyfin', exact=True).click()
+            expect(page.locator('.fin-ai-panel')).to_be_hidden()
+            assert page.evaluate('fixture.opened.Type') == 'LiveTvChannel'
+            assert page.evaluate('fixture.channelReads') == 2
+            page.evaluate('fixture.channelReply=false')
+            page.get_by_role('button', name='Open 3pic Fin assistant').click()
             page.evaluate("window.oldNewButton=document.querySelector('[aria-label=\"New conversation\"]')")
             page.get_by_role('button', name='New conversation', exact=True).click()
             page.evaluate('fixture.holdNext=true')

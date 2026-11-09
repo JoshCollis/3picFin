@@ -17,6 +17,7 @@ public sealed class AiServiceRegistrator : IPluginServiceRegistrator
         services.AddHostedService<AiRetention>();
         services.AddTransient(p => new AiClient(p.GetRequiredService<IHttpClientFactory>().CreateClient("3picFin.Ai")));
         services.AddTransient<AiLibrary>();
+        services.AddTransient<AiLiveTv>();
         services.AddTransient<AiTools>();
         services.AddTransient<AiConversation>();
         services.AddTransient<AiRequestConfirmation>();

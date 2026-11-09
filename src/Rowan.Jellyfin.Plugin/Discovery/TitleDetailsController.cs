@@ -30,8 +30,17 @@ public sealed record TitleDetails(
     [property: JsonPropertyName("CanRequest4k")] bool CanRequest4k,
     [property: JsonPropertyName("Seasons")] int[] Seasons,
     [property: JsonPropertyName("Date")] string? Date = null,
-    [property: JsonPropertyName("LibraryStatus")] string LibraryStatus = "unknown");
-public sealed record TitleDetailResult(TitleDetails? Value, Guid? JellyfinHint, SeerrFailure? Failure);
+    [property: JsonPropertyName("LibraryStatus")] string LibraryStatus = "unknown")
+{
+    public int? RuntimeMinutes { get; init; }
+    public string[] Genres { get; init; } = [];
+    public double? CommunityRating { get; init; }
+}
+public sealed record TitleDetailResult(TitleDetails? Value, Guid? JellyfinHint, SeerrFailure? Failure)
+{
+    // Same fresh mapped detail read; not part of the public title-details DTO.
+    public RequestOptionsResult? RequestOptions { get; init; }
+}
 public sealed record TitleLibraryCandidate(Guid Id, string Type, string? TmdbId, bool Visible, Guid RootId = default);
 
 public sealed record TitleLibraryResolution(Guid? ItemId, string Status);

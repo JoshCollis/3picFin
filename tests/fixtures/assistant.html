@@ -8,6 +8,7 @@ const ALICE='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', BOB='bbbbbbbbbbbbbbbbbbbbbbbbbbb
 const LOCAL='cccccccccccccccccccccccccccccccc', THREAD='dddddddddddddddddddddddddddddddd', PROPOSAL='eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 const localCard={key:'library:'+LOCAL,title:'Arrival',mediaType:'movie',tmdbId:329865,libraryItemId:LOCAL,date:'2016-11-11',overview:'A linguist tries to understand visitors whose language changes everything. A thoughtful, human science-fiction film.'};
 const remoteCard={key:'tv:95396',title:'Severance',mediaType:'tv',tmdbId:95396,date:'2022-02-18',posterPath:'/fixture.jpg',overview:'A sharply unsettling workplace mystery. Request only the seasons you want; no spoilers here.'};
+const channelCard={key:'channel:11111111111111111111111111111111',title:'BBC One',mediaType:'channel',libraryItemId:'11111111111111111111111111111111',overview:'Live TV channel 101'};
 function data(user){if(!fixture.states.has(user))fixture.states.set(user,{threads:[],memory:[],personalization:true,learnMemory:true,dailyLimit:50,turnsToday:0});return fixture.states.get(user);}
 function url(path,query){if(path.startsWith('3picFin/Web/'))return '/src/Rowan.Jellyfin.Plugin/Web/'+path.split('/').pop();if(path.startsWith('Items/'))return '/tests/fixtures/assistant-poster.svg';return '/jellyfin/'+path+(query?'?'+new URLSearchParams(query):'');}
 window.ApiClient={getCurrentUserId:()=>fixture.user,accessToken:()=>fixture.user?'fixture-'+fixture.user:null,serverId:()=> 'fixture-server',getUrl:url,
@@ -23,14 +24,17 @@ const auth=/^MediaBrowser Token="fixture-([a-f0-9]{32})"$/.exec(options.headers?
 if(!auth)return json({error:'Modern authorization required'},401);
 const user=auth[1];const state=data(user);const body=options.body?JSON.parse(options.body):null;
 if(endpoint.endsWith('/Ai/State')){if(fixture.failState)return json({error:'State unavailable'},503);const response=json({...state,threads:state.threads.map(({id,title})=>({id,title}))});if(fixture.holdNextState){fixture.holdNextState=false;return new Promise(resolve=>fixture.releaseState=()=>resolve(response));}return response;}
+if(endpoint.endsWith('/Ai/Starters'))return json({personalization:state.personalization,sources:{catalogConfigured:true,liveTvAvailable:true},seeds:state.personalization?[{title:user===ALICE?'Arrival':'Bob favourite',mediaType:'movie'}]:[]});
 if(endpoint.endsWith('/Ai/Message')){
- if(fixture.failMessage)return json({error:'Could not reach the assistant. Try again.'},503);
+  if(fixture.failMessage)return json({error:'Could not reach the assistant. Try again.'},503);
+  if(fixture.channelReply){const reply={id:THREAD,title:body.text,messages:[{role:'user',text:body.text},{role:'assistant',text:'On channel 101.',cards:[channelCard]}]};state.threads=[reply];return json(reply);}
  const reply={id:THREAD,title:body.text,messages:[{role:'user',text:body.text},{role:'assistant',text:'Start with Arrival if you want something thoughtful tonight. For a longer watch, Severance is a new option. Confirm the selected seasons below if you want to request them.',cards:[localCard,remoteCard],proposals:[{id:PROPOSAL,card:remoteCard,selection:{mediaType:'tv',mediaId:95396,seasons:[2,3],is4k:false},state:'pending',expiresAt:new Date(Date.now()+600000).toISOString()}]}]};
  state.threads=[reply];state.turnsToday++;if(fixture.delayMessage){fixture.delayMessage=false;return new Promise(resolve=>fixture.releaseMessage=()=>resolve(json(reply)));}if(fixture.holdNext){fixture.holdNext=false;return new Promise(resolve=>fixture.release=()=>resolve(json({...reply,messages:[{role:'assistant',text:'Alice private delayed reply'}]})));}return json(reply);
 }
 if(endpoint.endsWith('/Ai/Confirm')){fixture.posts.push({user,...body});const thread=state.threads.find(t=>t.id===body.threadId);const p=thread.messages.flatMap(m=>m.proposals||[]).find(p=>p.id===body.proposalId);p.state=body.confirm?'submitted':'cancelled';p.result=body.confirm?'Request recorded in Seerr.':'Cancelled. No request submitted.';return json(thread);}
 if(endpoint.includes('/Ai/Threads/')){if(options.method==='DELETE'){state.threads=[];return json({deleted:true});}return json(state.threads.find(t=>t.id===endpoint.split('/').pop())||{},state.threads.length?200:404);}
 if(endpoint.includes('/Ai/Library/'))return json(localCard);
+if(endpoint.includes('/Ai/Channels/')){fixture.channelReads=(fixture.channelReads||0)+1;return fixture.channelDenied?json({error:'Channel is no longer visible.'},403):json(channelCard);}
 if(endpoint.endsWith('/Ai/Settings')){fixture.lastSettings=body;if(fixture.failSettings)return json({error:'Settings unavailable'},503);Object.assign(state,body);if(fixture.loseSettingsResponse)return json({error:'Response lost'},503);return json({personalization:state.personalization,learnMemory:state.learnMemory});}
 if(endpoint.endsWith('/Ai/Memory')){state.memory=[{id:'ffffffffffffffffffffffffffffffff',text:body.text}];return json(state.memory);}
 if(endpoint.includes('/Ai/Memory/')){state.memory=[];return json({deleted:true});}
