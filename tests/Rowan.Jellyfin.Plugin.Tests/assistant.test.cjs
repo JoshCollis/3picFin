@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { guid, sameGuid, poster, normalize, hiddenRoute, chooseStarters, pageItem } = require('../../src/Rowan.Jellyfin.Plugin/Web/assistant.js');
+const { guid, sameGuid, poster, normalize, hiddenRoute, chooseStarters, pageItem, playbackControlsVisible } = require('../../src/Rowan.Jellyfin.Plugin/Web/assistant.js');
 
 test('assistant accepts only real GUID-shaped item identities and safe TMDb artwork', () => {
     assert.ok(sameGuid('AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'));
@@ -36,8 +36,30 @@ test('starters handle missing and malformed context, quoted titles and local tim
     assert.equal(chooseStarters({ personalization: true, seeds: 'bad' }).length, 3);
 });
 test('assistant stays off playback, login and dashboard/configuration screens', () => {
-    for (const route of ['#/video', '#/videoplayer?id=x', '#/login', '#/dashboard', '#/dashboardgeneral', '#/webconfigurationpage?name=3pic', '#/plugins']) assert.ok(hiddenRoute(route), route);
+    for (const route of ['#/video', '#/videoplayer?id=x', '#/audio', '#/audioplayer', '#/queue', '#/queue?shuffle=true', '#/login', '#/dashboard', '#/dashboardgeneral', '#/webconfigurationpage?name=3pic', '#/plugins']) assert.ok(hiddenRoute(route), route);
     for (const route of ['#/home', '#/home?fin=1', '#/search?query=video', '#/details?id=abc', '#/movies']) assert.equal(hiddenRoute(route), false, route);
+});
+test('only rendered native playback controls suppress chat, including paused music and track changes', () => {
+    let bars = [];
+    const world = { document: { querySelectorAll(selector) {
+        assert.equal(selector, '.appfooter .nowPlayingBar'); return bars;
+    } }, getComputedStyle: bar => bar.style };
+    const bar = { classList: { contains: name => classes.includes(name) }, hidden: false,
+        getClientRects: () => rendered ? [{}] : [], style: { visibility: 'visible', display: 'block' } };
+    let classes = [], rendered = true;
+    assert.equal(playbackControlsVisible(world), false, 'audio search results and dormant audio elements are not a player');
+    bars = [bar];
+    for (const state of ['playing', 'paused', 'next audio track'])
+        assert.equal(playbackControlsVisible(world), true, state);
+    for (const name of ['hide', 'nowPlayingBar-hidden']) {
+        classes = [name]; assert.equal(playbackControlsVisible(world), false, name);
+    }
+    classes = []; bar.hidden = true; assert.equal(playbackControlsVisible(world), false);
+    bar.hidden = false; rendered = false; assert.equal(playbackControlsVisible(world), false, 'hidden ancestor');
+    rendered = true; bar.style.visibility = 'hidden'; assert.equal(playbackControlsVisible(world), false);
+    bar.style.visibility = 'collapse'; assert.equal(playbackControlsVisible(world), false);
+    bar.style.visibility = 'visible'; bar.style.display = 'none'; assert.equal(playbackControlsVisible(world), false);
+    bars = []; assert.equal(playbackControlsVisible(world), false, 'dismissed');
 });
 test('chat DTOs tolerate native PascalCase and camelCase recursively without interpreting text', () => {
     assert.deepEqual(normalize({ Threads: [{ Id: 'abc', Messages: [{ Text: '<img src=x onerror=alert(1)>' }] }] }),

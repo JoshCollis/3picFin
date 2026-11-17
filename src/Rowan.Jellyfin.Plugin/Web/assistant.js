@@ -6,7 +6,16 @@
     const poster = value => typeof value === 'string' && /^\/[a-zA-Z0-9_/-]+\.(?:jpg|jpeg|png|webp)$/.test(value) && !value.includes('..');
     const normalize = value => Array.isArray(value) ? value.map(normalize) : value && typeof value === 'object'
         ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k[0].toLowerCase() + k.slice(1), normalize(v)])) : value;
-    const hiddenRoute = hash => /(?:^|\/)(?:video(?:player)?|audio(?:player)?|playback|login|selectserver|dashboard[^/?]*|(?:web)?configuration(?:page)?|plugins)(?:[/?&]|$)/i.test(hash || '') || /[?&]context=dashboard/i.test(hash || '');
+    const hiddenRoute = hash => /(?:^|\/)(?:video(?:player)?|audio(?:player)?|queue|playback|login|selectserver|dashboard[^/?]*|(?:web)?configuration(?:page)?|plugins)(?:[/?&]|$)/i.test(hash || '') || /[?&]context=dashboard/i.test(hash || '');
+    function playbackControlsVisible(world) {
+        // Jellyfin-web 12.3 keeps this native footer through pause and audio track changes.
+        // Do not infer playback from library metadata or the player's dormant <audio> element.
+        return [...world.document.querySelectorAll('.appfooter .nowPlayingBar')].some(bar => {
+            if (bar.hidden || bar.classList.contains('hide') || bar.classList.contains('nowPlayingBar-hidden') || !bar.getClientRects().length) return false;
+            const style = world.getComputedStyle(bar);
+            return style.display !== 'none' && style.visibility === 'visible';
+        });
+    }
     function pageItem(hash) {
         if (!/^#\/?details\?/i.test(hash || '')) return null;
         const id = new URLSearchParams(hash.split('?')[1]).get('id');
@@ -63,7 +72,26 @@
         let settingsEpoch = 0;
         let markdownReady = null, markdownParser = null;
         let starterContext = null, ideas = [], ideaEpoch = 0;
+        let footer = null;
+        const playbackObserver = world.MutationObserver ? new world.MutationObserver(records => {
+            if (records.some(r => r.target === footer || r.target.classList?.contains('nowPlayingBar'))) updateVisibility();
+        }) : null;
         const styles = [];
+        function updateVisibility() {
+            if (!root) return;
+            const nextFooter = document.querySelector('.appfooter');
+            if (footer !== nextFooter) {
+                playbackObserver?.disconnect(); footer = nextFooter;
+                if (footer) playbackObserver?.observe(footer, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'style'] });
+            }
+            const hidden = hiddenRoute(world.location.hash) || !!document.fullscreenElement || playbackControlsVisible(world);
+            if (hidden && !root.hidden) {
+                if (root.contains(document.activeElement) || flow?.root.contains(document.activeElement)) document.activeElement?.blur?.();
+                ++viewEpoch; close();
+                flow?.cleanup?.(); flow?.root.remove(); flow = flowPromise = null;
+            }
+            root.hidden = hidden;
+        }
         function current(s = session) {
             return !stopped && !!s && session === s && world.ApiClient === s.api &&
                 s.api.getCurrentUserId?.() === s.user && s.api.accessToken?.() === s.token;
@@ -172,6 +200,7 @@
         function close() { opened = false; if (panel) panel.hidden = true; root?.classList.remove('fin-ai--open'); launcher?.setAttribute('aria-expanded', 'false'); }
         function destroy() {
             ++viewEpoch; close();
+            playbackObserver?.disconnect(); footer = null;
             flow?.cleanup?.(); flow?.root.remove(); flow = flowPromise = null;
             root?.remove(); root = null; styles.splice(0).forEach(s => s.remove());
             state = thread = pendingMessage = null; busy = false; opened = false; tab = 'chat';
@@ -252,6 +281,7 @@
             return true;
         }
         async function loadFlow(s) {
+            if (!root || root.hidden) return null;
             const epoch = viewEpoch;
             if (flow) return flow;
             if (!flowPromise) flowPromise = (async () => {
@@ -262,13 +292,13 @@
                 const response = await world.fetch(s.api.getUrl('3picFin/Web/discovery.html'), { signal: s.abort.signal });
                 if (!response.ok) throw Error('Title details unavailable.');
                 const html = await response.text();
-                if (!current(s) || !root || epoch !== viewEpoch) return null;
+                if (!current(s) || !root || root.hidden || epoch !== viewEpoch) return null;
                 style('discovery.css');
                 const fragment = node('div', undefined, 'fin-ai-flow');
                 fragment.innerHTML = html; // Trusted, embedded plugin fragment only; never model/user content.
                 document.body.appendChild(fragment);
                 const cleanup = world.ThreePicFinDiscovery.mount(fragment, s.api, {
-                    deferInitialLoad: true, userId: s.user, isCurrent: () => current(s),
+                    deferInitialLoad: true, userId: s.user, isCurrent: () => current(s) && !!root && !root.hidden,
                     openItem: async ({ mediaType, mediaId, libraryItemId }) => {
                         const fresh = await request('TitleDetails?mediaType=' + mediaType + '&mediaId=' + mediaId, 'GET', undefined, s);
                         return current(s) && sameGuid(fresh.libraryItemId, libraryItemId) && fresh.tmdbId === mediaId && fresh.mediaType === mediaType && navigate(fresh);
@@ -289,7 +319,7 @@
                     if (guid(fresh.libraryItemId)) { if (!navigate(fresh)) throw Error('Cannot open this library item.'); }
                     else {
                         const controller = await loadFlow(s);
-                        if (current(s)) controller?.cleanup.openDetails(card, trigger);
+                        if (current(s) && root && !root.hidden) controller?.cleanup.openDetails(card, trigger);
                     }
                 }
             });
@@ -505,7 +535,7 @@
                     api.logout = logoutWrapper;
                 }
             }
-            if (root) root.hidden = hiddenRoute(world.location.hash) || !!document.fullscreenElement;
+            updateVisibility();
             if (checking || Date.now() < nextCheck || busy) return;
             const s = session, epoch = settingsEpoch; checking = true; nextCheck = Date.now() + 30_000;
             try {
@@ -517,7 +547,7 @@
                 try { await loadMarkdown(s); } catch (_) { /* Plain text remains usable if a dependency fails. */ }
                 if (!current(s)) return;
                 if (!root) build();
-                root.hidden = hiddenRoute(world.location.hash) || !!document.fullscreenElement;
+                updateVisibility();
             } catch (error) { if (current(s) && [401, 403, 404].includes(error.status)) destroy(); }
             finally { checking = false; }
         }
@@ -528,6 +558,6 @@
         interval = world.setInterval(sync, 500); sync();
         return { dispose() { stopped = true; endSession(); world.clearInterval(interval); world.removeEventListener('hashchange', sync); world.removeEventListener('popstate', sync); document.removeEventListener('fullscreenchange', sync); world.visualViewport?.removeEventListener('resize', resizeViewport); world.visualViewport?.removeEventListener('scroll', resizeViewport); } };
     }
-    if (typeof module !== 'undefined' && module.exports) module.exports = { createAssistant, guid, sameGuid, poster, normalize, hiddenRoute, chooseStarters, pageItem };
+    if (typeof module !== 'undefined' && module.exports) module.exports = { createAssistant, guid, sameGuid, poster, normalize, hiddenRoute, chooseStarters, pageItem, playbackControlsVisible };
     if (global.document) { global.__threePicFinAssistant?.dispose(); global.__threePicFinAssistant = createAssistant(global); }
 })(typeof window !== 'undefined' ? window : globalThis);

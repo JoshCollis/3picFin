@@ -46,3 +46,4 @@ jobs:
           "$RUNNER_TEMP/fin-browser-tools/bin/python" tests/Rowan.Jellyfin.Plugin.Tests/cached-home.browser.py
           "$RUNNER_TEMP/fin-browser-tools/bin/python" tests/Rowan.Jellyfin.Plugin.Tests/modal-dismissal.browser.py
           "$RUNNER_TEMP/fin-browser-tools/bin/python" tests/Rowan.Jellyfin.Plugin.Tests/assistant.browser.py
+          "$RUNNER_TEMP/fin-browser-tools/bin/python" tests/Rowan.Jellyfin.Plugin.Tests/assistant-playback.browser.py
